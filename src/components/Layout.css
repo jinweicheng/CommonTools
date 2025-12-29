@@ -2,70 +2,116 @@
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
 .header {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
-  padding: 1rem 2rem;
-  position: sticky;
-  top: 0;
-  z-index: 100;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 1.5rem 0;
 }
 
 .header-content {
-  width: 100%;
+  max-width: 1400px;
   margin: 0 auto;
   padding: 0 40px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
 }
 
 .logo {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  text-decoration: none;
+  gap: 0.75rem;
+  font-size: 1.75rem;
+  font-weight: 700;
   color: #667eea;
-  font-size: 1.5rem;
-  font-weight: bold;
+  margin: 0 0 0.5rem 0;
 }
 
-.logo-icon {
-  width: 32px;
-  height: 32px;
+.tagline {
+  margin: 0;
+  color: #666;
+  font-size: 0.95rem;
 }
 
-.nav {
+.navigation {
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.nav-content {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 40px;
   display: flex;
-  gap: 2rem;
+  gap: 0.5rem;
+  overflow-x: auto;
 }
 
-.nav-link {
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem 1.5rem;
+  color: #666;
   text-decoration: none;
-  color: #333;
   font-weight: 500;
-  padding: 0.5rem 1rem;
-  border-radius: 8px;
   transition: all 0.3s ease;
+  border-bottom: 3px solid transparent;
+  white-space: nowrap;
 }
 
-.nav-link:hover {
-  background: #f0f0f0;
+.nav-item:hover {
   color: #667eea;
+  background: rgba(102, 126, 234, 0.05);
 }
 
-.nav-link.active {
-  background: #667eea;
-  color: white;
+.nav-item.active {
+  color: #667eea;
+  border-bottom-color: #667eea;
+  background: rgba(102, 126, 234, 0.1);
 }
 
 .main-content {
   flex: 1;
+  max-width: 1400px;
   width: 100%;
   margin: 0 auto;
   padding: 2rem 40px;
 }
 
+.footer {
+  background: rgba(255, 255, 255, 0.95);
+  padding: 1.5rem 0;
+  text-align: center;
+  color: #666;
+  font-size: 0.9rem;
+  margin-top: 2rem;
+}
+
+.footer p {
+  margin: 0;
+}
+
+@media (max-width: 768px) {
+  .header-content,
+  .nav-content,
+  .main-content {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  
+  .logo {
+    font-size: 1.5rem;
+  }
+  
+  .nav-item {
+    padding: 0.75rem 1rem;
+  }
+  
+  .nav-item span {
+    font-size: 0.9rem;
+  }
+}

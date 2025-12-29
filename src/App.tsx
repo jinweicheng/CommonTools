@@ -1,7 +1,11 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import Layout from './components/Layout'
-import Home from './pages/Home'
-import PDFTools from './pages/PDFTools'
+import EncryptionPage from './pages/EncryptionPage'
+import ConversionPage from './pages/ConversionPage'
+import WatermarkPage from './pages/WatermarkPage'
+import SignaturePage from './pages/SignaturePage'
+import PasswordManagerPage from './pages/PasswordManagerPage'
+import CompressionPage from './pages/CompressionPage'
 import './App.css'
 
 function App() {
@@ -9,8 +13,26 @@ function App() {
     <Router>
       <Layout>
         <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/pdf-tools" element={<PDFTools />} />
+          {/* 默认首页：加密文件 */}
+          <Route path="/" element={<EncryptionPage />} />
+          
+          {/* 格式转化 */}
+          <Route path="/conversion" element={<ConversionPage />} />
+          
+          {/* 加水印 */}
+          <Route path="/watermark" element={<WatermarkPage />} />
+          
+          {/* 电子签名 */}
+          <Route path="/signature" element={<SignaturePage />} />
+          
+          {/* 密码管理器（需要密码） */}
+          <Route path="/password-manager" element={<PasswordManagerPage />} />
+          
+          {/* 解压/压缩文件 */}
+          <Route path="/compression" element={<CompressionPage />} />
+          
+          {/* 重定向未知路由到首页 */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Layout>
     </Router>
@@ -18,4 +40,3 @@ function App() {
 }
 
 export default App
-

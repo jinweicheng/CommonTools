@@ -30,7 +30,7 @@ export default function PDFWatermark() {
   const [error, setError] = useState<string | null>(null)
   const [watermarkText, setWatermarkText] = useState('水印')
   const [opacity, setOpacity] = useState(0.3)
-  const [fontSize, setFontSize] = useState(48)
+  const [fontSize, setFontSize] = useState(24)
   const [angle, setAngle] = useState(-45)
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
