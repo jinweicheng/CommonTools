@@ -66,7 +66,7 @@ Commonly used tools for daily life and office work（生活、办公的经常使
 - 电子签名
 <img src="./images/signature_text.png" alt="电子签名">
 - 电子签名效果
-<img src="./images/signature_text.png" alt="电子签名效果">
+<img src="./images/signature_document.png" alt="电子签名效果">
 
 - 在 PDF 任意位置添加手写签名
 - 拖拽式操作
