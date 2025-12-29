@@ -13,6 +13,24 @@ Commonly used tools for daily life and office work（生活、办公的经常使
 ## 📋 功能模块
 
 ### 🔒 加密文件（默认首页）
+
+- 1-1、 默认首页加解密
+<img src="./images/home_html.png" alt="默认首页加解密">
+
+- 1-2、 首页标注加密成功
+<img src="./images/home_sha256_success.png" alt="首页标注加密成功">
+
+- 1-3、输入密码可以查看文件真实内容
+<img src="./images/home_html_protected.png" alt="输入密码可以查看文件真实内容">
+
+
+- 2-1、输入密码强加密成功文件
+<img src="./images/home_encrtpted_lockfile.png" alt="输入密码强加密成功文件">
+
+- 2-2、输入密码强解密成功
+<img src="./images/home_decryption_lockfile.png" alt="输入密码强解密成功">
+
+
 - **PDF 加密/解密**
   - 标准加密模式：HTML 包装器，浏览器可打开
   - 强加密模式：AES-256-GCM 军事级加密
