@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Upload, Download, Shield, CheckSquare } from 'lucide-react'
+import { Upload, Download, Shield } from 'lucide-react'
 import { PDFDocument } from 'pdf-lib'
 import { saveAs } from 'file-saver'
 import './PDFProtection.css'

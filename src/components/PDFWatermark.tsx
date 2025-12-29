@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Upload, Download, Type, Slider } from 'lucide-react'
+import { Upload, Download, Type, Sliders } from 'lucide-react'
 import { PDFDocument, rgb } from 'pdf-lib'
 import { saveAs } from 'file-saver'
 import './PDFWatermark.css'
@@ -99,7 +99,7 @@ export default function PDFWatermark() {
 
         <div className="setting-group">
           <label className="setting-label">
-            <Slider size={20} />
+            <Sliders size={20} />
             透明度: {Math.round(opacity * 100)}%
           </label>
           <input

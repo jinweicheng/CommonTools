@@ -21,7 +21,8 @@
     "file-saver": "^2.0.5",
     "react-signature-canvas": "^1.0.6",
     "date-fns": "^3.6.0",
-    "lucide-react": "^0.427.0"
+    "lucide-react": "^0.427.0",
+    "pdfjs-dist": "^4.0.379"
   },
   "devDependencies": {
     "@types/react": "^18.3.5",

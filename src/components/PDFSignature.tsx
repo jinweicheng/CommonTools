@@ -1,9 +1,8 @@
-import { useState, useRef } from 'react'
-import { Upload, Download, PenTool, X, Calendar, User } from 'lucide-react'
+import { useState, useRef, useCallback, useMemo } from 'react'
+import { Upload, Download, PenTool, X, Calendar, Maximize2, Droplet } from 'lucide-react'
 import SignatureCanvas from 'react-signature-canvas'
 import { PDFDocument, rgb } from 'pdf-lib'
 import { saveAs } from 'file-saver'
-import { format } from 'date-fns'
 import './PDFSignature.css'
 
 interface Signature {
@@ -15,7 +14,7 @@ interface Signature {
   height: number
   data?: string // 签名图片数据
   date?: string // 日期文本
-  label?: string // 标签（甲方/乙方）
+  backgroundColor?: string // 背景颜色
 }
 
 export default function PDFSignature() {
@@ -26,24 +25,48 @@ export default function PDFSignature() {
   const [signatures, setSignatures] = useState<Signature[]>([])
   const [showSignaturePanel, setShowSignaturePanel] = useState(false)
   const [showDatePanel, setShowDatePanel] = useState(false)
-  const [currentLabel, setCurrentLabel] = useState('甲方')
+  const [dateInput, setDateInput] = useState('') // 手动输入的日期
   const signatureCanvasRef = useRef<SignatureCanvas>(null)
   const [dragging, setDragging] = useState<string | null>(null)
+  const [resizing, setResizing] = useState<string | null>(null)
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
+  const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 })
+  const [backgroundColor, setBackgroundColor] = useState('#ffffff') // 默认白色背景
+  const [pdfBackgroundColor, setPdfBackgroundColor] = useState('#ffffff')
+  const [colorPickerMode, setColorPickerMode] = useState(false)
+  const pdfPreviewRef = useRef<HTMLDivElement>(null)
+  const [pdfCanvas, setPdfCanvas] = useState<HTMLCanvasElement | null>(null)
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  // 检测PDF背景色（优化：减少不必要的处理）
+  const detectPdfBackgroundColor = useCallback(async (file: File) => {
+    try {
+      // 简化处理，直接使用白色背景
+      setPdfBackgroundColor('#ffffff')
+      setBackgroundColor('#ffffff')
+    } catch (err) {
+      console.warn('无法检测PDF背景色，使用默认白色', err)
+      setPdfBackgroundColor('#ffffff')
+      setBackgroundColor('#ffffff')
+    }
+  }, [])
+
+  const handleFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
 
     setPdfFile(file)
     setError(null)
+    setSignatures([]) // 清空之前的签名
 
     // 创建预览URL
     const url = URL.createObjectURL(file)
     setPdfPreview(url)
-  }
 
-  const handleAddSignature = () => {
+    // 检测PDF背景色（异步，不阻塞）
+    detectPdfBackgroundColor(file).catch(() => {})
+  }, [detectPdfBackgroundColor])
+
+  const handleAddSignature = useCallback(() => {
     if (!signatureCanvasRef.current) return
 
     const dataURL = signatureCanvasRef.current.toDataURL()
@@ -57,37 +80,42 @@ export default function PDFSignature() {
       type: 'signature',
       x: 100,
       y: 100,
-      width: 200,
-      height: 80,
+      width: 250,
+      height: 100,
       data: dataURL,
-      label: currentLabel,
+      backgroundColor: backgroundColor,
     }
 
-    setSignatures([...signatures, newSignature])
+    setSignatures(prev => [...prev, newSignature])
     setShowSignaturePanel(false)
     signatureCanvasRef.current.clear()
-  }
+  }, [backgroundColor])
 
-  const handleAddDate = () => {
-    const dateStr = format(new Date(), 'yyyy年MM月dd日')
+  const handleAddDate = useCallback(() => {
+    if (!dateInput.trim()) {
+      setError('请输入日期')
+      return
+    }
+
     const newDate: Signature = {
       id: Date.now().toString(),
       type: 'date',
       x: 100,
       y: 200,
-      width: 150,
-      height: 30,
-      date: dateStr,
-      label: currentLabel,
+      width: 180,
+      height: 40,
+      date: dateInput.trim(),
+      backgroundColor: backgroundColor,
     }
 
-    setSignatures([...signatures, newDate])
+    setSignatures(prev => [...prev, newDate])
     setShowDatePanel(false)
-  }
+    setDateInput('')
+  }, [dateInput, backgroundColor])
 
-  const handleDeleteSignature = (id: string) => {
-    setSignatures(signatures.filter(sig => sig.id !== id))
-  }
+  const handleDeleteSignature = useCallback((id: string) => {
+    setSignatures(prev => prev.filter(sig => sig.id !== id))
+  }, [])
 
   const handleMouseDown = (e: React.MouseEvent, id: string) => {
     e.preventDefault()
@@ -99,25 +127,72 @@ export default function PDFSignature() {
     })
   }
 
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!dragging) return
-
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
     const container = e.currentTarget as HTMLElement
     const rect = container.getBoundingClientRect()
-    const x = e.clientX - rect.left - dragOffset.x
-    const y = e.clientY - rect.top - dragOffset.y
 
-    setSignatures(prevSignatures => 
-      prevSignatures.map(sig => 
-        sig.id === dragging 
-          ? { ...sig, x: Math.max(0, Math.min(x, rect.width - sig.width)), y: Math.max(0, Math.min(y, rect.height - sig.height)) }
-          : sig
+    if (resizing) {
+      const mouseX = e.clientX - rect.left
+      const mouseY = e.clientY - rect.top
+      
+      // 计算新的宽度和高度（基于鼠标位置和初始右下角位置）
+      const newWidth = Math.max(100, mouseX - resizeStart.x + resizeStart.width)
+      const newHeight = Math.max(50, mouseY - resizeStart.y + resizeStart.height)
+
+      setSignatures(prevSignatures => 
+        prevSignatures.map(sig => {
+          if (sig.id === resizing) {
+            const maxWidth = rect.width - sig.x
+            const maxHeight = rect.height - sig.y
+            return {
+              ...sig,
+              width: Math.min(newWidth, maxWidth),
+              height: Math.min(newHeight, maxHeight)
+            }
+          }
+          return sig
+        })
       )
-    )
-  }
+    } else if (dragging) {
+      const x = e.clientX - rect.left - dragOffset.x
+      const y = e.clientY - rect.top - dragOffset.y
+
+      setSignatures(prevSignatures => 
+        prevSignatures.map(sig => 
+          sig.id === dragging 
+            ? { ...sig, x: Math.max(0, Math.min(x, rect.width - sig.width)), y: Math.max(0, Math.min(y, rect.height - sig.height)) }
+            : sig
+        )
+      )
+    }
+  }, [resizing, dragging, resizeStart, dragOffset])
 
   const handleMouseUp = () => {
     setDragging(null)
+    setResizing(null)
+  }
+
+  const handleResizeStart = (e: React.MouseEvent, id: string) => {
+    e.preventDefault()
+    e.stopPropagation()
+    
+    const sig = signatures.find(s => s.id === id)
+    if (!sig) return
+
+    const container = (e.currentTarget as HTMLElement).closest('.pdf-preview') as HTMLElement
+    if (!container) return
+
+    const containerRect = container.getBoundingClientRect()
+    const mouseX = e.clientX - containerRect.left
+    const mouseY = e.clientY - containerRect.top
+    
+    setResizing(id)
+    setResizeStart({
+      x: sig.x + sig.width, // 右下角X坐标
+      y: sig.y + sig.height, // 右下角Y坐标
+      width: sig.width,
+      height: sig.height,
+    })
   }
 
   const handleApplySignatures = async () => {
@@ -138,15 +213,34 @@ export default function PDFSignature() {
       const firstPage = pages[0]
       const { width, height } = firstPage.getSize()
 
+      // 获取预览容器尺寸用于计算缩放比例
+      const previewContainer = document.querySelector('.pdf-preview') as HTMLElement
+      const previewWidth = previewContainer?.offsetWidth || 800
+      const previewHeight = previewContainer?.offsetHeight || 600
+
       for (const sig of signatures) {
+        // 计算PDF坐标缩放比例
+        const scaleX = width / previewWidth
+        const scaleY = height / previewHeight
+
         if (sig.type === 'signature' && sig.data) {
           // 将签名图片嵌入PDF
           const imageBytes = await fetch(sig.data).then(res => res.arrayBuffer())
           const image = await pdfDoc.embedPng(imageBytes)
           
-          // 计算PDF坐标（假设预览区域为800x600）
-          const scaleX = width / 800
-          const scaleY = height / 600
+          // 如果有背景色，先绘制背景矩形
+          if (sig.backgroundColor && sig.backgroundColor !== '#ffffff') {
+            const bgColor = hexToRgb(sig.backgroundColor)
+            if (bgColor) {
+              firstPage.drawRectangle({
+                x: sig.x * scaleX,
+                y: height - (sig.y + sig.height) * scaleY,
+                width: sig.width * scaleX,
+                height: sig.height * scaleY,
+                color: rgb(bgColor.r / 255, bgColor.g / 255, bgColor.b / 255),
+              })
+            }
+          }
           
           firstPage.drawImage(image, {
             x: sig.x * scaleX,
@@ -155,33 +249,36 @@ export default function PDFSignature() {
             height: sig.height * scaleY,
           })
 
-          // 添加标签
-          if (sig.label) {
-            firstPage.drawText(sig.label, {
-              x: sig.x * scaleX,
-              y: height - (sig.y - 10) * scaleY,
-              size: 10,
-              color: rgb(0, 0, 0),
-            })
-          }
         } else if (sig.type === 'date' && sig.date) {
-          const scaleX = width / 800
-          const scaleY = height / 600
+          // 如果有背景色，先绘制背景矩形
+          if (sig.backgroundColor && sig.backgroundColor !== '#ffffff') {
+            const bgColor = hexToRgb(sig.backgroundColor)
+            if (bgColor) {
+              firstPage.drawRectangle({
+                x: sig.x * scaleX,
+                y: height - (sig.y + sig.height) * scaleY,
+                width: sig.width * scaleX,
+                height: sig.height * scaleY,
+                color: rgb(bgColor.r / 255, bgColor.g / 255, bgColor.b / 255),
+              })
+            }
+          }
           
-          firstPage.drawText(sig.date, {
-            x: sig.x * scaleX,
-            y: height - (sig.y + sig.height) * scaleY,
-            size: 12,
-            color: rgb(0, 0, 0),
-          })
-
-          if (sig.label) {
-            firstPage.drawText(sig.label, {
-              x: sig.x * scaleX,
-              y: height - (sig.y - 10) * scaleY,
-              size: 10,
-              color: rgb(0, 0, 0),
+          // 将日期文本转换为图片（支持中文）
+          try {
+            const dateImageData = await textToImage(sig.date, 12, '#000000')
+            const dateImageBytes = await fetch(dateImageData).then(res => res.arrayBuffer())
+            const dateImage = await pdfDoc.embedPng(dateImageBytes)
+            const dateImageDims = dateImage.scale(0.5)
+            
+            firstPage.drawImage(dateImage, {
+              x: sig.x * scaleX + 5 * scaleX,
+              y: height - (sig.y + sig.height - 10) * scaleY,
+              width: dateImageDims.width * scaleX,
+              height: dateImageDims.height * scaleY,
             })
+          } catch (err) {
+            console.warn('无法绘制日期', err)
           }
         }
       }
@@ -204,9 +301,95 @@ export default function PDFSignature() {
     }
   }
 
+  // 将十六进制颜色转换为RGB
+  const hexToRgb = (hex: string) => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+    return result ? {
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16)
+    } : null
+  }
+
+  // RGB转十六进制
+  const rgbToHex = (r: number, g: number, b: number) => {
+    return '#' + [r, g, b].map(x => {
+      const hex = x.toString(16)
+      return hex.length === 1 ? '0' + hex : hex
+    }).join('')
+  }
+
+  // 使用EyeDropper API取色
+  const handleEyeDropperPick = async () => {
+    if (!('EyeDropper' in window)) {
+      setError('您的浏览器不支持取色器功能')
+      return
+    }
+
+    try {
+      const eyeDropper = new (window as any).EyeDropper()
+      const result = await eyeDropper.open()
+      const color = result.sRGBHex
+      setBackgroundColor(color)
+      setPdfBackgroundColor(color)
+      setColorPickerMode(false)
+      setPickedColor(color)
+    } catch (err) {
+      // 用户取消了取色
+      if ((err as Error).name !== 'AbortError') {
+        console.warn('取色失败', err)
+        setError('取色失败，请重试')
+      }
+      setColorPickerMode(false)
+    }
+  }
+
+  // 将中文文本转换为图片
+  const textToImage = async (text: string, fontSize: number = 12, color: string = '#000000'): Promise<string> => {
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')
+    if (!ctx) throw new Error('无法创建canvas上下文')
+
+    // 设置字体
+    ctx.font = `${fontSize}px Arial, "Microsoft YaHei", "SimHei", sans-serif`
+    ctx.fillStyle = color
+    ctx.textBaseline = 'top'
+
+    // 测量文本宽度
+    const metrics = ctx.measureText(text)
+    const textWidth = metrics.width
+    const textHeight = fontSize * 1.2
+
+    // 设置canvas尺寸
+    canvas.width = textWidth + 20
+    canvas.height = textHeight + 10
+
+    // 重新设置上下文（因为canvas尺寸改变会重置）
+    ctx.font = `${fontSize}px Arial, "Microsoft YaHei", "SimHei", sans-serif`
+    ctx.fillStyle = color
+    ctx.textBaseline = 'top'
+
+    // 绘制文本
+    ctx.fillText(text, 10, 5)
+
+    return canvas.toDataURL('image/png')
+  }
+
+  // 更新签名背景色
+  const updateSignatureBackground = useCallback((id: string, color: string) => {
+    setSignatures(prevSignatures =>
+      prevSignatures.map(sig =>
+        sig.id === id ? { ...sig, backgroundColor: color } : sig
+      )
+    )
+  }, [])
+
+  // 使用useMemo缓存签名列表，减少重渲染
+  const signatureItems = useMemo(() => signatures, [signatures])
+
   return (
     <div className="pdf-signature">
-      <h2 className="tool-header">PDF 甲乙方签名</h2>
+      <h2 className="tool-header">PDF 签名</h2>
 
       {error && (
         <div className="error-message">
@@ -217,17 +400,38 @@ export default function PDFSignature() {
       <div className="signature-controls">
         <div className="control-group">
           <label className="control-label">
-            <User size={20} />
-            签名方
+            背景颜色
           </label>
-          <select
-            className="control-select"
-            value={currentLabel}
-            onChange={(e) => setCurrentLabel(e.target.value)}
-          >
-            <option value="甲方">甲方</option>
-            <option value="乙方">乙方</option>
-          </select>
+          <div className="color-picker-wrapper">
+            <input
+              type="color"
+              className="color-picker"
+              value={backgroundColor}
+              onChange={(e) => setBackgroundColor(e.target.value)}
+              title="选择签名面板背景色"
+            />
+            <button
+              className={`color-picker-button ${colorPickerMode ? 'active' : ''}`}
+              onClick={() => {
+                if ('EyeDropper' in window) {
+                  setColorPickerMode(true)
+                  handleEyeDropperPick()
+                } else {
+                  setError('您的浏览器不支持取色器功能，请使用颜色选择器手动选择')
+                }
+              }}
+              title="从PDF中取色"
+            >
+              <Droplet size={16} />
+            </button>
+            <button
+              className="color-reset-button"
+              onClick={() => setBackgroundColor(pdfBackgroundColor)}
+              title="使用PDF背景色"
+            >
+              匹配PDF
+            </button>
+          </div>
         </div>
 
         <div className="control-buttons">
@@ -291,8 +495,15 @@ export default function PDFSignature() {
               <X size={20} />
             </button>
           </div>
-          <div className="date-preview">
-            {format(new Date(), 'yyyy年MM月dd日')}
+          <div className="date-input-wrapper">
+            <input
+              type="text"
+              className="date-input"
+              value={dateInput}
+              onChange={(e) => setDateInput(e.target.value)}
+              placeholder="请输入日期，例如：2024年12月31日"
+            />
+            <p className="date-hint">支持任意格式的日期文本</p>
           </div>
           <div className="panel-actions">
             <button className="action-button primary" onClick={handleAddDate}>
@@ -317,19 +528,28 @@ export default function PDFSignature() {
 
       {pdfPreview && (
         <div className="pdf-preview-container">
-          <div className="preview-label">PDF预览（拖拽签名面板到合适位置）</div>
+          <div className="preview-label">
+            PDF预览（拖拽签名面板到合适位置，拖拽右下角调整大小）
+            {colorPickerMode && (
+              <span className="color-picker-hint">点击取色器按钮，然后在屏幕上选择颜色</span>
+            )}
+          </div>
           <div
-            className="pdf-preview"
+            ref={pdfPreviewRef}
+            className={`pdf-preview ${colorPickerMode ? 'color-picker-active' : ''}`}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
           >
-            <iframe
-              src={pdfPreview}
-              className="pdf-iframe"
-              title="PDF Preview"
-            />
-            {signatures.map((sig) => (
+            <div className="pdf-preview-wrapper">
+              <iframe
+                src={pdfPreview}
+                className="pdf-iframe"
+                title="PDF Preview"
+                loading="lazy"
+              />
+              <div className="pdf-overlay">
+                {signatureItems.map((sig) => (
               <div
                 key={sig.id}
                 className={`signature-item ${sig.type}`}
@@ -338,23 +558,46 @@ export default function PDFSignature() {
                   top: `${sig.y}px`,
                   width: `${sig.width}px`,
                   height: `${sig.height}px`,
+                  backgroundColor: sig.backgroundColor || backgroundColor,
                 }}
-                onMouseDown={(e) => handleMouseDown(e, sig.id)}
+                onMouseDown={(e) => {
+                  if ((e.target as HTMLElement).classList.contains('resize-handle')) {
+                    return
+                  }
+                  handleMouseDown(e, sig.id)
+                }}
               >
                 {sig.type === 'signature' && sig.data ? (
-                  <img src={sig.data} alt="签名" />
+                  <img src={sig.data} alt="签名" className="signature-image" />
                 ) : (
                   <div className="date-display">{sig.date}</div>
                 )}
-                <div className="signature-label">{sig.label}</div>
-                <button
-                  className="signature-delete"
-                  onClick={() => handleDeleteSignature(sig.id)}
+                <div className="signature-actions">
+                  <input
+                    type="color"
+                    className="signature-color-picker"
+                    value={sig.backgroundColor || backgroundColor}
+                    onChange={(e) => updateSignatureBackground(sig.id, e.target.value)}
+                    title="调整背景色"
+                  />
+                  <button
+                    className="signature-delete"
+                    onClick={() => handleDeleteSignature(sig.id)}
+                    title="删除"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+                <div
+                  className="resize-handle"
+                  onMouseDown={(e) => handleResizeStart(e, sig.id)}
+                  title="拖拽调整大小"
                 >
-                  <X size={16} />
-                </button>
+                  <Maximize2 size={12} />
+                </div>
               </div>
             ))}
+            </div>
           </div>
         </div>
       )}
