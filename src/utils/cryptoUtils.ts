@@ -26,7 +26,7 @@ export class CryptoUtils {
     return await crypto.subtle.deriveKey(
       {
         name: 'PBKDF2',
-        salt: salt,
+        salt: salt.buffer as ArrayBuffer,
         iterations: 100000,
         hash: 'SHA-256',
       },
@@ -57,7 +57,7 @@ export class CryptoUtils {
     return await crypto.subtle.decrypt(
       {
         name: 'AES-GCM',
-        iv: iv,
+        iv: iv.buffer as ArrayBuffer,
       },
       key,
       encrypted

@@ -5,6 +5,7 @@ import MarkdownToPDF from '../components/MarkdownToPDF'
 import PDFWatermark from '../components/PDFWatermark'
 import PDFExpiry from '../components/PDFExpiry'
 import PDFPassword from '../components/PDFPassword'
+import PDFLock from '../components/PDFLock'
 import PDFProtection from '../components/PDFProtection'
 import PDFSignature from '../components/PDFSignature'
 import './PDFTools.css'
@@ -17,6 +18,7 @@ type ToolType =
   | 'password' 
   | 'protection' 
   | 'signature'
+  | 'lock'
 
 interface Tool {
   id: ToolType
@@ -44,24 +46,30 @@ const tools: Tool[] = [
     icon: <Shield size={24} />,
     description: '为PDF添加水印'
   },
+  // {
+  //   id: 'expiry',
+  //   name: '文件有效期',
+  //   icon: <Calendar size={24} />,
+  //   description: '设置PDF文件有效期'
+  // },
+  // {
+  //   id: 'password',
+  //   name: '查看密码',
+  //   icon: <Lock size={24} />,
+  //   description: '为PDF添加查看密码'
+  // },
   {
-    id: 'expiry',
-    name: '文件有效期',
-    icon: <Calendar size={24} />,
-    description: '设置PDF文件有效期'
+    id: 'lock',
+    name: 'PDF 加密/解密',
+    icon: <Shield size={24} />,
+    description: 'AES-256 加密保护 PDF'
   },
-  {
-    id: 'password',
-    name: '查看密码',
-    icon: <Lock size={24} />,
-    description: '为PDF添加查看密码'
-  },
-  {
-    id: 'protection',
-    name: '防复制/打印',
-    icon: <Eye size={24} />,
-    description: '防止PDF被复制或打印'
-  },
+  // {
+  //   id: 'protection',
+  //   name: '防复制/打印',
+  //   icon: <Eye size={24} />,
+  //   description: '防止PDF被复制或打印'
+  // },
   {
     id: 'signature',
     name: '甲乙方签名',
@@ -85,6 +93,8 @@ export default function PDFTools() {
         return <PDFExpiry />
       case 'password':
         return <PDFPassword />
+      case 'lock':
+        return <PDFLock />
       case 'protection':
         return <PDFProtection />
       case 'signature':
