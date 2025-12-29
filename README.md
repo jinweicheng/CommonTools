@@ -50,11 +50,24 @@ Commonly used tools for daily life and office work（生活、办公的经常使
   - PDF → 图片/TXT/HTML
 
 ### 💧 加水印
+
+- 水印文字
+<img src="./images/watermarked_text.png" alt="输入密码强加密成功文件">
+
+- 水印效果
+<img src="./images/watermarked_document.png" alt="水印文件效果">
+
 - 为 PDF 添加自定义水印
 - 支持中文、旋转角度、透明度
 - 自动平铺覆盖
 
 ### ✍️ 电子签名
+
+- 电子签名
+<img src="./images/signature_text.png" alt="电子签名">
+- 电子签名效果
+<img src="./images/signature_text.png" alt="电子签名效果">
+
 - 在 PDF 任意位置添加手写签名
 - 拖拽式操作
 - 手写板 + 日期面板
@@ -69,6 +82,20 @@ Commonly used tools for daily life and office work（生活、办公的经常使
 - 复制/删除操作
 
 ### 📦 解压/压缩文件
+
+- 压缩带密码
+<img src="./images/zip_password_files.png" alt="压缩带密码">
+
+- 压缩成功
+<img src="./images/zip_password_success.png" alt="压缩成功">
+
+- 解压输入密码
+<img src="./images/unzip_password_file.png" alt="解压输入密码">
+
+- 解压成功
+<img src="./images/unzip_password_success.png" alt="解压成功">
+
+
 - ZIP 格式压缩（**真正的 AES-256 加密** ✅）
 - ZIP 格式解压（支持加密 ZIP）
 - 多文件打包
