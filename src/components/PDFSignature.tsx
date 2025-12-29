@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useMemo } from 'react'
+import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
 import { Upload, Download, PenTool, X, Calendar, Maximize2, Droplet } from 'lucide-react'
 import SignatureCanvas from 'react-signature-canvas'
 import { PDFDocument, rgb } from 'pdf-lib'
@@ -12,8 +12,7 @@ interface Signature {
   y: number
   width: number
   height: number
-  data?: string // 签名图片数据
-  date?: string // 日期文本
+  data?: string // 签名/日期图片数据（手写）
   backgroundColor?: string // 背景颜色
 }
 
@@ -25,8 +24,8 @@ export default function PDFSignature() {
   const [signatures, setSignatures] = useState<Signature[]>([])
   const [showSignaturePanel, setShowSignaturePanel] = useState(false)
   const [showDatePanel, setShowDatePanel] = useState(false)
-  const [dateInput, setDateInput] = useState('') // 手动输入的日期
   const signatureCanvasRef = useRef<SignatureCanvas>(null)
+  const dateCanvasRef = useRef<SignatureCanvas>(null)
   const [dragging, setDragging] = useState<string | null>(null)
   const [resizing, setResizing] = useState<string | null>(null)
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
@@ -36,6 +35,7 @@ export default function PDFSignature() {
   const [colorPickerMode, setColorPickerMode] = useState(false)
   const pdfPreviewRef = useRef<HTMLDivElement>(null)
   const [pdfCanvas, setPdfCanvas] = useState<HTMLCanvasElement | null>(null)
+  const [penSize, setPenSize] = useState(2) // 默认笔大小（日常笔的大小，2px）
 
   // 检测PDF背景色（优化：减少不必要的处理）
   const detectPdfBackgroundColor = useCallback(async (file: File) => {
@@ -92,8 +92,11 @@ export default function PDFSignature() {
   }, [backgroundColor])
 
   const handleAddDate = useCallback(() => {
-    if (!dateInput.trim()) {
-      setError('请输入日期')
+    if (!dateCanvasRef.current) return
+
+    const dataURL = dateCanvasRef.current.toDataURL()
+    if (!dataURL || dataURL === 'data:,') {
+      setError('请先手写日期')
       return
     }
 
@@ -103,15 +106,15 @@ export default function PDFSignature() {
       x: 100,
       y: 200,
       width: 180,
-      height: 40,
-      date: dateInput.trim(),
+      height: 60,
+      data: dataURL, // 使用图片数据而不是文本
       backgroundColor: backgroundColor,
     }
 
     setSignatures(prev => [...prev, newDate])
     setShowDatePanel(false)
-    setDateInput('')
-  }, [dateInput, backgroundColor])
+    dateCanvasRef.current.clear()
+  }, [backgroundColor])
 
   const handleDeleteSignature = useCallback((id: string) => {
     setSignatures(prev => prev.filter(sig => sig.id !== id))
@@ -249,7 +252,8 @@ export default function PDFSignature() {
             height: sig.height * scaleY,
           })
 
-        } else if (sig.type === 'date' && sig.date) {
+        } else if (sig.type === 'date' && sig.data) {
+          // 日期也是图片（手写）
           // 如果有背景色，先绘制背景矩形
           if (sig.backgroundColor && sig.backgroundColor !== '#ffffff') {
             const bgColor = hexToRgb(sig.backgroundColor)
@@ -264,18 +268,16 @@ export default function PDFSignature() {
             }
           }
           
-          // 将日期文本转换为图片（支持中文）
+          // 将日期图片嵌入PDF
           try {
-            const dateImageData = await textToImage(sig.date, 12, '#000000')
-            const dateImageBytes = await fetch(dateImageData).then(res => res.arrayBuffer())
+            const dateImageBytes = await fetch(sig.data).then(res => res.arrayBuffer())
             const dateImage = await pdfDoc.embedPng(dateImageBytes)
-            const dateImageDims = dateImage.scale(0.5)
             
             firstPage.drawImage(dateImage, {
-              x: sig.x * scaleX + 5 * scaleX,
-              y: height - (sig.y + sig.height - 10) * scaleY,
-              width: dateImageDims.width * scaleX,
-              height: dateImageDims.height * scaleY,
+              x: sig.x * scaleX,
+              y: height - (sig.y + sig.height) * scaleY,
+              width: sig.width * scaleX,
+              height: sig.height * scaleY,
             })
           } catch (err) {
             console.warn('无法绘制日期', err)
@@ -300,6 +302,59 @@ export default function PDFSignature() {
       signatureCanvasRef.current.clear()
     }
   }
+
+  const clearDate = () => {
+    if (dateCanvasRef.current) {
+      dateCanvasRef.current.clear()
+    }
+  }
+
+  // 修复canvas坐标系统
+  const fixCanvasCoordinates = useCallback((canvas: HTMLCanvasElement | null) => {
+    if (!canvas) return
+    
+    const rect = canvas.getBoundingClientRect()
+    const dpr = window.devicePixelRatio || 1
+    
+    // 确保canvas的实际尺寸与显示尺寸匹配
+    if (canvas.width !== rect.width || canvas.height !== rect.height) {
+      const ctx = canvas.getContext('2d')
+      if (ctx) {
+        // 保存当前内容
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+        
+        // 设置新的尺寸
+        canvas.width = rect.width
+        canvas.height = rect.height
+        
+        // 恢复内容
+        ctx.putImageData(imageData, 0, 0)
+      }
+    }
+  }, [])
+
+  // 当面板打开或笔大小改变时，更新canvas的笔大小
+  useEffect(() => {
+    if (showSignaturePanel && signatureCanvasRef.current) {
+      const canvas = signatureCanvasRef.current.getCanvas()
+      fixCanvasCoordinates(canvas)
+      
+      signatureCanvasRef.current.penColor = '#000000'
+      signatureCanvasRef.current.minWidth = penSize
+      signatureCanvasRef.current.maxWidth = penSize
+    }
+  }, [showSignaturePanel, penSize, fixCanvasCoordinates])
+
+  useEffect(() => {
+    if (showDatePanel && dateCanvasRef.current) {
+      const canvas = dateCanvasRef.current.getCanvas()
+      fixCanvasCoordinates(canvas)
+      
+      dateCanvasRef.current.penColor = '#000000'
+      dateCanvasRef.current.minWidth = penSize
+      dateCanvasRef.current.maxWidth = penSize
+    }
+  }, [showDatePanel, penSize, fixCanvasCoordinates])
 
   // 将十六进制颜色转换为RGB
   const hexToRgb = (hex: string) => {
@@ -466,13 +521,52 @@ export default function PDFSignature() {
               <X size={20} />
             </button>
           </div>
-          <div className="signature-canvas-wrapper">
+          <div className="canvas-controls">
+            <div className="pen-size-control">
+              <label className="pen-size-label">
+                笔大小: {penSize}px
+              </label>
+              <input
+                type="range"
+                min="1"
+                max="10"
+                step="0.5"
+                value={penSize}
+                onChange={(e) => {
+                  const newSize = parseFloat(e.target.value)
+                  setPenSize(newSize)
+                  // 实时更新笔大小
+                  setTimeout(() => {
+                    if (signatureCanvasRef.current) {
+                      signatureCanvasRef.current.penColor = '#000000'
+                      signatureCanvasRef.current.minWidth = newSize
+                      signatureCanvasRef.current.maxWidth = newSize
+                    }
+                  }, 0)
+                }}
+                className="pen-size-slider"
+              />
+            </div>
+          </div>
+          <div className="signature-canvas-wrapper" style={{ width: '400px', height: '200px' }}>
             <SignatureCanvas
               ref={signatureCanvasRef}
+              penColor="#000000"
+              minWidth={penSize}
+              maxWidth={penSize}
+              velocityFilterWeight={0.7}
               canvasProps={{
                 className: 'signature-canvas',
                 width: 400,
                 height: 200,
+                style: {
+                  touchAction: 'none',
+                  display: 'block',
+                  width: '400px',
+                  height: '200px',
+                  margin: 0,
+                  padding: 0,
+                },
               }}
             />
           </div>
@@ -490,22 +584,64 @@ export default function PDFSignature() {
       {showDatePanel && (
         <div className="date-panel">
           <div className="panel-header">
-            <h3>日期面板</h3>
+            <h3>手写日期</h3>
             <button className="panel-close" onClick={() => setShowDatePanel(false)}>
               <X size={20} />
             </button>
           </div>
-          <div className="date-input-wrapper">
-            <input
-              type="text"
-              className="date-input"
-              value={dateInput}
-              onChange={(e) => setDateInput(e.target.value)}
-              placeholder="请输入日期，例如：2024年12月31日"
+          <div className="canvas-controls">
+            <div className="pen-size-control">
+              <label className="pen-size-label">
+                笔大小: {penSize}px
+              </label>
+              <input
+                type="range"
+                min="1"
+                max="10"
+                step="0.5"
+                value={penSize}
+                onChange={(e) => {
+                  const newSize = parseFloat(e.target.value)
+                  setPenSize(newSize)
+                  // 实时更新笔大小
+                  setTimeout(() => {
+                    if (dateCanvasRef.current) {
+                      dateCanvasRef.current.penColor = '#000000'
+                      dateCanvasRef.current.minWidth = newSize
+                      dateCanvasRef.current.maxWidth = newSize
+                    }
+                  }, 0)
+                }}
+                className="pen-size-slider"
+              />
+            </div>
+          </div>
+          <div className="signature-canvas-wrapper" style={{ width: '400px', height: '150px' }}>
+            <SignatureCanvas
+              ref={dateCanvasRef}
+              penColor="#000000"
+              minWidth={penSize}
+              maxWidth={penSize}
+              velocityFilterWeight={0.7}
+              canvasProps={{
+                className: 'signature-canvas',
+                width: 400,
+                height: 150,
+                style: {
+                  touchAction: 'none',
+                  display: 'block',
+                  width: '400px',
+                  height: '150px',
+                  margin: 0,
+                  padding: 0,
+                },
+              }}
             />
-            <p className="date-hint">支持任意格式的日期文本</p>
           </div>
           <div className="panel-actions">
+            <button className="action-button secondary" onClick={clearDate}>
+              清除
+            </button>
             <button className="action-button primary" onClick={handleAddDate}>
               确认添加
             </button>
@@ -567,11 +703,11 @@ export default function PDFSignature() {
                       handleMouseDown(e, sig.id)
                     }}
                   >
-                    {sig.type === 'signature' && sig.data ? (
-                      <img src={sig.data} alt="签名" className="signature-image" />
-                    ) : (
-                      <div className="date-display">{sig.date}</div>
-                    )}
+                {sig.type === 'signature' && sig.data ? (
+                  <img src={sig.data} alt="签名" className="signature-image" />
+                ) : sig.type === 'date' && sig.data ? (
+                  <img src={sig.data} alt="日期" className="signature-image" />
+                ) : null}
                     <div className="signature-actions">
                       <input
                         type="color"
