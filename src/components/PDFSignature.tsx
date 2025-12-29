@@ -3,7 +3,20 @@ import { Upload, Download, PenTool, X, Calendar, Maximize2, Droplet } from 'luci
 import SignatureCanvas from 'react-signature-canvas'
 import { PDFDocument, rgb } from 'pdf-lib'
 import { saveAs } from 'file-saver'
+import * as pdfjsLib from 'pdfjs-dist'
 import './PDFSignature.css'
+
+// 配置pdf.js worker
+try {
+  // 尝试使用本地安装的worker文件
+  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+    'pdfjs-dist/build/pdf.worker.min.mjs',
+    import.meta.url
+  ).toString()
+} catch (e) {
+  // 如果本地worker不可用，使用CDN
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
+}
 
 interface Signature {
   id: string
@@ -21,6 +34,11 @@ export default function PDFSignature() {
   const [error, setError] = useState<string | null>(null)
   const [pdfFile, setPdfFile] = useState<File | null>(null)
   const [pdfPreview, setPdfPreview] = useState<string | null>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [pdfDocument, setPdfDocument] = useState<any>(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [renderScale, setRenderScale] = useState(1.5) // PDF渲染缩放比例
+  const [canvasSize, setCanvasSize] = useState<{ width: number; height: number }>({ width: 0, height: 0 })
   const [signatures, setSignatures] = useState<Signature[]>([])
   const [showSignaturePanel, setShowSignaturePanel] = useState(false)
   const [showDatePanel, setShowDatePanel] = useState(false)
@@ -34,8 +52,59 @@ export default function PDFSignature() {
   const [pdfBackgroundColor, setPdfBackgroundColor] = useState('#ffffff')
   const [colorPickerMode, setColorPickerMode] = useState(false)
   const pdfPreviewRef = useRef<HTMLDivElement>(null)
+  const pdfIframeRef = useRef<HTMLIFrameElement>(null)
   const [pdfCanvas, setPdfCanvas] = useState<HTMLCanvasElement | null>(null)
   const [penSize, setPenSize] = useState(2) // 默认笔大小（日常笔的大小，2px）
+  const [pdfPageInfo, setPdfPageInfo] = useState<{ width: number; height: number; viewport: any } | null>(null)
+  const [iframeScale, setIframeScale] = useState<{ scaleX: number; scaleY: number; offsetX: number; offsetY: number } | null>(null)
+
+  // 计算iframe内PDF的缩放比例
+  const calculateIframeScale = useCallback((pdfWidth: number, pdfHeight: number) => {
+    const previewContainer = pdfPreviewRef.current
+    if (!previewContainer) return
+
+    const previewWidth = previewContainer.offsetWidth
+    const previewHeight = previewContainer.offsetHeight
+
+    // 计算PDF的宽高比和预览容器的宽高比
+    const pdfAspectRatio = pdfWidth / pdfHeight
+    const previewAspectRatio = previewWidth / previewHeight
+
+    // 根据宽高比计算PDF在预览容器中的实际显示区域
+    let displayWidth = previewWidth
+    let displayHeight = previewHeight
+    let offsetX = 0
+    let offsetY = 0
+
+    if (pdfAspectRatio > previewAspectRatio) {
+      // PDF更宽，以宽度为准，上下会有空白
+      displayHeight = previewWidth / pdfAspectRatio
+      offsetY = (previewHeight - displayHeight) / 2
+    } else {
+      // PDF更高，以高度为准，左右会有空白
+      displayWidth = previewHeight * pdfAspectRatio
+      offsetX = (previewWidth - displayWidth) / 2
+    }
+
+    // 计算缩放比例
+    const scaleX = pdfWidth / displayWidth
+    const scaleY = pdfHeight / displayHeight
+
+    setIframeScale({ scaleX, scaleY, offsetX, offsetY })
+    
+    console.log('iframe缩放信息:', {
+      pdfWidth,
+      pdfHeight,
+      previewWidth,
+      previewHeight,
+      displayWidth,
+      displayHeight,
+      offsetX,
+      offsetY,
+      scaleX,
+      scaleY
+    })
+  }, [])
 
   // 检测PDF背景色（优化：减少不必要的处理）
   const detectPdfBackgroundColor = useCallback(async (file: File) => {
@@ -47,6 +116,63 @@ export default function PDFSignature() {
       console.warn('无法检测PDF背景色，使用默认白色', err)
       setPdfBackgroundColor('#ffffff')
       setBackgroundColor('#ffffff')
+    }
+  }, [])
+
+  // 使用canvas渲染PDF
+  const renderPdfToCanvas = useCallback(async (pdf: any, pageNum: number, scale: number) => {
+    try {
+      const page = await pdf.getPage(pageNum)
+      const viewport = page.getViewport({ scale })
+      
+      const canvas = canvasRef.current
+      if (!canvas) return
+      
+      const context = canvas.getContext('2d')
+      if (!context) return
+      
+      // 设置canvas尺寸
+      canvas.width = viewport.width
+      canvas.height = viewport.height
+      
+      // 清空canvas
+      context.clearRect(0, 0, canvas.width, canvas.height)
+      
+      // 渲染PDF到canvas
+      const renderContext = {
+        canvasContext: context,
+        viewport: viewport,
+      }
+      
+      await page.render(renderContext).promise
+      
+      // 更新页面信息和canvas尺寸
+      setPdfPageInfo({
+        width: viewport.width,
+        height: viewport.height,
+        viewport: viewport,
+      })
+      
+      setCanvasSize({
+        width: viewport.width,
+        height: viewport.height,
+      })
+      
+      // 计算缩放信息
+      const container = pdfPreviewRef.current
+      if (container) {
+        const containerWidth = container.offsetWidth
+        const containerHeight = container.offsetHeight
+        
+        setIframeScale({
+          scaleX: viewport.width / viewport.width, // 1:1，因为canvas直接显示
+          scaleY: viewport.height / viewport.height,
+          offsetX: 0,
+          offsetY: 0,
+        })
+      }
+    } catch (err) {
+      console.error('渲染PDF失败', err)
     }
   }, [])
 
@@ -62,9 +188,41 @@ export default function PDFSignature() {
     const url = URL.createObjectURL(file)
     setPdfPreview(url)
 
+    // 使用pdf.js加载并渲染PDF
+    try {
+      const arrayBuffer = await file.arrayBuffer()
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
+      
+      setPdfDocument(pdf)
+      setCurrentPage(1)
+      
+      // 计算合适的渲染缩放比例
+      const page = await pdf.getPage(1)
+      const viewport = page.getViewport({ scale: 1.0 })
+      
+      // 根据容器大小计算合适的缩放比例
+      const container = pdfPreviewRef.current
+      if (container) {
+        const containerWidth = container.offsetWidth || 900
+        const containerHeight = container.offsetHeight || 900
+        
+        const scaleX = containerWidth / viewport.width
+        const scaleY = containerHeight / viewport.height
+        const scale = Math.min(scaleX, scaleY) * 0.95 // 留5%边距
+        
+        setRenderScale(scale)
+        
+        // 渲染PDF到canvas
+        await renderPdfToCanvas(pdf, 1, scale)
+      }
+    } catch (err) {
+      console.error('加载PDF失败', err)
+      setError('加载PDF失败：' + (err instanceof Error ? err.message : '未知错误'))
+    }
+
     // 检测PDF背景色（异步，不阻塞）
     detectPdfBackgroundColor(file).catch(() => {})
-  }, [detectPdfBackgroundColor])
+  }, [detectPdfBackgroundColor, renderPdfToCanvas])
 
   const handleAddSignature = useCallback(() => {
     if (!signatureCanvasRef.current) return
@@ -131,8 +289,11 @@ export default function PDFSignature() {
   }
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    const container = e.currentTarget as HTMLElement
-    const rect = container.getBoundingClientRect()
+    // 获取overlay的rect（与canvas对齐）
+    const overlay = document.querySelector('.pdf-overlay') as HTMLElement
+    if (!overlay) return
+    
+    const rect = overlay.getBoundingClientRect()
 
     if (resizing) {
       const mouseX = e.clientX - rect.left
@@ -145,8 +306,8 @@ export default function PDFSignature() {
       setSignatures(prevSignatures => 
         prevSignatures.map(sig => {
           if (sig.id === resizing) {
-            const maxWidth = rect.width - sig.x
-            const maxHeight = rect.height - sig.y
+            const maxWidth = canvasSize.width - sig.x
+            const maxHeight = canvasSize.height - sig.y
             return {
               ...sig,
               width: Math.min(newWidth, maxWidth),
@@ -163,12 +324,12 @@ export default function PDFSignature() {
       setSignatures(prevSignatures => 
         prevSignatures.map(sig => 
           sig.id === dragging 
-            ? { ...sig, x: Math.max(0, Math.min(x, rect.width - sig.width)), y: Math.max(0, Math.min(y, rect.height - sig.height)) }
+            ? { ...sig, x: Math.max(0, Math.min(x, canvasSize.width - sig.width)), y: Math.max(0, Math.min(y, canvasSize.height - sig.height)) }
             : sig
         )
       )
     }
-  }, [resizing, dragging, resizeStart, dragOffset])
+  }, [resizing, dragging, resizeStart, dragOffset, canvasSize])
 
   const handleMouseUp = () => {
     setDragging(null)
@@ -182,12 +343,12 @@ export default function PDFSignature() {
     const sig = signatures.find(s => s.id === id)
     if (!sig) return
 
-    const container = (e.currentTarget as HTMLElement).closest('.pdf-preview') as HTMLElement
-    if (!container) return
+    const overlay = (e.currentTarget as HTMLElement).closest('.pdf-overlay') as HTMLElement
+    if (!overlay) return
 
-    const containerRect = container.getBoundingClientRect()
-    const mouseX = e.clientX - containerRect.left
-    const mouseY = e.clientY - containerRect.top
+    const overlayRect = overlay.getBoundingClientRect()
+    const mouseX = e.clientX - overlayRect.left
+    const mouseY = e.clientY - overlayRect.top
     
     setResizing(id)
     setResizeStart({
@@ -216,15 +377,79 @@ export default function PDFSignature() {
       const firstPage = pages[0]
       const { width, height } = firstPage.getSize()
 
-      // 获取预览容器尺寸用于计算缩放比例
-      const previewContainer = document.querySelector('.pdf-preview') as HTMLElement
-      const previewWidth = previewContainer?.offsetWidth || 800
-      const previewHeight = previewContainer?.offsetHeight || 600
+      // 使用canvas渲染的方式，坐标计算更准确
+      const canvas = canvasRef.current
+      if (!canvas) {
+        throw new Error('无法找到PDF画布')
+      }
+      
+      // canvas的尺寸就是PDF的渲染尺寸
+      const canvasWidth = canvas.width
+      const canvasHeight = canvas.height
+      
+      // PDF文档的实际尺寸（pdf-lib中的尺寸）
+      const pdfWidth = width
+      const pdfHeight = height
+      
+      // 计算从canvas坐标到PDF坐标的缩放比例
+      const scaleX = pdfWidth / canvasWidth
+      const scaleY = pdfHeight / canvasHeight
 
+      console.log('坐标计算信息:', {
+        canvasWidth,
+        canvasHeight,
+        pdfWidth,
+        pdfHeight,
+        scaleX,
+        scaleY,
+        signaturesCount: signatures.length
+      })
+
+      let processedCount = 0
+      let skippedCount = 0
+      
       for (const sig of signatures) {
-        // 计算PDF坐标缩放比例
-        const scaleX = width / previewWidth
-        const scaleY = height / previewHeight
+        try {
+          // 检查签名数据是否存在
+          if (!sig.data) {
+            console.warn(`签名 ${sig.id} 没有数据，跳过`)
+            skippedCount++
+            continue
+          }
+          
+          // 直接使用canvas坐标转换为PDF坐标
+          // Canvas坐标系：原点在左上角，Y向下（与预览一致）
+          // PDF坐标系：原点在左下角，Y向上
+          
+          // 1. 将预览坐标转换为PDF坐标（X轴）
+          const pdfX = sig.x * scaleX
+          
+          // 2. 将预览坐标转换为PDF坐标（Y轴，需要翻转）
+          const pdfY = pdfHeight - (sig.y + sig.height) * scaleY
+          
+          // 3. 计算PDF中的尺寸
+          const pdfSigWidth = sig.width * scaleX
+          const pdfSigHeight = sig.height * scaleY
+          
+          console.log(`签名 ${sig.id} 坐标转换:`, {
+            type: sig.type,
+            canvas: { x: sig.x, y: sig.y, width: sig.width, height: sig.height },
+            pdf: { x: pdfX, y: pdfY, width: pdfSigWidth, height: pdfSigHeight },
+            pdfPage: { width: pdfWidth, height: pdfHeight },
+            scale: { x: scaleX, y: scaleY }
+          })
+          
+          // 验证坐标是否在PDF页面范围内
+          if (pdfX < 0 || pdfY < 0 || pdfX + pdfSigWidth > pdfWidth || pdfY + pdfSigHeight > pdfHeight) {
+            console.warn(`签名 ${sig.id} 超出PDF页面范围，将被裁剪`, { 
+              pdfX, 
+              pdfY, 
+              pdfSigWidth, 
+              pdfSigHeight,
+              pdfWidth,
+              pdfHeight
+            })
+          }
 
         if (sig.type === 'signature' && sig.data) {
           // 将签名图片嵌入PDF
@@ -236,21 +461,23 @@ export default function PDFSignature() {
             const bgColor = hexToRgb(sig.backgroundColor)
             if (bgColor) {
               firstPage.drawRectangle({
-                x: sig.x * scaleX,
-                y: height - (sig.y + sig.height) * scaleY,
-                width: sig.width * scaleX,
-                height: sig.height * scaleY,
+                x: pdfX,
+                y: pdfY,
+                width: pdfSigWidth,
+                height: pdfSigHeight,
                 color: rgb(bgColor.r / 255, bgColor.g / 255, bgColor.b / 255),
               })
             }
           }
           
           firstPage.drawImage(image, {
-            x: sig.x * scaleX,
-            y: height - (sig.y + sig.height) * scaleY,
-            width: sig.width * scaleX,
-            height: sig.height * scaleY,
+            x: pdfX,
+            y: pdfY,
+            width: pdfSigWidth,
+            height: pdfSigHeight,
           })
+          
+          processedCount++
 
         } else if (sig.type === 'date' && sig.data) {
           // 日期也是图片（手写）
@@ -259,10 +486,10 @@ export default function PDFSignature() {
             const bgColor = hexToRgb(sig.backgroundColor)
             if (bgColor) {
               firstPage.drawRectangle({
-                x: sig.x * scaleX,
-                y: height - (sig.y + sig.height) * scaleY,
-                width: sig.width * scaleX,
-                height: sig.height * scaleY,
+                x: pdfX,
+                y: pdfY,
+                width: pdfSigWidth,
+                height: pdfSigHeight,
                 color: rgb(bgColor.r / 255, bgColor.g / 255, bgColor.b / 255),
               })
             }
@@ -274,15 +501,28 @@ export default function PDFSignature() {
             const dateImage = await pdfDoc.embedPng(dateImageBytes)
             
             firstPage.drawImage(dateImage, {
-              x: sig.x * scaleX,
-              y: height - (sig.y + sig.height) * scaleY,
-              width: sig.width * scaleX,
-              height: sig.height * scaleY,
+              x: pdfX,
+              y: pdfY,
+              width: pdfSigWidth,
+              height: pdfSigHeight,
             })
+            
+            processedCount++
           } catch (err) {
-            console.warn('无法绘制日期', err)
+            console.warn(`无法绘制日期 ${sig.id}`, err)
+            skippedCount++
           }
         }
+        } catch (err) {
+          console.error(`处理签名 ${sig.id} 时出错:`, err)
+          skippedCount++
+        }
+      }
+      
+      console.log(`签名处理完成: 成功 ${processedCount} 个, 跳过 ${skippedCount} 个, 总计 ${signatures.length} 个`)
+      
+      if (processedCount === 0) {
+        throw new Error('没有成功处理任何签名，请检查签名位置和大小')
       }
 
       const pdfBytes = await pdfDoc.save()
@@ -548,7 +788,7 @@ export default function PDFSignature() {
               />
             </div>
           </div>
-          <div className="signature-canvas-wrapper" style={{ width: '400px', height: '200px' }}>
+          <div className="signature-canvas-wrapper" style={{ width: '600px', height: '250px' }}>
             <SignatureCanvas
               ref={signatureCanvasRef}
               penColor="#000000"
@@ -557,13 +797,13 @@ export default function PDFSignature() {
               velocityFilterWeight={0.7}
               canvasProps={{
                 className: 'signature-canvas',
-                width: 400,
-                height: 200,
+                width: 600,
+                height: 250,
                 style: {
                   touchAction: 'none',
                   display: 'block',
-                  width: '400px',
-                  height: '200px',
+                  width: '600px',
+                  height: '250px',
                   margin: 0,
                   padding: 0,
                 },
@@ -616,7 +856,7 @@ export default function PDFSignature() {
               />
             </div>
           </div>
-          <div className="signature-canvas-wrapper" style={{ width: '400px', height: '150px' }}>
+          <div className="signature-canvas-wrapper" style={{ width: '600px', height: '180px' }}>
             <SignatureCanvas
               ref={dateCanvasRef}
               penColor="#000000"
@@ -625,13 +865,13 @@ export default function PDFSignature() {
               velocityFilterWeight={0.7}
               canvasProps={{
                 className: 'signature-canvas',
-                width: 400,
-                height: 150,
+                width: 600,
+                height: 180,
                 style: {
                   touchAction: 'none',
                   display: 'block',
-                  width: '400px',
-                  height: '150px',
+                  width: '600px',
+                  height: '180px',
                   margin: 0,
                   padding: 0,
                 },
@@ -678,13 +918,25 @@ export default function PDFSignature() {
             onMouseLeave={handleMouseUp}
           >
             <div className="pdf-preview-wrapper">
-              <iframe
-                src={pdfPreview}
-                className="pdf-iframe"
-                title="PDF Preview"
-                loading="lazy"
+              <canvas
+                ref={canvasRef}
+                className="pdf-canvas"
+                style={{
+                  maxWidth: '100%',
+                  maxHeight: '100%',
+                  display: 'block',
+                  margin: '0 auto',
+                }}
               />
-              <div className="pdf-overlay">
+              <div className="pdf-overlay" style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                width: `${canvasSize.width}px`,
+                height: `${canvasSize.height}px`,
+                pointerEvents: 'none',
+              }}>
                 {signatureItems.map((sig) => (
                   <div
                     key={sig.id}
