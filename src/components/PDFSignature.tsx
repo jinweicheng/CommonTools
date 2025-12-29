@@ -550,53 +550,54 @@ export default function PDFSignature() {
               />
               <div className="pdf-overlay">
                 {signatureItems.map((sig) => (
-              <div
-                key={sig.id}
-                className={`signature-item ${sig.type}`}
-                style={{
-                  left: `${sig.x}px`,
-                  top: `${sig.y}px`,
-                  width: `${sig.width}px`,
-                  height: `${sig.height}px`,
-                  backgroundColor: sig.backgroundColor || backgroundColor,
-                }}
-                onMouseDown={(e) => {
-                  if ((e.target as HTMLElement).classList.contains('resize-handle')) {
-                    return
-                  }
-                  handleMouseDown(e, sig.id)
-                }}
-              >
-                {sig.type === 'signature' && sig.data ? (
-                  <img src={sig.data} alt="签名" className="signature-image" />
-                ) : (
-                  <div className="date-display">{sig.date}</div>
-                )}
-                <div className="signature-actions">
-                  <input
-                    type="color"
-                    className="signature-color-picker"
-                    value={sig.backgroundColor || backgroundColor}
-                    onChange={(e) => updateSignatureBackground(sig.id, e.target.value)}
-                    title="调整背景色"
-                  />
-                  <button
-                    className="signature-delete"
-                    onClick={() => handleDeleteSignature(sig.id)}
-                    title="删除"
+                  <div
+                    key={sig.id}
+                    className={`signature-item ${sig.type}`}
+                    style={{
+                      left: `${sig.x}px`,
+                      top: `${sig.y}px`,
+                      width: `${sig.width}px`,
+                      height: `${sig.height}px`,
+                      backgroundColor: sig.backgroundColor || backgroundColor,
+                    }}
+                    onMouseDown={(e) => {
+                      if ((e.target as HTMLElement).classList.contains('resize-handle')) {
+                        return
+                      }
+                      handleMouseDown(e, sig.id)
+                    }}
                   >
-                    <X size={16} />
-                  </button>
-                </div>
-                <div
-                  className="resize-handle"
-                  onMouseDown={(e) => handleResizeStart(e, sig.id)}
-                  title="拖拽调整大小"
-                >
-                  <Maximize2 size={12} />
-                </div>
+                    {sig.type === 'signature' && sig.data ? (
+                      <img src={sig.data} alt="签名" className="signature-image" />
+                    ) : (
+                      <div className="date-display">{sig.date}</div>
+                    )}
+                    <div className="signature-actions">
+                      <input
+                        type="color"
+                        className="signature-color-picker"
+                        value={sig.backgroundColor || backgroundColor}
+                        onChange={(e) => updateSignatureBackground(sig.id, e.target.value)}
+                        title="调整背景色"
+                      />
+                      <button
+                        className="signature-delete"
+                        onClick={() => handleDeleteSignature(sig.id)}
+                        title="删除"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                    <div
+                      className="resize-handle"
+                      onMouseDown={(e) => handleResizeStart(e, sig.id)}
+                      title="拖拽调整大小"
+                    >
+                      <Maximize2 size={12} />
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
             </div>
           </div>
         </div>
