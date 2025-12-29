@@ -62,7 +62,12 @@ export default function PDFExpiry() {
         const expiryDateFormatted = format(expiryDateTime, 'yyyy-MM-dd')
         encryptedPdfDoc.setTitle(`加密文档 - ${generatedDocId}`)
         encryptedPdfDoc.setSubject(`X-Expire-Date: ${expiryDateFormatted}\nX-Doc-Id: ${generatedDocId}`)
-        encryptedPdfDoc.setKeywords(`X-Expire-Date:${expiryDateFormatted};X-Doc-Id:${generatedDocId}`)
+        encryptedPdfDoc.setKeywords([
+          `X-Expire-Date:${expiryDateFormatted}`,
+          `X-Doc-Id:${generatedDocId}`,
+          'encrypted',
+          'expiry'
+        ])
         encryptedPdfDoc.setCreator('CommonTools PDF加密系统')
         encryptedPdfDoc.setProducer('CommonTools v1.0')
         
@@ -115,9 +120,14 @@ export default function PDFExpiry() {
         
         // 将加密信息存储到PDF的自定义字段中
         // 注意：pdf-lib的限制，我们使用Keywords字段存储加密信息
-        encryptedPdfDoc.setKeywords(
-          `X-Expire-Date:${expiryDateFormatted};X-Doc-Id:${generatedDocId};X-Encrypted:true;X-Salt:${saltBase64};X-IV:${ivBase64};X-Data:${encryptedBase64.substring(0, 1000)}...`
-        )
+        encryptedPdfDoc.setKeywords([
+          `X-Expire-Date:${expiryDateFormatted}`,
+          `X-Doc-Id:${generatedDocId}`,
+          `X-Encrypted:true`,
+          `X-Salt:${saltBase64.substring(0, 100)}`,
+          `X-IV:${ivBase64.substring(0, 100)}`,
+          'encrypted-content'
+        ])
 
         const finalPdfBytes = await encryptedPdfDoc.save()
         const blob = new Blob([finalPdfBytes], { type: 'application/pdf' })
@@ -266,14 +276,18 @@ if (now > expiryDate) {
         }
         
         // 将JavaScript代码保存到文档注释中（作为备用方案）
-        pdfDoc.setKeywords(`有效期:${expiryTimestamp}:JS:${btoa(jsCode)}`)
+        pdfDoc.setKeywords([
+          `expiry:${expiryTimestamp}`,
+          `js:${btoa(jsCode).substring(0, 200)}`,  // 限制长度
+          'protected',
+          'time-limited'
+        ])
         
         // 设置文档打开时执行JavaScript
         pdfDoc.setTitle(`${pdfDoc.getTitle() || 'Document'} (有效期至: ${format(expiryDateTime, 'yyyy-MM-dd HH:mm')})`)
         pdfDoc.setSubject(`此文档有效期至: ${format(expiryDateTime, 'yyyy-MM-dd HH:mm')}`)
         
-        // 在元数据中存储有效期信息
-        pdfDoc.setKeywords(`有效期:${expiryTimestamp}`)
+        // 在元数据中存储有效期信息（已在上面设置）
         
         // 如果选择隐藏模式，为所有页面添加白色覆盖层注释（作为备用方案）
         // 注意：pdf-lib不直接支持注释，这里我们通过添加一个隐藏的白色页面层来实现

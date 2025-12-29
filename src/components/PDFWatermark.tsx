@@ -1,8 +1,29 @@
 import { useState } from 'react'
 import { Upload, Download, Type, Sliders } from 'lucide-react'
-import { PDFDocument, rgb } from 'pdf-lib'
+import { PDFDocument, rgb, StandardFonts, degrees } from 'pdf-lib'
 import { saveAs } from 'file-saver'
 import './PDFWatermark.css'
+
+// 将文本转换为图片（支持中文）
+const textToImage = async (text: string, fontSize: number, color: string = '#808080'): Promise<string> => {
+  const canvas = document.createElement('canvas')
+  const ctx = canvas.getContext('2d')!
+  
+  ctx.font = `${fontSize}px Arial, "Microsoft YaHei", sans-serif`
+  const textMetrics = ctx.measureText(text)
+  const textWidth = textMetrics.width
+  const textHeight = fontSize * 1.2
+  
+  canvas.width = textWidth + 20
+  canvas.height = textHeight + 20
+  
+  ctx.font = `${fontSize}px Arial, "Microsoft YaHei", sans-serif`
+  ctx.fillStyle = color
+  ctx.textBaseline = 'middle'
+  ctx.fillText(text, 10, canvas.height / 2)
+  
+  return canvas.toDataURL('image/png')
+}
 
 export default function PDFWatermark() {
   const [loading, setLoading] = useState(false)
@@ -24,36 +45,67 @@ export default function PDFWatermark() {
       const pdfDoc = await PDFDocument.load(arrayBuffer)
       const pages = pdfDoc.getPages()
 
+      // 检查是否包含中文
+      const hasChinese = /[\u4e00-\u9fa5]/.test(watermarkText)
+      
+      let watermarkImage = null
+      let imageDims = null
+      
+      if (hasChinese) {
+        // 中文文本：转换为图片
+        const grayValue = Math.round(0.5 * 255)
+        const hexColor = `#${grayValue.toString(16).padStart(2, '0')}${grayValue.toString(16).padStart(2, '0')}${grayValue.toString(16).padStart(2, '0')}`
+        const watermarkDataUrl = await textToImage(watermarkText, fontSize, hexColor)
+        const watermarkBytes = await fetch(watermarkDataUrl).then(res => res.arrayBuffer())
+        watermarkImage = await pdfDoc.embedPng(watermarkBytes)
+        imageDims = watermarkImage.scale(1)
+      } else {
+        // 英文文本：使用标准字体
+        const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
+      }
+
       // 为每一页添加水印
       for (const page of pages) {
         const { width, height } = page.getSize()
 
-        // 计算水印位置（居中）
-        const textWidth = watermarkText.length * fontSize * 0.6
-        const textHeight = fontSize
+        if (hasChinese && watermarkImage && imageDims) {
+          // 使用图片水印（支持中文）
+          const spacing = 200
+          
+          // 计算旋转后的尺寸
+          const radians = (angle * Math.PI) / 180
+          const cos = Math.abs(Math.cos(radians))
+          const sin = Math.abs(Math.sin(radians))
+          const rotatedWidth = imageDims.width * cos + imageDims.height * sin
+          const rotatedHeight = imageDims.width * sin + imageDims.height * cos
+          
+          for (let x = -spacing; x < width + spacing; x += spacing) {
+            for (let y = -spacing; y < height + spacing; y += spacing) {
+              page.drawImage(watermarkImage, {
+                x: x - imageDims.width / 2,
+                y: y - imageDims.height / 2,
+                width: imageDims.width,
+                height: imageDims.height,
+                opacity: opacity,
+                rotate: degrees(angle),
+              })
+            }
+          }
+        } else {
+          // 使用文本水印（英文）
+          const textWidth = watermarkText.length * fontSize * 0.6
+          const textHeight = fontSize
+          const spacing = 200
 
-        // 在页面中心添加水印
-        page.drawText(watermarkText, {
-          x: (width - textWidth) / 2,
-          y: (height - textHeight) / 2,
-          size: fontSize,
-          color: rgb(0.5, 0.5, 0.5),
-          opacity: opacity,
-          rotate: { angleInDegrees: angle },
-        })
-
-        // 添加多个水印以覆盖整个页面
-        const spacing = 200
-        for (let x = 0; x < width + spacing; x += spacing) {
-          for (let y = 0; y < height + spacing; y += spacing) {
-            if (x > 0 || y > 0) {
+          for (let x = 0; x < width + spacing; x += spacing) {
+            for (let y = 0; y < height + spacing; y += spacing) {
               page.drawText(watermarkText, {
                 x: x - textWidth / 2,
                 y: y - textHeight / 2,
                 size: fontSize,
                 color: rgb(0.5, 0.5, 0.5),
                 opacity: opacity,
-                rotate: { angleInDegrees: angle },
+                rotate: degrees(angle),
               })
             }
           }
@@ -64,8 +116,9 @@ export default function PDFWatermark() {
       const blob = new Blob([pdfBytes], { type: 'application/pdf' })
       saveAs(blob, file.name.replace('.pdf', '-watermarked.pdf'))
 
-      alert('水印添加成功！')
+      alert('✅ 水印添加成功！')
     } catch (err) {
+      console.error('添加水印时出错:', err)
       setError('处理失败：' + (err instanceof Error ? err.message : '未知错误'))
     } finally {
       setLoading(false)
