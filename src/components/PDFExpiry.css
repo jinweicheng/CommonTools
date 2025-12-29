@@ -1,0 +1,116 @@
+.pdf-expiry {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.tool-header {
+  font-size: 2rem;
+  margin-bottom: 2rem;
+  color: #333;
+}
+
+.error-message {
+  background: #fee;
+  color: #c33;
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+  border: 1px solid #fcc;
+}
+
+.expiry-settings {
+  background: #f8f9fa;
+  border-radius: 12px;
+  padding: 2rem;
+  margin-bottom: 2rem;
+}
+
+.setting-group {
+  margin-bottom: 1.5rem;
+}
+
+.setting-group:last-child {
+  margin-bottom: 0;
+}
+
+.setting-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.setting-input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 1rem;
+}
+
+.setting-input:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.expiry-info {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background: white;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.expiry-info p {
+  margin: 0.5rem 0;
+}
+
+.expiry-date {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #667eea;
+}
+
+.upload-section {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.upload-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #667eea;
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-weight: 500;
+}
+
+.upload-button:hover:not(:has(input:disabled)) {
+  background: #5568d3;
+  transform: scale(1.05);
+}
+
+.upload-button:has(input:disabled) {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.info-box {
+  background: #e7f3ff;
+  border: 1px solid #b3d9ff;
+  border-radius: 8px;
+  padding: 1rem;
+  color: #0066cc;
+}
+
+.info-box p {
+  margin: 0;
+  line-height: 1.6;
+}
+

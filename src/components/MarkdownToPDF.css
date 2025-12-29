@@ -1,0 +1,151 @@
+.markdown-to-pdf {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.tool-header {
+  font-size: 2rem;
+  margin-bottom: 2rem;
+  color: #333;
+}
+
+.error-message {
+  background: #fee;
+  color: #c33;
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+  border: 1px solid #fcc;
+}
+
+.upload-section {
+  margin-bottom: 2rem;
+  text-align: center;
+}
+
+.upload-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #667eea;
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-weight: 500;
+}
+
+.upload-button:hover {
+  background: #5568d3;
+  transform: scale(1.05);
+}
+
+.editor-section,
+.preview-section {
+  margin-bottom: 2rem;
+}
+
+.editor-header,
+.preview-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.markdown-editor {
+  width: 100%;
+  padding: 1rem;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+  resize: vertical;
+  min-height: 300px;
+}
+
+.markdown-editor:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.markdown-preview {
+  padding: 1.5rem;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  min-height: 300px;
+  background: white;
+  line-height: 1.6;
+}
+
+.markdown-preview h1,
+.markdown-preview h2,
+.markdown-preview h3 {
+  margin-top: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.markdown-preview h1 {
+  font-size: 2rem;
+  border-bottom: 2px solid #e0e0e0;
+  padding-bottom: 0.5rem;
+}
+
+.markdown-preview h2 {
+  font-size: 1.5rem;
+}
+
+.markdown-preview h3 {
+  font-size: 1.25rem;
+}
+
+.markdown-preview code {
+  background: #f4f4f4;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+}
+
+.markdown-preview pre {
+  background: #f4f4f4;
+  padding: 1rem;
+  border-radius: 4px;
+  overflow-x: auto;
+}
+
+.markdown-preview blockquote {
+  border-left: 4px solid #667eea;
+  padding-left: 1rem;
+  margin-left: 0;
+  color: #666;
+}
+
+.convert-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #667eea;
+  color: white;
+  padding: 1rem 2rem;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin: 2rem auto 0;
+}
+
+.convert-button:hover:not(:disabled) {
+  background: #5568d3;
+  transform: scale(1.05);
+}
+
+.convert-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+

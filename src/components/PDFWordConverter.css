@@ -1,0 +1,92 @@
+.pdf-word-converter {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.tool-header {
+  font-size: 2rem;
+  margin-bottom: 2rem;
+  color: #333;
+}
+
+.error-message {
+  background: #fee;
+  color: #c33;
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+  border: 1px solid #fcc;
+}
+
+.converter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 2rem;
+  margin-bottom: 2rem;
+}
+
+.converter-card {
+  background: #f8f9fa;
+  border-radius: 12px;
+  padding: 2rem;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+.converter-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+}
+
+.converter-icon {
+  color: #667eea;
+  margin-bottom: 1rem;
+}
+
+.converter-card h3 {
+  font-size: 1.5rem;
+  margin-bottom: 0.5rem;
+  color: #333;
+}
+
+.converter-card p {
+  color: #666;
+  margin-bottom: 1.5rem;
+}
+
+.upload-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #667eea;
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-weight: 500;
+}
+
+.upload-button:hover:not(:has(input:disabled)) {
+  background: #5568d3;
+  transform: scale(1.05);
+}
+
+.upload-button:has(input:disabled) {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.info-box {
+  background: #e7f3ff;
+  border: 1px solid #b3d9ff;
+  border-radius: 8px;
+  padding: 1rem;
+  color: #0066cc;
+}
+
+.info-box p {
+  margin: 0;
+  line-height: 1.6;
+}
+
