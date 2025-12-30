@@ -2,13 +2,14 @@ import { useState } from 'react'
 import { Upload, FileText, ArrowRight, AlertCircle, CheckCircle, Info } from 'lucide-react'
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 import * as pdfjsLib from 'pdfjs-dist'
+import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import mammoth from 'mammoth'
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } from 'docx'
 import { saveAs } from 'file-saver'
 import './PDFWordConverter.css'
 
-// 配置 PDF.js worker（使用完整 URL）
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
+// 配置pdf.js worker - 使用 Vite 的 ?url 导入
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker
 
 type ConversionMode = 'word-to-pdf' | 'pdf-to-word'
 

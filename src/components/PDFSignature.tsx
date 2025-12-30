@@ -4,19 +4,11 @@ import SignatureCanvas from 'react-signature-canvas'
 import { PDFDocument, rgb } from 'pdf-lib'
 import { saveAs } from 'file-saver'
 import * as pdfjsLib from 'pdfjs-dist'
+import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import './PDFSignature.css'
 
-// 配置pdf.js worker
-try {
-  // 尝试使用本地安装的worker文件
-  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-    'pdfjs-dist/build/pdf.worker.min.mjs',
-    import.meta.url
-  ).toString()
-} catch (e) {
-  // 如果本地worker不可用，使用CDN
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
-}
+// 配置pdf.js worker - 使用 Vite 的 ?url 导入
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker
 
 interface Signature {
   id: string
@@ -556,37 +548,10 @@ export default function PDFSignature() {
     }
   }
 
-  // 修复canvas坐标系统
-  const fixCanvasCoordinates = useCallback((canvas: HTMLCanvasElement | null): void => {
-    if (!canvas) return
-    
-    const rect = canvas.getBoundingClientRect()
-    // const dpr = window.devicePixelRatio || 1 // 暂未使用
-    
-    // 确保canvas的实际尺寸与显示尺寸匹配
-    if (canvas.width !== rect.width || canvas.height !== rect.height) {
-      const ctx = canvas.getContext('2d')
-      if (ctx) {
-        // 保存当前内容
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-        
-        // 设置新的尺寸
-        canvas.width = rect.width
-        canvas.height = rect.height
-        
-        // 恢复内容
-        ctx.putImageData(imageData, 0, 0)
-      }
-    }
-  }, [])
-
   // 当面板打开或笔大小改变时，更新canvas的笔大小
   useEffect(() => {
     if (showSignaturePanel && signatureCanvasRef.current) {
-      const canvas = signatureCanvasRef.current.getCanvas()
-      // @ts-ignore
-      fixCanvasCoordinates(canvas)
-      
+      // 直接设置笔的属性
       (signatureCanvasRef.current as any).penColor = '#000000';
       (signatureCanvasRef.current as any).minWidth = penSize;
       (signatureCanvasRef.current as any).maxWidth = penSize
@@ -595,10 +560,7 @@ export default function PDFSignature() {
 
   useEffect(() => {
     if (showDatePanel && dateCanvasRef.current) {
-      const canvas = dateCanvasRef.current.getCanvas()
-      // @ts-ignore
-      fixCanvasCoordinates(canvas)
-      
+      // 直接设置笔的属性
       (dateCanvasRef.current as any).penColor = '#000000';
       (dateCanvasRef.current as any).minWidth = penSize;
       (dateCanvasRef.current as any).maxWidth = penSize

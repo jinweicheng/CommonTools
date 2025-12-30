@@ -3,17 +3,11 @@ import { Upload, Shield, AlertCircle } from 'lucide-react'
 import { PDFDocument, StandardFonts } from 'pdf-lib'
 import { saveAs } from 'file-saver'
 import * as pdfjsLib from 'pdfjs-dist'
+import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import './PDFProtection.css'
 
-// 配置pdf.js worker
-try {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-    'pdfjs-dist/build/pdf.worker.min.mjs',
-    import.meta.url
-  ).toString()
-} catch (e) {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
-}
+// 配置pdf.js worker - 使用 Vite 的 ?url 导入
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker
 
 // PDF加密工具函数
 const encryptPDF = async (pdfBytes: ArrayBuffer, options: {
