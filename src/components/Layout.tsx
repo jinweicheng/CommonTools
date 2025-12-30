@@ -16,8 +16,8 @@ export default function Layout({ children }: LayoutProps) {
     { path: '/conversion', icon: <Repeat size={18} />, label: '格式转化' },
     { path: '/watermark', icon: <Droplet size={18} />, label: '加水印' },
     { path: '/signature', icon: <PenTool size={18} />, label: '电子签名' },
-    { path: '/password-manager', icon: <KeyRound size={18} />, label: '密码管理器' },
     { path: '/compression', icon: <Archive size={18} />, label: '解压/压缩' },
+    { path: '/password-manager', icon: <KeyRound size={18} />, label: '密码管理器' },
   ]
   
   const handleNavClick = () => {
