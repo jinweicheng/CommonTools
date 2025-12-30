@@ -3,6 +3,74 @@
   margin: 0 auto;
 }
 
+/* 格式信息栏 */
+.format-info {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 1.25rem 1.75rem;
+  border-radius: 12px;
+  margin-bottom: 1.5rem;
+  font-size: 0.9rem;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+  animation: slideInDown 0.5s ease-out;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 0.75rem;
+}
+
+.format-info > div {
+  padding: 0.5rem;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  backdrop-filter: blur(10px);
+}
+
+.format-info strong {
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  display: inline-block;
+  margin-right: 0.25rem;
+}
+
+@media (max-width: 768px) {
+  .format-info {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+    padding: 1rem 1.25rem;
+    font-size: 0.85rem;
+  }
+}
+
+/* 文件类型指示器 */
+.file-type-indicator {
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border: 2px solid #bae6fd;
+  border-radius: 8px;
+  text-align: center;
+  color: #0c4a6e;
+  font-size: 0.95rem;
+}
+
+.file-type-indicator strong {
+  color: #0369a1;
+  font-weight: 700;
+}
+
+.file-type-indicator .badge {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  background: #fbbf24;
+  color: #78350f;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
 .tool-header {
   font-size: 2rem;
   margin-bottom: 2rem;
@@ -98,11 +166,43 @@
   border: 2px solid #e0e0e0;
   border-radius: 8px;
   font-size: 1rem;
+  transition: all 0.3s ease;
 }
 
 .setting-input:focus {
   outline: none;
   border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.setting-input.input-error {
+  border-color: #ef4444;
+  background-color: #fef2f2;
+}
+
+.setting-input.input-error:focus {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+}
+
+.error-message {
+  margin-top: 8px;
+  color: #ef4444;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  animation: slideInDown 0.3s ease-out;
+}
+
+.success-message {
+  margin-top: 8px;
+  color: #10b981;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  animation: slideInDown 0.3s ease-out;
 }
 
 .setting-description {

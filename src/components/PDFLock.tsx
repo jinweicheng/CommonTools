@@ -5,25 +5,52 @@ import { saveAs } from 'file-saver'
 import { CryptoUtils } from '../utils/cryptoUtils'
 import './PDFLock.css'
 
+// 支持的文件类型
+type FileType = 'pdf' | 'image' | 'document' | 'text' | 'code' | 'data' | 'unknown'
+
+// 检测文件类型
+const detectFileType = (file: File): FileType => {
+  const ext = file.name.split('.').pop()?.toLowerCase() || ''
+  
+  if (ext === 'pdf') return 'pdf'
+  if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(ext)) return 'image'
+  if (['doc', 'docx'].includes(ext)) return 'document'
+  if (['txt'].includes(ext)) return 'text'
+  if (['html', 'htm', 'js', 'jsx', 'ts', 'tsx', 'css', 'scss', 'sass', 'less', 
+       'java', 'py', 'swift', 'c', 'cpp', 'h', 'hpp', 'go', 'rs', 'php', 'rb', 
+       'json', 'xml', 'yaml', 'yml', 'md', 'sh', 'bat', 'ps1'].includes(ext)) return 'code'
+  if (['sql', 'db', 'sqlite', 'sqlite3', 'mdb', 'accdb'].includes(ext)) return 'data'
+  
+  return 'unknown'
+}
+
 export default function PDFLock() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [mode, setMode] = useState<'lock' | 'unlock'>('lock')
   
-  // Encryption mode: 'strong' (needs tool to decrypt) or 'standard' (any PDF reader)
+  // Encryption mode: 'strong' (needs tool to decrypt) or 'standard' (any PDF reader, only for PDF)
   const [encryptionMode, setEncryptionMode] = useState<'strong' | 'standard'>('standard')
   
   // Lock mode
   const [userPassword, setUserPassword] = useState('')
-  const [ownerPassword, setOwnerPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [passwordError, setPasswordError] = useState('')
   const [allowPrinting, setAllowPrinting] = useState(true)
+  void setAllowPrinting // Used in JSX
   const [allowCopying, setAllowCopying] = useState(true)
+  void setAllowCopying // Used in JSX
   const [allowModifying, setAllowModifying] = useState(false)
+  void setAllowModifying // Used in JSX
   const [allowAnnotating, setAllowAnnotating] = useState(false)
+  void setAllowAnnotating // Used in JSX
   
   // Unlock mode
   const [unlockPassword, setUnlockPassword] = useState('')
+  
+  // 当前文件信息
+  const [currentFileType, setCurrentFileType] = useState<FileType>('unknown')
 
   // 将 emoji 转换为图片（避免 WinAnsi 编码错误）
   const emojiToImage = async (emoji: string, size: number): Promise<string> => {
@@ -284,13 +311,230 @@ export default function PDFLock() {
       
       // 清空密码
       setUserPassword('')
-      setOwnerPassword('')
+      setConfirmPassword('')
+      setPasswordError('')
     } catch (err) {
       console.error('标准加密失败:', err)
       setError('加密失败：' + (err instanceof Error ? err.message : '未知错误'))
     } finally {
       setLoading(false)
     }
+  }
+
+  // 通用文件加密（图片、文档、文本）
+  const lockGenericFile = async (file: File) => {
+    if (!userPassword) {
+      setError('请设置密码')
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+    setSuccess(null)
+
+    try {
+      // 读取文件内容
+      const arrayBuffer = await file.arrayBuffer()
+      const originalSize = arrayBuffer.byteLength
+      
+      // 获取文件扩展名
+      const extension = file.name.split('.').pop() || 'bin'
+      
+      // 使用 AES-256-GCM 加密文件内容
+      const salt = crypto.getRandomValues(new Uint8Array(16))
+      const userKey = await CryptoUtils.deriveKeyFromPassword(userPassword, salt)
+      const { encrypted: encryptedContent, iv } = await CryptoUtils.encrypt(arrayBuffer, userKey)
+      
+      // 构建加密信息
+      const encryptionInfo = {
+        version: '1.0',
+        algorithm: 'AES-256-GCM',
+        fileType: detectFileType(file),
+        originalName: file.name,
+        originalExtension: extension,
+        salt: CryptoUtils.arrayBufferToBase64(salt.buffer),
+        iv: CryptoUtils.arrayBufferToBase64(iv.buffer as ArrayBuffer),
+        originalSize: originalSize,
+        encryptedAt: new Date().toISOString(),
+        permissions: {
+          printing: allowPrinting,
+          copying: allowCopying,
+          modifying: allowModifying,
+          annotating: allowAnnotating
+        }
+      }
+      
+      // 创建加密文件结构
+      const encryptedData = new Uint8Array(encryptedContent)
+      const infoJson = JSON.stringify(encryptionInfo)
+      const infoBytes = new TextEncoder().encode(infoJson)
+      const infoLength = new Uint32Array([infoBytes.byteLength])
+      
+      // 组合数据：[infoLength(4 bytes)][info][encryptedData]
+      const finalBytes = new Uint8Array(4 + infoBytes.byteLength + encryptedData.byteLength)
+      finalBytes.set(new Uint8Array(infoLength.buffer), 0)
+      finalBytes.set(infoBytes, 4)
+      finalBytes.set(encryptedData, 4 + infoBytes.byteLength)
+      
+      // 保存加密文件
+      const blob = new Blob([finalBytes.buffer], { type: 'application/octet-stream' })
+      const baseName = file.name.replace(/\.[^/.]+$/, '')
+      saveAs(blob, `${baseName}.locked`)
+      
+      setSuccess(`✅ 文件已成功加密！\n\n加密信息：\n• 文件类型：${getFileTypeName(detectFileType(file))}\n• 算法：AES-256-GCM\n• 原始大小：${(originalSize / 1024).toFixed(2)} KB\n• 加密后大小：${(finalBytes.byteLength / 1024).toFixed(2)} KB\n• 加密文件：${baseName}.locked\n\n请妥善保管密码，忘记密码将无法恢复！`)
+      
+      // 清空密码
+      setUserPassword('')
+      setConfirmPassword('')
+      setPasswordError('')
+    } catch (err) {
+      console.error('加密文件失败:', err)
+      setError('加密失败：' + (err instanceof Error ? err.message : '未知错误'))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // 通用文件解密
+  const unlockGenericFile = async (file: File) => {
+    if (!unlockPassword) {
+      setError('请输入密码')
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+    setSuccess(null)
+
+    try {
+      // 读取加密文件
+      const arrayBuffer = await file.arrayBuffer()
+      const bytes = new Uint8Array(arrayBuffer)
+      
+      // 读取信息长度（前4字节）
+      const infoLength = new Uint32Array(bytes.buffer.slice(0, 4))[0]
+      
+      // 读取加密信息
+      const infoBytes = bytes.slice(4, 4 + infoLength)
+      const infoJson = new TextDecoder().decode(infoBytes)
+      const encryptionInfo = JSON.parse(infoJson)
+      
+      // 读取加密数据
+      const encryptedData = bytes.slice(4 + infoLength)
+      
+      // 解密数据
+      const salt = new Uint8Array(CryptoUtils.base64ToArrayBuffer(encryptionInfo.salt))
+      const iv = new Uint8Array(CryptoUtils.base64ToArrayBuffer(encryptionInfo.iv))
+      
+      const key = await CryptoUtils.deriveKeyFromPassword(unlockPassword, salt)
+      
+      let decryptedBytes
+      try {
+        decryptedBytes = await CryptoUtils.decrypt(encryptedData.buffer, key, iv)
+      } catch (err) {
+        setError('❌ 密码错误！请检查密码后重试')
+        return
+      }
+      
+      // 保存解密后的文件
+      const blob = new Blob([decryptedBytes], { type: getMimeType(encryptionInfo.originalExtension) })
+      const originalName = encryptionInfo.originalName || `decrypted.${encryptionInfo.originalExtension}`
+      saveAs(blob, originalName)
+      
+      setSuccess(`✅ 文件已成功解密！\n\n文件信息：\n• 文件类型：${getFileTypeName(encryptionInfo.fileType)}\n• 原始文件名：${originalName}\n• 文件大小：${(encryptionInfo.originalSize / 1024).toFixed(2)} KB\n• 加密日期：${new Date(encryptionInfo.encryptedAt).toLocaleDateString()}\n\n解密后的文件已保存`)
+      
+      // 清空密码
+      setUnlockPassword('')
+    } catch (err) {
+      console.error('解密文件失败:', err)
+      if (err instanceof Error && err.message.includes('password')) {
+        setError('❌ 密码错误！')
+      } else {
+        setError('解密失败：' + (err instanceof Error ? err.message : '未知错误'))
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // 获取文件类型名称
+  const getFileTypeName = (type: FileType): string => {
+    switch (type) {
+      case 'pdf': return 'PDF 文档'
+      case 'image': return '图片文件'
+      case 'document': return 'Word 文档'
+      case 'text': return '文本文件'
+      case 'code': return '代码文件'
+      case 'data': return '数据文件'
+      default: return '未知文件'
+    }
+  }
+
+  // 获取 MIME 类型
+  const getMimeType = (extension: string): string => {
+    const mimeTypes: { [key: string]: string } = {
+      // 文档
+      'pdf': 'application/pdf',
+      'doc': 'application/msword',
+      'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'txt': 'text/plain',
+      
+      // 图片
+      'jpg': 'image/jpeg',
+      'jpeg': 'image/jpeg',
+      'png': 'image/png',
+      'gif': 'image/gif',
+      'bmp': 'image/bmp',
+      'webp': 'image/webp',
+      
+      // 网页代码
+      'html': 'text/html',
+      'htm': 'text/html',
+      'css': 'text/css',
+      'js': 'application/javascript',
+      'jsx': 'application/javascript',
+      'ts': 'application/typescript',
+      'tsx': 'application/typescript',
+      
+      // 样式
+      'scss': 'text/x-scss',
+      'sass': 'text/x-sass',
+      'less': 'text/x-less',
+      
+      // 编程语言
+      'java': 'text/x-java-source',
+      'py': 'text/x-python',
+      'swift': 'text/x-swift',
+      'c': 'text/x-c',
+      'cpp': 'text/x-c++',
+      'h': 'text/x-c',
+      'hpp': 'text/x-c++',
+      'go': 'text/x-go',
+      'rs': 'text/x-rust',
+      'php': 'text/x-php',
+      'rb': 'text/x-ruby',
+      
+      // 数据格式
+      'json': 'application/json',
+      'xml': 'application/xml',
+      'yaml': 'text/yaml',
+      'yml': 'text/yaml',
+      'md': 'text/markdown',
+      
+      // 脚本
+      'sh': 'text/x-sh',
+      'bat': 'text/plain',
+      'ps1': 'text/plain',
+      
+      // 数据库
+      'sql': 'application/sql',
+      'db': 'application/x-sqlite3',
+      'sqlite': 'application/x-sqlite3',
+      'sqlite3': 'application/x-sqlite3',
+      'mdb': 'application/x-msaccess',
+      'accdb': 'application/x-msaccess'
+    }
+    return mimeTypes[extension.toLowerCase()] || 'application/octet-stream'
   }
 
   // 强加密模式：使用 AES-256-GCM 加密内容
@@ -341,8 +585,7 @@ export default function PDFLock() {
           copying: allowCopying,
           modifying: allowModifying,
           annotating: allowAnnotating
-        },
-        hasOwnerPassword: !!ownerPassword
+        }
       }
       
       // 存储加密信息到 Keywords
@@ -483,7 +726,8 @@ export default function PDFLock() {
       
       // 清空密码
       setUserPassword('')
-      setOwnerPassword('')
+      setConfirmPassword('')
+      setPasswordError('')
     } catch (err) {
       console.error('加密 PDF 失败:', err)
       setError('加密失败：' + (err instanceof Error ? err.message : '未知错误'))
@@ -564,20 +808,72 @@ export default function PDFLock() {
     const file = event.target.files?.[0]
     if (!file) return
 
+    const fileType = detectFileType(file)
+    setCurrentFileType(fileType)
+
     if (mode === 'lock') {
-      if (encryptionMode === 'standard') {
-        await lockPDFStandard(file)
+      // 加密模式 - 验证密码
+      if (!userPassword) {
+        setError('请设置密码')
+        return
+      }
+      
+      if (!confirmPassword) {
+        setPasswordError('请再次输入密码以确认')
+        setError('请再次输入密码以确认')
+        return
+      }
+      
+      if (userPassword !== confirmPassword) {
+        setPasswordError('两次输入的密码不一致，请重新输入')
+        setError('两次输入的密码不一致，请重新输入')
+        return
+      }
+      
+      // 密码验证通过，清除错误提示
+      setPasswordError('')
+      
+      // 加密文件
+      if (fileType === 'pdf') {
+        // PDF 文件有两种加密模式
+        if (encryptionMode === 'standard') {
+          await lockPDFStandard(file)
+        } else {
+          await lockPDFStrong(file)
+        }
+      } else if (fileType === 'image' || fileType === 'document' || fileType === 'text' || 
+                 fileType === 'code' || fileType === 'data') {
+        // 其他文件类型使用通用加密
+        await lockGenericFile(file)
       } else {
-        await lockPDFStrong(file)
+        setError('不支持的文件格式。支持的格式：PDF、图片、Word 文档、文本文件、代码文件、数据文件')
       }
     } else {
-      await unlockPDF(file)
+      // 解密模式
+      if (file.name.endsWith('.locked')) {
+        // 通用加密文件
+        await unlockGenericFile(file)
+      } else if (file.name.includes('-locked.pdf')) {
+        // PDF 强加密文件
+        await unlockPDF(file)
+      } else if (file.name.endsWith('.html')) {
+        setError('HTML 包装的 PDF 请直接在浏览器中打开并输入密码查看')
+      } else {
+        setError('无法识别的加密文件。请选择 .locked 文件或 -locked.pdf 文件')
+      }
     }
   }
 
   return (
     <div className="pdf-lock">
-      <h2 className="tool-header">PDF 密码保护与解除</h2>
+      <h2 className="tool-header">🔐 文件加密与解密</h2>
+      
+      <div className="format-info">
+        <div><strong>📄 文档：</strong> PDF、Word（DOC/DOCX）、文本（TXT）</div>
+        <div><strong>🖼️ 图片：</strong> JPG、PNG、GIF、BMP、WEBP</div>
+        <div><strong>💻 代码：</strong> HTML、JS、CSS、Java、Python、Swift、JSON、XML 等</div>
+        <div><strong>🗄️ 数据：</strong> SQL、DB、SQLite 等数据库文件</div>
+      </div>
 
       {error && (
         <div className="error-message">
@@ -658,40 +954,64 @@ export default function PDFLock() {
           <div className="setting-group">
             <label className="setting-label">
               <Lock size={20} />
-              打开密码（User Password）
+              设置密码
             </label>
             <input
               type="password"
               className="setting-input"
               value={userPassword}
-              onChange={(e) => setUserPassword(e.target.value)}
-              placeholder="设置打开 PDF 的密码（必填）"
+              onChange={(e) => {
+                setUserPassword(e.target.value)
+                // 实时验证密码是否一致
+                if (confirmPassword && e.target.value !== confirmPassword) {
+                  setPasswordError('两次输入的密码不一致')
+                } else {
+                  setPasswordError('')
+                }
+              }}
+              placeholder="请设置文件加密密码（必填）"
             />
             <p className="setting-description">
               {encryptionMode === 'standard' 
                 ? '生成 HTML 包装器，在浏览器中打开时需要输入此密码' 
-                : '用户需要使用本工具并输入此密码才能解密和查看 PDF 文件'}
+                : '用户需要使用本工具并输入此密码才能解密和查看文件'}
             </p>
           </div>
 
           <div className="setting-group">
             <label className="setting-label">
               <Shield size={20} />
-              权限密码（Owner Password - 可选）
+              再次确认密码
             </label>
             <input
               type="password"
-              className="setting-input"
-              value={ownerPassword}
-              onChange={(e) => setOwnerPassword(e.target.value)}
-              placeholder="设置编辑权限密码（可选）"
+              className={`setting-input ${passwordError ? 'input-error' : ''}`}
+              value={confirmPassword}
+              onChange={(e) => {
+                setConfirmPassword(e.target.value)
+                // 实时验证密码是否一致
+                if (e.target.value && userPassword && e.target.value !== userPassword) {
+                  setPasswordError('两次输入的密码不一致')
+                } else {
+                  setPasswordError('')
+                }
+              }}
+              placeholder="请再次输入密码以确认"
             />
-            <p className="setting-description">
-              用于控制文档的编辑、打印等权限（当前版本权限存储在元数据中）
-            </p>
+            {passwordError && (
+              <p className="error-message" style={{ marginTop: '8px', color: '#ef4444', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <AlertCircle size={16} />
+                {passwordError}
+              </p>
+            )}
+            {!passwordError && confirmPassword && userPassword === confirmPassword && (
+              <p className="success-message" style={{ marginTop: '8px', color: '#10b981', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                ✓ 密码一致
+              </p>
+            )}
           </div>
 
-          <div className="setting-group">
+          {/* <div className="setting-group">
             <label className="setting-label">
               <Shield size={20} />
               权限设置
@@ -734,7 +1054,7 @@ export default function PDFLock() {
                 <span>允许添加注释</span>
               </label>
             </div>
-          </div>
+          </div> */}
         </div>
       ) : (
         // Unlock Mode
@@ -762,43 +1082,64 @@ export default function PDFLock() {
         <label className="upload-button">
           <input
             type="file"
-            accept=".pdf"
+            accept={mode === 'lock' ? 
+              '.pdf,.jpg,.jpeg,.png,.gif,.bmp,.webp,.doc,.docx,.txt,.html,.htm,.js,.jsx,.ts,.tsx,.css,.scss,.sass,.less,.java,.py,.swift,.c,.cpp,.h,.hpp,.go,.rs,.php,.rb,.json,.xml,.yaml,.yml,.md,.sh,.bat,.ps1,.sql,.db,.sqlite,.sqlite3,.mdb,.accdb' 
+              : '.locked,.pdf,.html'}
             onChange={handleFileUpload}
-            disabled={loading || (mode === 'lock' && !userPassword) || (mode === 'unlock' && !unlockPassword)}
+            disabled={loading || (mode === 'lock' && (!userPassword || !confirmPassword || userPassword !== confirmPassword)) || (mode === 'unlock' && !unlockPassword)}
             style={{ display: 'none' }}
           />
           <Upload size={20} />
-          {loading ? '处理中...' : mode === 'lock' ? '选择 PDF 文件并加密' : '选择加密的 PDF 文件并解密'}
+          {loading ? '处理中...' : mode === 'lock' ? '选择文件并加密' : '选择加密文件并解密'}
         </label>
+        
+        {currentFileType !== 'unknown' && mode === 'lock' && (
+          <div className="file-type-indicator">
+            当前文件类型: <strong>{getFileTypeName(currentFileType)}</strong>
+            {currentFileType !== 'pdf' && <span className="badge">仅支持强加密</span>}
+          </div>
+        )}
       </div>
 
       <div className="info-box">
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
           <AlertCircle size={20} style={{ marginTop: '2px', flexShrink: 0, color: '#0066cc' }} />
           <div>
-            <p><strong>🔐 两种加密模式对比</strong></p>
+            <p><strong>🔐 加密模式说明</strong></p>
+            
             <div style={{ margin: '12px 0' }}>
-              <p style={{ fontWeight: 'bold', marginBottom: '8px' }}>📄 标准加密模式（推荐日常使用）</p>
+              <p style={{ fontWeight: 'bold', marginBottom: '8px' }}>📄 PDF 文件 - 两种加密模式</p>
+              <div style={{ paddingLeft: '12px' }}>
+                <p style={{ fontWeight: '600', marginBottom: '4px', marginTop: '8px' }}>1️⃣ 标准加密（推荐日常使用）</p>
+                <ul style={{ margin: '4px 0', paddingLeft: '20px', lineHeight: '1.8' }}>
+                  <li>✅ 生成 HTML 文件，浏览器可直接打开</li>
+                  <li>✅ 打开时需要输入密码（SHA-256 验证）</li>
+                  <li>⚠️ 安全性：中等（源代码可被查看）</li>
+                </ul>
+                
+                <p style={{ fontWeight: '600', marginBottom: '4px', marginTop: '8px' }}>2️⃣ 强加密（推荐敏感文档）</p>
+                <ul style={{ margin: '4px 0', paddingLeft: '20px', lineHeight: '1.8' }}>
+                  <li>✅ AES-256-GCM 军事级加密</li>
+                  <li>✅ 需要本工具解密才能查看</li>
+                  <li>✅ 安全性：极高</li>
+                </ul>
+              </div>
+            </div>
+            
+            <div style={{ margin: '12px 0' }}>
+              <p style={{ fontWeight: 'bold', marginBottom: '8px' }}>🗂️ 其他文件 - 强加密模式（通用加密）</p>
               <ul style={{ margin: '4px 0', paddingLeft: '20px', lineHeight: '1.8' }}>
-                <li>✅ 生成 HTML 文件，浏览器可直接打开</li>
-                <li>✅ 打开时需要输入密码（SHA-256 验证）</li>
-                <li>✅ PDF 内嵌在 HTML 中，密码正确后显示</li>
-                <li>✅ 适合分享给非技术用户</li>
-                <li>⚠️ 安全性：中等（HTML 源代码可被查看）</li>
+                <li>✅ <strong>图片：</strong>JPG、PNG、GIF、BMP、WEBP</li>
+                <li>✅ <strong>文档：</strong>DOC、DOCX、TXT</li>
+                <li>✅ <strong>代码：</strong>HTML、JS、CSS、Java、Python、Swift、JSON、XML 等</li>
+                <li>✅ <strong>数据：</strong>SQL、DB、SQLite 等数据库文件</li>
+                <li>✅ AES-256-GCM 加密，生成 .locked 文件</li>
+                <li>✅ 使用本工具解密后完美恢复原始文件</li>
               </ul>
             </div>
-            <div style={{ margin: '12px 0' }}>
-              <p style={{ fontWeight: 'bold', marginBottom: '8px' }}>🔒 强加密模式（推荐敏感文档）</p>
-              <ul style={{ margin: '4px 0', paddingLeft: '20px', lineHeight: '1.8' }}>
-                <li>✅ AES-256-GCM 军事级加密</li>
-                <li>✅ 完全加密 PDF 内容，无法直接查看</li>
-                <li>✅ 需要本工具解密才能打开</li>
-                <li>✅ 安全性：极高（真正的内容加密）</li>
-                <li>⚠️ 忘记密码将无法恢复</li>
-              </ul>
-            </div>
-            <p style={{ marginTop: '12px', fontSize: '0.9em', color: '#666' }}>
-              💡 <strong>建议：</strong>日常文档使用"标准加密"，敏感机密文档使用"强加密"
+            
+            <p style={{ marginTop: '12px', fontSize: '0.9em', color: '#666', padding: '8px', background: '#f0f9ff', borderRadius: '4px' }}>
+              💡 <strong>安全提示：</strong>所有文件都使用 AES-256-GCM 加密，请妥善保管密码。忘记密码将无法恢复文件！
             </p>
           </div>
         </div>
