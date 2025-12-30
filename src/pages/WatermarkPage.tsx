@@ -1,18 +1,18 @@
-import WatermarkTool from '../components/WatermarkTool'
+import PDFWatermark from '../components/PDFWatermark'
 import './PageStyles.css'
 
 export default function WatermarkPage() {
   return (
     <div className="page-container">
       <div className="page-header">
-        <h1>加水印</h1>
-        <p className="page-description">
-          为 PDF、图片添加自定义水印，支持中文、旋转角度和透明度调整
+        <h1 className="page-title">💧 水印工具</h1>
+        <p className="page-subtitle">
+          为 PDF 和图片添加专业水印，支持中英文、自定义透明度和旋转角度
         </p>
       </div>
       
       <div className="page-content">
-        <WatermarkTool />
+        <PDFWatermark />
       </div>
     </div>
   )
