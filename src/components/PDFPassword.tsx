@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Upload, Download, Lock, Eye, EyeOff, AlertCircle, Shield } from 'lucide-react'
+import { Upload, Lock, Eye, EyeOff, AlertCircle, Shield } from 'lucide-react'
 import { PDFDocument, StandardFonts } from 'pdf-lib'
 import { saveAs } from 'file-saver'
 import './PDFPassword.css'
@@ -74,7 +74,7 @@ export default function PDFPassword() {
       // 在第一页顶部添加密码提示
       if (pages.length > 0) {
         const firstPage = pages[0]
-        const { width, height } = firstPage.getSize()
+        const { height } = firstPage.getSize() // width 暂未使用
         
         try {
           // 添加半透明的保护标记（使用图片支持 emoji）
@@ -144,7 +144,7 @@ export default function PDFPassword() {
       pdfDoc.setProducer(`Protected:${passwordHash}:Permissions:${btoa(permissionsData)}`)
 
       const pdfBytes = await pdfDoc.save()
-      const blob = new Blob([pdfBytes], { type: 'application/pdf' })
+      const blob = new Blob([pdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' })
       saveAs(blob, file.name.replace('.pdf', '-protected.pdf'))
 
       const permissionsMsg = []

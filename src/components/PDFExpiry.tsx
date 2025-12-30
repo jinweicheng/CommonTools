@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Upload, Download, Calendar, Clock, Shield, Lock } from 'lucide-react'
+import { Upload, Calendar, Clock, Shield, Lock } from 'lucide-react'
 import { PDFDocument, rgb } from 'pdf-lib'
 import { saveAs } from 'file-saver'
 import { format } from 'date-fns'
@@ -53,7 +53,7 @@ export default function PDFExpiry() {
         const pdfBytes = await pdfDoc.save()
         const salt = crypto.getRandomValues(new Uint8Array(16))
         const key = await CryptoUtils.deriveKeyFromPassword(encryptionPassword, salt)
-        const { encrypted, iv } = await CryptoUtils.encrypt(pdfBytes, key)
+        const { encrypted: _encrypted, iv } = await CryptoUtils.encrypt(pdfBytes.buffer as ArrayBuffer, key)
 
         // 创建新的PDF，包含加密内容和元数据
         const encryptedPdfDoc = await PDFDocument.create()
@@ -114,9 +114,9 @@ export default function PDFExpiry() {
         })
 
         // 将加密数据编码为Base64并存储在注释中
-        const encryptedBase64 = CryptoUtils.arrayBufferToBase64(encrypted)
-        const saltBase64 = CryptoUtils.arrayBufferToBase64(salt.buffer)
-        const ivBase64 = CryptoUtils.arrayBufferToBase64(iv.buffer)
+        // const encryptedBase64 = CryptoUtils.arrayBufferToBase64(encrypted) // 暂未使用
+        const saltBase64 = CryptoUtils.arrayBufferToBase64(salt.buffer as ArrayBuffer)
+        const ivBase64 = CryptoUtils.arrayBufferToBase64(iv.buffer as ArrayBuffer)
         
         // 将加密信息存储到PDF的自定义字段中
         // 注意：pdf-lib的限制，我们使用Keywords字段存储加密信息
@@ -130,19 +130,19 @@ export default function PDFExpiry() {
         ])
 
         const finalPdfBytes = await encryptedPdfDoc.save()
-        const blob = new Blob([finalPdfBytes], { type: 'application/pdf' })
+        const blob = new Blob([finalPdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' })
         
         const expiryStr = format(expiryDateTime, 'yyyyMMdd-HHmm')
         saveAs(blob, file.name.replace('.pdf', `-加密-${generatedDocId}-有效期至${expiryStr}.pdf`))
 
         // 同时保存加密数据文件（用于专用查看器）
-        const encryptedBlob = new Blob([encrypted], { type: 'application/octet-stream' })
+        // const encryptedBlob = new Blob([encrypted], { type: 'application/octet-stream' }) // 暂未使用
         const metadata = {
           expiryDate: expiryDateFormatted,
           expiryTime: expiryTime,
           docId: generatedDocId,
-          salt: CryptoUtils.arrayBufferToBase64(salt.buffer),
-          iv: CryptoUtils.arrayBufferToBase64(iv.buffer),
+          salt: CryptoUtils.arrayBufferToBase64(salt.buffer as ArrayBuffer),
+          iv: CryptoUtils.arrayBufferToBase64(iv.buffer as ArrayBuffer),
         }
         const metadataBlob = new Blob([JSON.stringify(metadata, null, 2)], { type: 'application/json' })
         saveAs(metadataBlob, `metadata-${generatedDocId}.json`)
@@ -318,7 +318,7 @@ if (now > expiryDate) {
         const pages = pdfDoc.getPages()
         if (pages.length > 0) {
           const firstPage = pages[0]
-          const { width, height } = firstPage.getSize()
+          const { height } = firstPage.getSize() // width 暂未使用
 
           // 使用文本转图片的方式绘制中文
           const expiryText = await textToImage(`有效期至: ${format(expiryDateTime, 'yyyy年MM月dd日 HH:mm')}`, 10, '#c00')
@@ -336,7 +336,7 @@ if (now > expiryDate) {
       }
 
       const pdfBytes = await pdfDoc.save()
-      const blob = new Blob([pdfBytes], { type: 'application/pdf' })
+      const blob = new Blob([pdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' })
       
       // 在文件名中包含有效期信息
       const expiryStr = format(expiryDateTime, 'yyyyMMdd-HHmm')

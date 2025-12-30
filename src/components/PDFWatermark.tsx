@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { Upload, Download, Type, Sliders } from 'lucide-react'
-import { PDFDocument, rgb, StandardFonts, degrees } from 'pdf-lib'
+import { Upload, Type, Sliders } from 'lucide-react'
+import { PDFDocument, rgb, degrees } from 'pdf-lib'
 import { saveAs } from 'file-saver'
 import './PDFWatermark.css'
 
@@ -61,7 +61,7 @@ export default function PDFWatermark() {
         imageDims = watermarkImage.scale(1)
       } else {
         // 英文文本：使用标准字体
-        const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
+        // const font = await pdfDoc.embedFont(StandardFonts.Helvetica) // 暂未使用
       }
 
       // 为每一页添加水印
@@ -73,11 +73,11 @@ export default function PDFWatermark() {
           const spacing = 200
           
           // 计算旋转后的尺寸
-          const radians = (angle * Math.PI) / 180
-          const cos = Math.abs(Math.cos(radians))
-          const sin = Math.abs(Math.sin(radians))
-          const rotatedWidth = imageDims.width * cos + imageDims.height * sin
-          const rotatedHeight = imageDims.width * sin + imageDims.height * cos
+          // const radians = (angle * Math.PI) / 180
+          // const cos = Math.abs(Math.cos(radians))
+          // const sin = Math.abs(Math.sin(radians))
+          // const rotatedWidth = imageDims.width * cos + imageDims.height * sin // 暂未使用
+          // const rotatedHeight = imageDims.width * sin + imageDims.height * cos // 暂未使用
           
           for (let x = -spacing; x < width + spacing; x += spacing) {
             for (let y = -spacing; y < height + spacing; y += spacing) {
@@ -113,7 +113,7 @@ export default function PDFWatermark() {
       }
 
       const pdfBytes = await pdfDoc.save()
-      const blob = new Blob([pdfBytes], { type: 'application/pdf' })
+      const blob = new Blob([pdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' })
       saveAs(blob, file.name.replace('.pdf', '-watermarked.pdf'))
 
       alert('✅ 水印添加成功！')

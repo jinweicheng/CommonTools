@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Upload, FileText, Image, FileCode, AlertCircle, CheckCircle } from 'lucide-react'
-import { PDFDocument } from 'pdf-lib'
+// import { PDFDocument } from 'pdf-lib' // 暂未使用
 import * as pdfjsLib from 'pdfjs-dist'
 import { saveAs } from 'file-saver'
 import './ConvertFromPDF.css'

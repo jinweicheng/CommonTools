@@ -184,7 +184,7 @@ export default function MarkdownToPDF() {
       }
 
       const pdfBytes = await pdfDoc.save()
-      const blob = new Blob([pdfBytes], { type: 'application/pdf' })
+      const blob = new Blob([pdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' })
       saveAs(blob, 'markdown-converted.pdf')
 
       alert('✅ 转换完成！')

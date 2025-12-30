@@ -1,6 +1,5 @@
 import { useState } from 'react'
-import { Upload, Download, Archive, FileArchive, AlertCircle, CheckCircle, File, Lock, Key } from 'lucide-react'
-import JSZip from 'jszip'
+import { Upload, Archive, FileArchive, AlertCircle, CheckCircle, File, Lock, Key } from 'lucide-react'
 import { BlobWriter, ZipWriter, BlobReader, ZipReader, Entry } from '@zip.js/zip.js'
 import { saveAs } from 'file-saver'
 import './CompressionPage.css'
@@ -26,7 +25,7 @@ export default function CompressionPage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   
   // 解压相关状态
-  const [zipReader, setZipReader] = useState<ZipReader | null>(null)
+  const [zipReader, setZipReader] = useState<ZipReader<unknown> | null>(null)
   const [zipEntries, setZipEntries] = useState<Entry[] | null>(null)
   const [zipFileList, setZipFileList] = useState<ZipFileInfo[]>([])
   const [originalZipFile, setOriginalZipFile] = useState<File | null>(null)
@@ -61,7 +60,7 @@ export default function CompressionPage() {
       const blobWriter = new BlobWriter('application/zip')
       
       // 如果有密码，使用 AES-256 加密
-      const zipWriterOptions = compressPassword 
+      const zipWriterOptions: any = compressPassword 
         ? { 
             password: compressPassword,
             encryptionStrength: 3, // 3 = AES-256, 2 = AES-192, 1 = AES-128
@@ -117,7 +116,7 @@ export default function CompressionPage() {
         ? { password }
         : {}
       
-      let reader: ZipReader
+      let reader: ZipReader<unknown>
       let entries: Entry[]
       
       try {

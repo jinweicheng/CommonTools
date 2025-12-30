@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Upload, Download, Shield, AlertCircle } from 'lucide-react'
+import { Upload, Shield, AlertCircle } from 'lucide-react'
 import { PDFDocument, StandardFonts } from 'pdf-lib'
 import { saveAs } from 'file-saver'
 import * as pdfjsLib from 'pdfjs-dist'
@@ -100,10 +100,10 @@ const encryptPDF = async (pdfBytes: ArrayBuffer, options: {
     try {
       // 添加文档级JavaScript（如果支持）
       // 这在某些PDF阅读器中会生效
-      const jsObj = pdfDoc.context.obj({
-        Type: 'JavaScript',
-        JS: pdfDoc.context.obj(jsCode)
-      })
+      // const jsObj = pdfDoc.context.obj({ // 暂未使用
+      //   Type: 'JavaScript',
+      //   JS: pdfDoc.context.obj(jsCode)
+      // })
       
       // 尝试将JavaScript对象添加到文档目录
       // 注意：这可能不会在所有PDF阅读器中生效
@@ -588,7 +588,7 @@ export default function PDFProtection() {
         throw new Error('生成的PDF文件为空')
       }
       
-      const blob = new Blob([pdfBytes], { type: 'application/pdf' })
+      const blob = new Blob([pdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' })
       
       let filename = file.name.replace('.pdf', '')
       if (preventCopy) filename += '-防复制'

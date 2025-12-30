@@ -316,7 +316,7 @@ export default function PDFLock() {
       // 使用 AES-256-GCM 加密 PDF 内容
       const salt = crypto.getRandomValues(new Uint8Array(16))
       const userKey = await CryptoUtils.deriveKeyFromPassword(userPassword, salt)
-      const { encrypted: encryptedContent, iv } = await CryptoUtils.encrypt(originalBytes.buffer, userKey)
+      const { encrypted: encryptedContent, iv } = await CryptoUtils.encrypt(originalBytes.buffer as ArrayBuffer, userKey)
       
       // 创建新的受保护的 PDF
       const protectedPdf = await PDFDocument.create()
@@ -332,7 +332,7 @@ export default function PDFLock() {
         version: '1.0',
         algorithm: 'AES-256-GCM',
         salt: CryptoUtils.arrayBufferToBase64(salt.buffer),
-        iv: CryptoUtils.arrayBufferToBase64(iv.buffer),
+        iv: CryptoUtils.arrayBufferToBase64(iv.buffer as ArrayBuffer),
         pageCount: pageCount,
         originalSize: originalBytes.byteLength,
         encryptedAt: new Date().toISOString(),
@@ -541,7 +541,7 @@ export default function PDFLock() {
       
       // 保存解密后的 PDF
       const finalBytes = await decryptedPdf.save()
-      const blob = new Blob([finalBytes], { type: 'application/pdf' })
+      const blob = new Blob([finalBytes.buffer as ArrayBuffer], { type: 'application/pdf' })
       saveAs(blob, file.name.replace('-locked.pdf', '-unlocked.pdf').replace('.pdf', '-unlocked.pdf'))
       
       setSuccess(`✅ PDF 已成功解密！\n\n文档信息：\n• 页数：${encryptionInfo.pageCount}\n• 原始大小：${(encryptionInfo.originalSize / 1024).toFixed(2)} KB\n• 加密日期：${new Date(encryptionInfo.encryptedAt).toLocaleDateString()}\n\n解密后的 PDF 已保存`)
