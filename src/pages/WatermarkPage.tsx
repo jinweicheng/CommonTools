@@ -7,7 +7,7 @@ export default function WatermarkPage() {
       <div className="page-header">
         <h1>加水印</h1>
         <p className="page-description">
-          为 PDF、Word、图片添加自定义水印，支持中文、旋转角度和透明度调整
+          为 PDF、图片添加自定义水印，支持中文、旋转角度和透明度调整
         </p>
       </div>
       

@@ -428,7 +428,7 @@ export default function WatermarkTool() {
                 <Upload size={48} />
                 <div className="upload-text">
                   <strong>点击上传文件</strong>
-                  <span>支持 PDF、Word (doc/docx)、图片 (jpg/png/gif/bmp/webp)</span>
+                  <span>支持 PDF、图片 (jpg/png/gif/bmp/webp)</span>
                 </div>
               </>
             )}
@@ -587,7 +587,7 @@ export default function WatermarkTool() {
       <div className="info-card">
         <h3>💡 使用说明</h3>
         <ul>
-          <li><strong>支持格式：</strong>PDF、Word (doc/docx)、图片 (jpg/png/gif/bmp/webp)</li>
+          <li><strong>支持格式：</strong>PDF、图片 (jpg/png/gif/bmp/webp)</li>
           <li><strong>水印类型：</strong>支持中文、英文、数字和特殊符号</li>
           <li><strong>平铺效果：</strong>水印将自动平铺覆盖整个文档或图片</li>
           <li><strong>透明度：</strong>建议设置 20%-50% 之间，既可见又不遮挡内容</li>

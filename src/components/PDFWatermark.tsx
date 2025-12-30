@@ -1,13 +1,11 @@
 import { useState, useRef } from 'react'
-import { Upload, Type, Sliders, FileImage, FileText, File } from 'lucide-react'
+import { Upload, Type, Sliders, FileImage, File } from 'lucide-react'
 import { PDFDocument, rgb, degrees } from 'pdf-lib'
 import { saveAs } from 'file-saver'
-import { Document, Packer, Paragraph, TextRun, AlignmentType } from 'docx'
-import mammoth from 'mammoth'
 import './PDFWatermark.css'
 
 // 文件类型枚举
-type FileType = 'pdf' | 'image' | 'word' | 'unknown'
+type FileType = 'pdf' | 'image' | 'unknown'
 
 // 将文本转换为图片（支持中文）
 const textToImage = async (text: string, fontSize: number, color: string = '#808080'): Promise<string> => {
@@ -36,7 +34,6 @@ const detectFileType = (file: File): FileType => {
   
   if (ext === 'pdf') return 'pdf'
   if (['jpg', 'jpeg', 'png', 'bmp', 'webp', 'gif'].includes(ext)) return 'image'
-  if (['doc', 'docx'].includes(ext)) return 'word'
   
   return 'unknown'
 }
@@ -187,95 +184,6 @@ export default function PDFWatermark() {
     })
   }
 
-  // 处理Word水印（通过 Word → PDF → 添加水印）
-  const handleWordWatermark = async (file: File) => {
-    const arrayBuffer = await file.arrayBuffer()
-    
-    // 读取Word文档内容
-    const result = await mammoth.extractRawText({ arrayBuffer })
-    const text = result.value
-    
-    // 将文本分段
-    const paragraphs = text.split('\n').filter(p => p.trim())
-    
-    // 创建带内容的新文档
-    const children: Paragraph[] = []
-    
-    // 添加所有内容段落
-    paragraphs.forEach(para => {
-      children.push(
-        new Paragraph({
-          children: [
-            new TextRun(para),
-          ],
-          spacing: { after: 200 }
-        })
-      )
-    })
-    
-    // 每隔5段添加水印文本
-    for (let i = 4; i < children.length; i += 5) {
-      children.splice(i + 1, 0, 
-        new Paragraph({
-          children: [
-            new TextRun({
-              text: `【${watermarkText}】`,
-              color: 'CCCCCC',
-              size: fontSize,
-            }),
-          ],
-          alignment: AlignmentType.CENTER,
-          spacing: { before: 100, after: 100 }
-        })
-      )
-    }
-    
-    // 在开头也添加水印
-    children.unshift(
-      new Paragraph({
-        children: [
-          new TextRun({
-            text: `━━━━ ${watermarkText} ━━━━`,
-            color: '999999',
-            size: fontSize + 8,
-            bold: true,
-          }),
-        ],
-        alignment: AlignmentType.CENTER,
-        spacing: { before: 200, after: 400 }
-      })
-    )
-    
-    // 在末尾也添加水印
-    children.push(
-      new Paragraph({
-        children: [
-          new TextRun({
-            text: `━━━━ ${watermarkText} ━━━━`,
-            color: '999999',
-            size: fontSize + 8,
-            bold: true,
-          }),
-        ],
-        alignment: AlignmentType.CENTER,
-        spacing: { before: 400, after: 200 }
-      })
-    )
-    
-    // 创建新的Word文档
-    const doc = new Document({
-      sections: [{
-        properties: {},
-        children: children,
-      }],
-    })
-    
-    // 生成并保存文档
-    const blob = await Packer.toBlob(doc)
-    const newName = file.name.replace(/\.(docx?|DOCX?)$/, '-watermarked.docx')
-    saveAs(blob, newName)
-  }
-
   // 主文件上传处理
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -285,7 +193,7 @@ export default function PDFWatermark() {
     setFileType(type)
     
     if (type === 'unknown') {
-      setError('不支持的文件格式。请上传 PDF、图片（JPG/PNG/BMP/WEBP）或 Word 文档（DOCX）')
+      setError('不支持的文件格式。请上传 PDF 或图片（JPG/PNG/BMP/WEBP/GIF）')
       return
     }
 
@@ -308,9 +216,6 @@ export default function PDFWatermark() {
         case 'image':
           await handleImageWatermark(file)
           break
-        case 'word':
-          await handleWordWatermark(file)
-          break
       }
 
       alert('✅ 水印添加成功！')
@@ -327,19 +232,18 @@ export default function PDFWatermark() {
     switch (fileType) {
       case 'pdf': return <File size={20} className="file-icon-pdf" />
       case 'image': return <FileImage size={20} className="file-icon-image" />
-      case 'word': return <FileText size={20} className="file-icon-word" />
       default: return <Upload size={20} />
     }
   }
 
   // 获取支持的文件类型文本
   const getSupportedFormats = () => {
-    return 'PDF、图片（JPG/PNG/BMP/WEBP/GIF）、Word（DOCX）'
+    return 'PDF、图片（JPG/PNG/BMP/WEBP/GIF）'
   }
 
   return (
     <div className="pdf-watermark">
-      <h2 className="tool-header">📝 多格式水印工具</h2>
+      <h2 className="tool-header">📝 PDF/图片水印工具</h2>
       
       <div className="format-info">
         <div className="supported-formats">
@@ -425,7 +329,7 @@ export default function PDFWatermark() {
         <label className="upload-button">
           <input
             type="file"
-            accept=".pdf,.jpg,.jpeg,.png,.bmp,.webp,.gif,.doc,.docx"
+            accept=".pdf,.jpg,.jpeg,.png,.bmp,.webp,.gif"
             onChange={handleFileUpload}
             disabled={loading}
             style={{ display: 'none' }}
@@ -463,10 +367,10 @@ export default function PDFWatermark() {
           <h4>💡 使用提示</h4>
           <ul>
             <li><strong>PDF：</strong>为每一页添加平铺水印，支持中英文</li>
-            <li><strong>图片：</strong>在图片上添加透明水印，支持JPG/PNG等格式</li>
-            <li><strong>Word：</strong>将水印嵌入文档内容，生成新的DOCX文件</li>
-            <li>调整透明度、字体大小和角度可获得最佳效果</li>
-            <li>中文水印会自动转换为图片以确保正确显示</li>
+            <li><strong>图片：</strong>在图片上添加透明水印，支持所有常见格式</li>
+            <li><strong>参数调整：</strong>透明度、字体大小和角度可获得最佳效果</li>
+            <li><strong>中文支持：</strong>中文水印会自动转换为图片以确保正确显示</li>
+            <li><strong>本地处理：</strong>所有操作在浏览器中完成，文件不上传</li>
           </ul>
         </div>
       </div>

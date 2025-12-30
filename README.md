@@ -57,9 +57,11 @@ Commonly used tools for daily life and office work（生活、办公的经常使
 - 水印效果
 <img src="./images/watermarked_document.png" alt="水印文件效果">
 
-- 为 PDF 添加自定义水印
-- 支持中文、旋转角度、透明度
-- 自动平铺覆盖
+- **支持格式**：PDF、图片（JPG/PNG/BMP/WEBP/GIF）
+- **PDF 水印**：平铺透明水印，完美支持中英文
+- **图片水印**：Canvas 渲染，保持原图质量
+- **自定义参数**：透明度、字体大小、旋转角度
+- **本地处理**：100% 浏览器处理，文件不上传
 
 ### ✍️ 电子签名
 
