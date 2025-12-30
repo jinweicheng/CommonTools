@@ -1,0 +1,425 @@
+/* 格式转换页面专属样式 */
+
+.conversion-page {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 2rem 1rem;
+}
+
+/* ===== 页面头部 ===== */
+.conversion-header {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  border-radius: 24px;
+  padding: 2.5rem;
+  margin-bottom: 2rem;
+  box-shadow: 
+    0 20px 60px rgba(102, 126, 234, 0.3),
+    0 0 0 1px rgba(255, 255, 255, 0.5);
+  animation: slideInDown 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.header-content {
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+.page-title {
+  font-size: 2.5rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin: 0 0 1rem 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.title-icon {
+  font-size: 2.5rem;
+  animation: rotate 3s linear infinite;
+}
+
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.page-subtitle {
+  font-size: 1.1rem;
+  color: #64748b;
+  line-height: 1.6;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+/* ===== 特性标签 ===== */
+.features-badges {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.feature-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 0.5rem 1.25rem;
+  border-radius: 50px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+  transition: all 0.3s ease;
+}
+
+.feature-badge:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+.badge-icon {
+  font-size: 1.1rem;
+}
+
+/* ===== 工具选择器 ===== */
+.conversion-selector {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+  animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.2s backwards;
+}
+
+.tool-selector-button {
+  position: relative;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  border: 2px solid transparent;
+  border-radius: 20px;
+  padding: 1.5rem;
+  cursor: pointer;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 
+    0 4px 20px rgba(0, 0, 0, 0.08),
+    0 0 0 1px rgba(255, 255, 255, 0.5);
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  overflow: hidden;
+}
+
+.tool-selector-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  z-index: 0;
+}
+
+.tool-selector-button:hover {
+  transform: translateY(-4px);
+  box-shadow: 
+    0 12px 40px rgba(102, 126, 234, 0.25),
+    0 0 0 1px rgba(102, 126, 234, 0.2);
+  border-color: rgba(102, 126, 234, 0.3);
+}
+
+.tool-selector-button.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-color: transparent;
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 
+    0 12px 40px rgba(102, 126, 234, 0.4),
+    0 0 0 3px rgba(102, 126, 234, 0.2);
+}
+
+.tool-selector-button.active::before {
+  opacity: 1;
+}
+
+.tool-selector-button.active .tool-name,
+.tool-selector-button.active .tool-desc {
+  color: white;
+}
+
+.tool-icon {
+  font-size: 2.5rem;
+  flex-shrink: 0;
+  z-index: 1;
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.tool-selector-button:hover .tool-icon {
+  transform: scale(1.2) rotate(5deg);
+}
+
+.tool-selector-button.active .tool-icon {
+  transform: scale(1.15);
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.2));
+}
+
+.tool-info {
+  flex: 1;
+  text-align: left;
+  z-index: 1;
+}
+
+.tool-name {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 0.25rem;
+  transition: color 0.3s ease;
+}
+
+.tool-desc {
+  font-size: 0.85rem;
+  color: #64748b;
+  transition: color 0.3s ease;
+}
+
+.tool-badge {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  background: rgba(102, 126, 234, 0.15);
+  color: #667eea;
+  padding: 0.25rem 0.75rem;
+  border-radius: 50px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  z-index: 1;
+  transition: all 0.3s ease;
+}
+
+.tool-selector-button.active .tool-badge {
+  background: rgba(255, 255, 255, 0.25);
+  color: white;
+}
+
+.active-indicator {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.8), transparent);
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* ===== 内容区域 ===== */
+.conversion-content {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  border-radius: 24px;
+  padding: 2rem;
+  box-shadow: 
+    0 20px 60px rgba(0, 0, 0, 0.1),
+    0 0 0 1px rgba(255, 255, 255, 0.5);
+  animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.4s backwards;
+  min-height: 400px;
+}
+
+/* ===== 动画效果 ===== */
+@keyframes slideInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ===== 响应式设计 ===== */
+@media (max-width: 768px) {
+  .conversion-page {
+    padding: 1rem 0.5rem;
+  }
+
+  .conversion-header {
+    padding: 1.5rem;
+    border-radius: 16px;
+  }
+
+  .page-title {
+    font-size: 1.8rem;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .title-icon {
+    font-size: 2rem;
+  }
+
+  .page-subtitle {
+    font-size: 0.95rem;
+  }
+
+  .features-badges {
+    gap: 0.5rem;
+  }
+
+  .feature-badge {
+    padding: 0.4rem 1rem;
+    font-size: 0.8rem;
+  }
+
+  .conversion-selector {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .tool-selector-button {
+    padding: 1.25rem;
+    border-radius: 16px;
+  }
+
+  .tool-icon {
+    font-size: 2rem;
+  }
+
+  .tool-name {
+    font-size: 1rem;
+  }
+
+  .tool-desc {
+    font-size: 0.8rem;
+  }
+
+  .conversion-content {
+    padding: 1.5rem;
+    border-radius: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .conversion-page {
+    padding: 1rem 0.5rem;
+  }
+
+  .conversion-header {
+    padding: 1.25rem;
+  }
+
+  .page-title {
+    font-size: 1.5rem;
+  }
+
+  .features-badges {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .feature-badge {
+    width: 100%;
+    max-width: 200px;
+    justify-content: center;
+  }
+
+  .tool-selector-button {
+    padding: 1rem;
+  }
+
+  .tool-icon {
+    font-size: 1.8rem;
+  }
+
+  .conversion-content {
+    padding: 1.25rem;
+  }
+}
+
+/* ===== 深色模式支持 ===== */
+@media (prefers-color-scheme: dark) {
+  .conversion-page {
+    background: linear-gradient(135deg, #4c1d95 0%, #5b21b6 100%);
+  }
+
+  .conversion-header,
+  .tool-selector-button,
+  .conversion-content {
+    background: rgba(30, 41, 59, 0.95);
+    box-shadow: 
+      0 20px 60px rgba(0, 0, 0, 0.5),
+      0 0 0 1px rgba(255, 255, 255, 0.1);
+  }
+
+  .page-subtitle {
+    color: #94a3b8;
+  }
+
+  .tool-name {
+    color: #f1f5f9;
+  }
+
+  .tool-desc {
+    color: #94a3b8;
+  }
+
+  .tool-badge {
+    background: rgba(139, 92, 246, 0.25);
+    color: #a78bfa;
+  }
+
+  .tool-selector-button:hover {
+    box-shadow: 
+      0 12px 40px rgba(139, 92, 246, 0.3),
+      0 0 0 1px rgba(139, 92, 246, 0.3);
+  }
+}
+
+/* ===== 可访问性 ===== */
+.tool-selector-button:focus-visible {
+  outline: 3px solid #667eea;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .title-icon {
+    animation: none;
+  }
+}
+

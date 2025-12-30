@@ -44,10 +44,12 @@ Commonly used tools for daily life and office work（生活、办公的经常使
 - **Markdown → PDF**
   - 实时预览
   - 支持中文和 Emoji
-- **转成 PDF**
-  - 图片/TXT/CSV/HTML → PDF
-- **PDF 转化**
-  - PDF → 图片/TXT/HTML
+- **转成 PDF**（仅保留高质量功能）
+  - ✅ 图片 → PDF（JPG/PNG，完美支持）
+  - ✅ TXT → PDF（中英文混排，完美支持）
+- **PDF 转化**（仅保留高质量功能）
+  - ✅ PDF → 图片（高清 PNG，完美支持）
+  - ✅ PDF → TXT（准确提取，完美支持）
 
 ### 💧 加水印
 

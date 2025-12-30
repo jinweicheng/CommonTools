@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Upload, FileText, Image, FileCode, AlertCircle, CheckCircle } from 'lucide-react'
+import { Upload, FileText, Image, AlertCircle, CheckCircle } from 'lucide-react'
 // import { PDFDocument } from 'pdf-lib' // 暂未使用
 import * as pdfjsLib from 'pdfjs-dist'
 import { saveAs } from 'file-saver'
@@ -8,7 +8,7 @@ import './ConvertFromPDF.css'
 // 配置 PDF.js worker（使用完整 URL）
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
 
-type ConversionType = 'image' | 'txt' | 'html' | 'word' | 'excel'
+type ConversionType = 'image' | 'txt'
 
 export default function ConvertFromPDF() {
   const [loading, setLoading] = useState(false)
@@ -85,77 +85,6 @@ export default function ConvertFromPDF() {
     setSuccess(`✅ PDF 已成功转换为 TXT！\n提取了 ${pdf.numPages} 页文本内容。`)
   }
 
-  // PDF 转 HTML
-  const pdfToHtml = async (file: File) => {
-    const arrayBuffer = await file.arrayBuffer()
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
-    
-    let htmlContent = `<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${file.name}</title>
-  <style>
-    body {
-      font-family: Arial, "Microsoft YaHei", sans-serif;
-      max-width: 800px;
-      margin: 40px auto;
-      padding: 20px;
-      line-height: 1.6;
-      background: #f5f5f5;
-    }
-    .page {
-      background: white;
-      padding: 40px;
-      margin-bottom: 20px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-      border-radius: 8px;
-    }
-    .page-number {
-      text-align: center;
-      color: #666;
-      font-size: 0.9em;
-      margin-bottom: 20px;
-      padding-bottom: 10px;
-      border-bottom: 1px solid #eee;
-    }
-    h1 {
-      text-align: center;
-      color: #333;
-      margin-bottom: 40px;
-    }
-  </style>
-</head>
-<body>
-  <h1>${file.name}</h1>
-`
-    
-    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-      const page = await pdf.getPage(pageNum)
-      const content = await page.getTextContent()
-      
-      htmlContent += `  <div class="page">
-    <div class="page-number">第 ${pageNum} 页</div>
-    <div class="content">\n`
-      
-      content.items.forEach((item: any) => {
-        if (item.str) {
-          htmlContent += `      <p>${item.str.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>\n`
-        }
-      })
-      
-      htmlContent += `    </div>
-  </div>\n`
-    }
-    
-    htmlContent += `</body>
-</html>`
-    
-    const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' })
-    saveAs(blob, file.name.replace('.pdf', '.html'))
-    setSuccess(`✅ PDF 已成功转换为 HTML！\n包含 ${pdf.numPages} 页内容。`)
-  }
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -173,15 +102,6 @@ export default function ConvertFromPDF() {
         case 'txt':
           await pdfToTxt(file)
           break
-        case 'html':
-          await pdfToHtml(file)
-          break
-        case 'word':
-          setError('⚠️ PDF 转 Word 请使用专门的 "PDF ↔ Word" 工具\n该工具提供 100% 本地转换，生成标准 .docx 文件！')
-          break
-        case 'excel':
-          setError('⚠️ PDF 转 Excel 仅适用于表格型 PDF\n需要服务器端支持（推荐使用 Tabula 或 Camelot）\n浏览器环境难度：⭐⭐（需要表格识别）')
-          break
       }
     } catch (err) {
       console.error('转换失败:', err)
@@ -197,40 +117,16 @@ export default function ConvertFromPDF() {
       name: 'PDF 转图片', 
       icon: <Image size={24} />, 
       formats: '.png (高清)', 
-      difficulty: '⭐⭐⭐⭐⭐',
-      description: '完全支持，高清输出'
+      difficulty: '⭐⭐⭐⭐⭐ 完美支持',
+      description: '高清 PNG 输出，2倍分辨率'
     },
     { 
       id: 'txt' as ConversionType, 
       name: 'PDF 转 TXT', 
       icon: <FileText size={24} />, 
       formats: '.txt', 
-      difficulty: '⭐⭐⭐⭐',
-      description: '提取纯文本内容'
-    },
-    { 
-      id: 'html' as ConversionType, 
-      name: 'PDF 转 HTML', 
-      icon: <FileCode size={24} />, 
-      formats: '.html', 
-      difficulty: '⭐⭐⭐',
-      description: '基础布局，可浏览器查看'
-    },
-    { 
-      id: 'word' as ConversionType, 
-      name: 'PDF 转 Word', 
-      icon: <FileText size={24} />, 
-      formats: '.docx', 
-      difficulty: '⭐⭐⭐⭐ (见专用工具)',
-      description: '请使用 PDF ↔ Word 工具'
-    },
-    { 
-      id: 'excel' as ConversionType, 
-      name: 'PDF 转 Excel', 
-      icon: <FileText size={24} />, 
-      formats: '.xlsx', 
-      difficulty: '⭐⭐ (表格型PDF)',
-      description: '需表格识别'
+      difficulty: '⭐⭐⭐⭐⭐ 完美支持',
+      description: '准确提取文本，保留页面结构'
     },
   ]
 
@@ -262,8 +158,8 @@ export default function ConvertFromPDF() {
             <div className="card-icon">{type.icon}</div>
             <div className="card-content">
               <h3>{type.name}</h3>
-              <p className="card-formats">{type.formats}</p>
-              <p className="card-difficulty">难度: {type.difficulty}</p>
+              <p className="card-formats">输出: {type.formats}</p>
+              <p className="card-difficulty">{type.difficulty}</p>
               <p className="card-description">{type.description}</p>
             </div>
           </button>
@@ -286,48 +182,21 @@ export default function ConvertFromPDF() {
 
       <div className="info-box">
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-          <AlertCircle size={20} style={{ marginTop: '2px', flexShrink: 0, color: '#0066cc' }} />
+          <CheckCircle size={20} style={{ marginTop: '2px', flexShrink: 0, color: '#10b981' }} />
           <div>
-            <p><strong>💡 PDF 转换难度说明</strong></p>
-            <table style={{ width: '100%', marginTop: '10px', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ borderBottom: '2px solid #0066cc' }}>
-                  <th style={{ padding: '8px', textAlign: 'left' }}>目标格式</th>
-                  <th style={{ padding: '8px', textAlign: 'left' }}>真实可控度</th>
-                  <th style={{ padding: '8px', textAlign: 'left' }}>说明</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td style={{ padding: '8px' }}>图片 (.jpg/.png)</td>
-                  <td style={{ padding: '8px' }}>⭐⭐⭐⭐⭐</td>
-                  <td style={{ padding: '8px' }}>✅ 完美支持，100% 还原</td>
-                </tr>
-                <tr>
-                  <td style={{ padding: '8px' }}>TXT</td>
-                  <td style={{ padding: '8px' }}>⭐⭐⭐⭐</td>
-                  <td style={{ padding: '8px' }}>✅ 提取文本，无格式</td>
-                </tr>
-                <tr>
-                  <td style={{ padding: '8px' }}>HTML</td>
-                  <td style={{ padding: '8px' }}>⭐⭐⭐</td>
-                  <td style={{ padding: '8px' }}>✅ 基础布局</td>
-                </tr>
-                <tr>
-                  <td style={{ padding: '8px' }}>Word (.docx)</td>
-                  <td style={{ padding: '8px' }}>⭐⭐⭐⭐</td>
-                  <td style={{ padding: '8px' }}>✅ 见专用工具（100% 本地）</td>
-                </tr>
-                <tr>
-                  <td style={{ padding: '8px' }}>Excel (表格型)</td>
-                  <td style={{ padding: '8px' }}>⭐⭐</td>
-                  <td style={{ padding: '8px' }}>⚠️ 需服务器（表格识别）</td>
-                </tr>
-              </tbody>
-            </table>
-            <p style={{ marginTop: '12px', fontSize: '0.9em' }}>
-              <strong>建议：</strong>如需高质量转换 Word/Excel，推荐使用专业工具（Adobe Acrobat、Aspose、pdf2docx）
-            </p>
+            <p><strong>✨ 高质量转换功能</strong></p>
+            <ul style={{ margin: '8px 0', paddingLeft: '20px', lineHeight: '1.8' }}>
+              <li><strong>🖼️ PDF → 图片：</strong>完美支持，高清 PNG（2x 分辨率）</li>
+              <li><strong>📄 PDF → TXT：</strong>完美支持，准确提取文本内容</li>
+              <li><strong>💡 PDF → Word：</strong>请使用 "Word ↔ PDF" 专用工具（100% 本地）</li>
+              <li><strong>🔧 技术方案：</strong>
+                <ul style={{ marginTop: '5px' }}>
+                  <li>图片：PDF.js 渲染，Canvas 导出</li>
+                  <li>文本：PDF.js 提取，保留页面结构</li>
+                  <li>全部本地处理：文件不上传，隐私安全</li>
+                </ul>
+              </li>
+            </ul>
           </div>
         </div>
       </div>
