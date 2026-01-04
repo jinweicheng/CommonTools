@@ -83,18 +83,30 @@ export default function MarkdownToPDF() {
       const qualitySettings = QUALITY_SETTINGS[config.quality]
       const pageSize = PAGE_SIZES[config.format]
       
-      // 临时创建一个用于渲染的容器，确保样式完整
+      // 获取预览区域的计算样式
+      const previewStyles = window.getComputedStyle(previewElement)
+      
+      // 临时创建一个用于渲染的容器，完整复制预览样式
       const renderContainer = document.createElement('div')
+      renderContainer.className = 'markdown-preview-pdf-render' // 用于调试
       renderContainer.style.position = 'absolute'
       renderContainer.style.left = '-9999px'
       renderContainer.style.top = '0'
       renderContainer.style.width = `${pageSize.width * 3.78}px` // mm to px (1mm ≈ 3.78px at 96 DPI)
       renderContainer.style.padding = `${config.margins}px`
       renderContainer.style.backgroundColor = '#ffffff'
-      renderContainer.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Microsoft YaHei", "SimHei"'
-      renderContainer.style.fontSize = '14px'
-      renderContainer.style.lineHeight = '1.6'
-      renderContainer.style.color = '#333'
+      renderContainer.style.boxSizing = 'border-box'
+      
+      // 复制关键的文本样式
+      renderContainer.style.fontFamily = previewStyles.fontFamily || '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Microsoft YaHei", "SimHei"'
+      renderContainer.style.fontSize = previewStyles.fontSize || '14px'
+      renderContainer.style.lineHeight = previewStyles.lineHeight || '1.7'
+      renderContainer.style.color = previewStyles.color || '#1e293b'
+      renderContainer.style.fontWeight = previewStyles.fontWeight
+      renderContainer.style.letterSpacing = previewStyles.letterSpacing
+      renderContainer.style.wordSpacing = previewStyles.wordSpacing
+      
+      // 复制内容
       renderContainer.innerHTML = previewElement.innerHTML
       
       document.body.appendChild(renderContainer)
@@ -107,50 +119,192 @@ export default function MarkdownToPDF() {
         backgroundColor: '#ffffff',
         windowWidth: renderContainer.scrollWidth,
         windowHeight: renderContainer.scrollHeight,
+        foreignObjectRendering: false, // 使用更可靠的渲染方式
+        imageTimeout: 15000,
+        removeContainer: false,
         onclone: (clonedDoc) => {
-          const clonedContainer = clonedDoc.querySelector('div') as HTMLElement
+          const clonedContainer = clonedDoc.querySelector('.markdown-preview-pdf-render') as HTMLElement
           if (clonedContainer) {
-            // 确保代码块样式正确
-            clonedContainer.querySelectorAll('pre').forEach((pre) => {
-              pre.style.backgroundColor = '#f6f8fa'
-              pre.style.padding = '16px'
-              pre.style.borderRadius = '6px'
-              pre.style.overflow = 'auto'
-            })
-            clonedContainer.querySelectorAll('code').forEach((code) => {
-              if (code.parentElement?.tagName !== 'PRE') {
-                code.style.backgroundColor = '#f6f8fa'
-                code.style.padding = '2px 6px'
-                code.style.borderRadius = '3px'
-                code.style.fontFamily = 'Consolas, Monaco, "Courier New", monospace'
-                code.style.fontSize = '0.9em'
-              }
-            })
-            // 确保标题样式
+            // 复制原始预览区域的所有CSS样式
+            const originalPreview = document.querySelector('.markdown-preview')
+            if (originalPreview) {
+              const styles = window.getComputedStyle(originalPreview)
+              
+              // 复制容器样式
+              clonedContainer.style.fontFamily = styles.fontFamily
+              clonedContainer.style.fontSize = styles.fontSize
+              clonedContainer.style.lineHeight = styles.lineHeight
+              clonedContainer.style.color = styles.color
+            }
+            
+            // 确保所有元素样式完整
+            // 标题
             clonedContainer.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach((heading) => {
               const el = heading as HTMLElement
-              el.style.setProperty('font-weight', '600')
-              el.style.setProperty('margin-top', '24px')
-              el.style.setProperty('margin-bottom', '16px')
+              const originalEl = previewElement.querySelector(heading.tagName.toLowerCase())
+              if (originalEl) {
+                const computedStyle = window.getComputedStyle(originalEl)
+                el.style.fontWeight = computedStyle.fontWeight
+                el.style.fontSize = computedStyle.fontSize
+                el.style.lineHeight = computedStyle.lineHeight
+                el.style.marginTop = computedStyle.marginTop
+                el.style.marginBottom = computedStyle.marginBottom
+                el.style.color = computedStyle.color
+                el.style.borderBottom = computedStyle.borderBottom
+                el.style.paddingBottom = computedStyle.paddingBottom
+              }
             })
-            // 确保列表样式
-            clonedContainer.querySelectorAll('ul, ol').forEach((list) => {
-              const el = list as HTMLElement
-              el.style.setProperty('padding-left', '2em')
-              el.style.setProperty('margin-bottom', '16px')
-            })
-            // 确保段落样式
+            
+            // 段落
             clonedContainer.querySelectorAll('p').forEach((p) => {
               const el = p as HTMLElement
-              el.style.setProperty('margin-bottom', '16px')
+              const originalP = previewElement.querySelector('p')
+              if (originalP) {
+                const computedStyle = window.getComputedStyle(originalP)
+                el.style.margin = computedStyle.margin
+                el.style.lineHeight = computedStyle.lineHeight
+              }
             })
-            // 确保引用样式
+            
+            // 代码块
+            clonedContainer.querySelectorAll('pre').forEach((pre) => {
+              const el = pre as HTMLElement
+              const originalPre = previewElement.querySelector('pre')
+              if (originalPre) {
+                const computedStyle = window.getComputedStyle(originalPre)
+                el.style.background = computedStyle.background
+                el.style.padding = computedStyle.padding
+                el.style.borderRadius = computedStyle.borderRadius
+                el.style.border = computedStyle.border
+                el.style.margin = computedStyle.margin
+                el.style.overflow = 'visible' // 确保内容不被裁剪
+              }
+            })
+            
+            // 行内代码
+            clonedContainer.querySelectorAll('code').forEach((code) => {
+              if (code.parentElement?.tagName !== 'PRE') {
+                const el = code as HTMLElement
+                const originalCode = previewElement.querySelector('p code, li code')
+                if (originalCode) {
+                  const computedStyle = window.getComputedStyle(originalCode)
+                  el.style.background = computedStyle.background
+                  el.style.padding = computedStyle.padding
+                  el.style.borderRadius = computedStyle.borderRadius
+                  el.style.fontFamily = computedStyle.fontFamily
+                  el.style.fontSize = computedStyle.fontSize
+                  el.style.color = computedStyle.color
+                  el.style.fontWeight = computedStyle.fontWeight
+                }
+              }
+            })
+            
+            // 列表
+            clonedContainer.querySelectorAll('ul, ol').forEach((list) => {
+              const el = list as HTMLElement
+              const originalList = previewElement.querySelector(list.tagName.toLowerCase())
+              if (originalList) {
+                const computedStyle = window.getComputedStyle(originalList)
+                el.style.margin = computedStyle.margin
+                el.style.paddingLeft = computedStyle.paddingLeft
+              }
+            })
+            
+            clonedContainer.querySelectorAll('li').forEach((li) => {
+              const el = li as HTMLElement
+              const originalLi = previewElement.querySelector('li')
+              if (originalLi) {
+                const computedStyle = window.getComputedStyle(originalLi)
+                el.style.margin = computedStyle.margin
+                el.style.lineHeight = computedStyle.lineHeight
+              }
+            })
+            
+            // 引用块
             clonedContainer.querySelectorAll('blockquote').forEach((quote) => {
               const el = quote as HTMLElement
-              el.style.setProperty('border-left', '4px solid #ddd')
-              el.style.setProperty('padding-left', '16px')
-              el.style.setProperty('color', '#666')
-              el.style.setProperty('margin-left', '0')
+              const originalQuote = previewElement.querySelector('blockquote')
+              if (originalQuote) {
+                const computedStyle = window.getComputedStyle(originalQuote)
+                el.style.borderLeft = computedStyle.borderLeft
+                el.style.padding = computedStyle.padding
+                el.style.margin = computedStyle.margin
+                el.style.background = computedStyle.background
+                el.style.color = computedStyle.color
+                el.style.fontStyle = computedStyle.fontStyle
+                el.style.borderRadius = computedStyle.borderRadius
+              }
+            })
+            
+            // 链接
+            clonedContainer.querySelectorAll('a').forEach((a) => {
+              const el = a as HTMLElement
+              const originalA = previewElement.querySelector('a')
+              if (originalA) {
+                const computedStyle = window.getComputedStyle(originalA)
+                el.style.color = computedStyle.color
+                el.style.textDecoration = computedStyle.textDecoration
+              }
+            })
+            
+            // 粗体和斜体
+            clonedContainer.querySelectorAll('strong, b').forEach((strong) => {
+              const el = strong as HTMLElement
+              const originalStrong = previewElement.querySelector('strong, b')
+              if (originalStrong) {
+                const computedStyle = window.getComputedStyle(originalStrong)
+                el.style.fontWeight = computedStyle.fontWeight
+                el.style.color = computedStyle.color
+              }
+            })
+            
+            clonedContainer.querySelectorAll('em, i').forEach((em) => {
+              const el = em as HTMLElement
+              const originalEm = previewElement.querySelector('em, i')
+              if (originalEm) {
+                const computedStyle = window.getComputedStyle(originalEm)
+                el.style.fontStyle = computedStyle.fontStyle
+                el.style.color = computedStyle.color
+              }
+            })
+            
+            // 分隔线
+            clonedContainer.querySelectorAll('hr').forEach((hr) => {
+              const el = hr as HTMLElement
+              const originalHr = previewElement.querySelector('hr')
+              if (originalHr) {
+                const computedStyle = window.getComputedStyle(originalHr)
+                el.style.border = computedStyle.border
+                el.style.borderTop = computedStyle.borderTop
+                el.style.margin = computedStyle.margin
+              }
+            })
+            
+            // 表格
+            clonedContainer.querySelectorAll('table').forEach((table) => {
+              const el = table as HTMLElement
+              const originalTable = previewElement.querySelector('table')
+              if (originalTable) {
+                const computedStyle = window.getComputedStyle(originalTable)
+                el.style.borderCollapse = computedStyle.borderCollapse
+                el.style.width = computedStyle.width
+                el.style.margin = computedStyle.margin
+              }
+            })
+            
+            clonedContainer.querySelectorAll('th, td').forEach((cell) => {
+              const el = cell as HTMLElement
+              const originalCell = previewElement.querySelector(cell.tagName.toLowerCase())
+              if (originalCell) {
+                const computedStyle = window.getComputedStyle(originalCell)
+                el.style.border = computedStyle.border
+                el.style.padding = computedStyle.padding
+                el.style.textAlign = computedStyle.textAlign
+                if (cell.tagName === 'TH') {
+                  el.style.background = computedStyle.background
+                  el.style.fontWeight = computedStyle.fontWeight
+                }
+              }
             })
           }
         }

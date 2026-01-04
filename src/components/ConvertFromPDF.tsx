@@ -2,12 +2,9 @@ import { useState } from 'react'
 import { Upload, FileText, Image, AlertCircle, CheckCircle } from 'lucide-react'
 // import { PDFDocument } from 'pdf-lib' // 暂未使用
 import * as pdfjsLib from 'pdfjs-dist'
-import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { saveAs } from 'file-saver'
+import '../utils/pdfWorkerConfig' // 配置 PDF.js worker
 import './ConvertFromPDF.css'
-
-// 配置pdf.js worker - 使用 Vite 的 ?url 导入
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker
 
 type ConversionType = 'image' | 'txt'
 

@@ -1,0 +1,170 @@
+# CommonTools - Apache 配置文件
+# 放置在 tools/ 目录下
+
+# ========================================
+# 1. MIME Types 配置（解决 .mjs 文件加载问题）
+# ========================================
+<IfModule mod_mime.c>
+    # 配置 JavaScript 模块文件类型
+    AddType application/javascript .mjs
+    AddType application/javascript .js
+    
+    # 确保 CSS 和其他文件类型正确
+    AddType text/css .css
+    AddType text/html .html
+</IfModule>
+
+# 为 JavaScript 文件设置正确的 Content-Type 头
+<FilesMatch "\.(mjs|js)$">
+    <IfModule mod_headers.c>
+        Header set Content-Type "application/javascript; charset=utf-8"
+    </IfModule>
+</FilesMatch>
+
+# ========================================
+# 2. CORS 配置（允许跨域资源共享）
+# ========================================
+<IfModule mod_headers.c>
+    # 允许所有域名访问（生产环境可以限制为特定域名）
+    Header set Access-Control-Allow-Origin "*"
+    
+    # 允许的 HTTP 方法
+    Header set Access-Control-Allow-Methods "GET, POST, OPTIONS"
+    
+    # 允许的请求头
+    Header set Access-Control-Allow-Headers "Content-Type, Authorization"
+    
+    # 预检请求的缓存时间（秒）
+    Header set Access-Control-Max-Age "3600"
+</IfModule>
+
+# ========================================
+# 3. 缓存控制
+# ========================================
+<IfModule mod_expires.c>
+    ExpiresActive On
+    
+    # HTML 文件不缓存（确保获取最新版本）
+    ExpiresByType text/html "access plus 0 seconds"
+    
+    # JavaScript 和 CSS 文件缓存 1 年（因为有哈希文件名）
+    ExpiresByType application/javascript "access plus 1 year"
+    ExpiresByType text/css "access plus 1 year"
+    
+    # 图片缓存 1 个月
+    ExpiresByType image/jpeg "access plus 1 month"
+    ExpiresByType image/png "access plus 1 month"
+    ExpiresByType image/gif "access plus 1 month"
+    ExpiresByType image/webp "access plus 1 month"
+</IfModule>
+
+# 使用 mod_headers 设置缓存（如果 mod_expires 不可用）
+<IfModule mod_headers.c>
+    # 哈希文件名的资源可以长期缓存
+    <FilesMatch "\.(js|mjs|css)$">
+        Header set Cache-Control "public, max-age=31536000, immutable"
+    </FilesMatch>
+    
+    # HTML 文件不缓存
+    <FilesMatch "\.html$">
+        Header set Cache-Control "no-cache, no-store, must-revalidate"
+        Header set Pragma "no-cache"
+        Header set Expires "0"
+    </FilesMatch>
+</IfModule>
+
+# ========================================
+# 4. 压缩配置（提升传输速度）
+# ========================================
+<IfModule mod_deflate.c>
+    # 压缩 HTML、CSS、JavaScript、JSON、XML 等文本文件
+    AddOutputFilterByType DEFLATE text/html
+    AddOutputFilterByType DEFLATE text/css
+    AddOutputFilterByType DEFLATE text/javascript
+    AddOutputFilterByType DEFLATE application/javascript
+    AddOutputFilterByType DEFLATE application/json
+    AddOutputFilterByType DEFLATE application/xml
+    AddOutputFilterByType DEFLATE text/xml
+    AddOutputFilterByType DEFLATE text/plain
+    
+    # 不压缩图片（已经是压缩格式）
+    SetEnvIfNoCase Request_URI \.(?:gif|jpe?g|png|webp)$ no-gzip
+</IfModule>
+
+# ========================================
+# 5. 安全配置
+# ========================================
+<IfModule mod_headers.c>
+    # 防止点击劫持
+    Header set X-Frame-Options "SAMEORIGIN"
+    
+    # 防止 MIME 类型嗅探
+    Header set X-Content-Type-Options "nosniff"
+    
+    # 启用 XSS 保护
+    Header set X-XSS-Protection "1; mode=block"
+    
+    # 引用策略
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# ========================================
+# 6. 文件访问控制
+# ========================================
+# 禁止访问隐藏文件（如 .git、.env 等）
+<FilesMatch "^\.">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# 允许访问 .well-known 目录（用于 SSL 验证等）
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{REQUEST_URI} !^/\.well-known/
+    RewriteRule ^\.(?!well-known/) - [F]
+</IfModule>
+
+# ========================================
+# 7. URL 重写（SPA 路由支持）
+# ========================================
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /tools/
+    
+    # 如果请求的是真实文件或目录，直接访问
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    
+    # 否则重定向到 index.html（SPA 路由）
+    RewriteRule ^ index.html [L]
+</IfModule>
+
+# ========================================
+# 8. 错误页面（可选）
+# ========================================
+# ErrorDocument 404 /tools/index.html
+# ErrorDocument 500 /tools/index.html
+
+# ========================================
+# 9. 字符编码
+# ========================================
+AddDefaultCharset UTF-8
+
+# ========================================
+# 使用说明
+# ========================================
+# 1. 将此文件保存为 .htaccess
+# 2. 上传到服务器的 tools/ 目录
+# 3. 确保 Apache 启用了以下模块：
+#    - mod_mime
+#    - mod_headers
+#    - mod_expires
+#    - mod_deflate
+#    - mod_rewrite
+# 4. 重启 Apache 或重新加载配置
+
