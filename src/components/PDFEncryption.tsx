@@ -3,9 +3,12 @@ import { Upload, Lock, Shield, Key, AlertCircle, CheckCircle, FileText, Globe, F
 import { PDFDocument, StandardFonts } from 'pdf-lib'
 import { saveAs } from 'file-saver'
 import { CryptoUtils } from '../utils/cryptoUtils'
+import { useAuth } from '../contexts/AuthContext'
+import { backupService, hashPassword } from '../utils/backupService'
 import './PDFEncryption.css'
 
 export default function PDFEncryption() {
+  const { isVip } = useAuth()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -247,7 +250,27 @@ export default function PDFEncryption() {
       const blob = new Blob([htmlContent], { type: 'text/html' })
       saveAs(blob, file.name.replace('.pdf', '-protected.html'))
       
-      setSuccess(`✅ PDF 已添加密码保护（HTML模式）！\n\n保护信息：\n• 模式：HTML 包装器（浏览器可打开）\n• 文件格式：.html（内嵌 PDF）\n• 密码验证：SHA-256 哈希\n• 文件大小：${(blob.size / 1024).toFixed(2)} KB\n\n使用方法：\n1. 双击打开 .html 文件\n2. 在浏览器中输入密码\n3. 密码正确后即可查看 PDF 内容\n\n⚠️ 注意：\n• 这不是真正的加密，技术人员可以查看源代码\n• 推荐使用"加密文件模式"获得真正的安全保护`)
+      // VIP用户备份操作记录
+      if (isVip()) {
+        try {
+          const passwordHash = await hashPassword(userPassword)
+          await backupService.addRecord({
+            type: 'encrypt',
+            fileType: 'pdf',
+            fileName: file.name,
+            fileSize: file.size,
+            encryptionMode: 'standard',
+            metadata: {
+              passwordHash,
+              operation: 'HTML包装器加密'
+            }
+          })
+        } catch (err) {
+          console.error('备份失败:', err)
+        }
+      }
+      
+      setSuccess(`✅ PDF 已添加密码保护（HTML模式）！\n\n保护信息：\n• 模式：HTML 包装器（浏览器可打开）\n• 文件格式：.html（内嵌 PDF）\n• 密码验证：SHA-256 哈希\n• 文件大小：${(blob.size / 1024).toFixed(2)} KB${isVip() ? '\n• 操作已备份到VIP记录' : ''}\n\n使用方法：\n1. 双击打开 .html 文件\n2. 在浏览器中输入密码\n3. 密码正确后即可查看 PDF 内容\n\n⚠️ 注意：\n• 这不是真正的加密，技术人员可以查看源代码\n• 推荐使用"加密文件模式"获得真正的安全保护`)
       
       setUserPassword('')
       setConfirmPassword('')

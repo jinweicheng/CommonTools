@@ -3,7 +3,7 @@
    ======================================== */
 
 .pdf-watermark {
-  max-width: 1200px;
+  max-width: 1500px;
   margin: 0 auto;
   padding: 0 var(--spacing-lg);
   animation: fadeIn 0.5s ease-out;

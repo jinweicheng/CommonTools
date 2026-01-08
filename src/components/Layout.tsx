@@ -1,6 +1,7 @@
 import { ReactNode, useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
-import { Shield, Repeat, Droplet, PenTool, KeyRound, Archive, Image as ImageIcon, Menu, X } from 'lucide-react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Shield, Repeat, Droplet, PenTool, KeyRound, Archive, Image as ImageIcon, Menu, X, LogIn, LogOut, Crown, User } from 'lucide-react'
+import { useAuth } from '../contexts/AuthContext'
 import './Layout.css'
 
 interface LayoutProps {
@@ -9,6 +10,8 @@ interface LayoutProps {
 
 export default function Layout({ children }: LayoutProps) {
   const location = useLocation()
+  const navigate = useNavigate()
+  const { user, logout, isVip } = useAuth()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   
   const navItems = [
@@ -22,6 +25,12 @@ export default function Layout({ children }: LayoutProps) {
   ]
   
   const handleNavClick = () => {
+    setMobileMenuOpen(false)
+  }
+
+  const handleLogout = () => {
+    logout()
+    navigate('/')
     setMobileMenuOpen(false)
   }
   
@@ -49,6 +58,26 @@ export default function Layout({ children }: LayoutProps) {
               </Link>
             ))}
           </nav>
+
+          <div className="header-actions">
+            {user ? (
+              <div className="user-info">
+                <div className="user-badge">
+                  {isVip() ? <Crown size={16} /> : <User size={16} />}
+                  <span className="username">{user.username}</span>
+                  {isVip() && <span className="vip-badge">VIP</span>}
+                </div>
+                <button className="logout-button" onClick={handleLogout} title="登出">
+                  <LogOut size={18} />
+                </button>
+              </div>
+            ) : (
+              <Link to="/login" className="login-button-header">
+                <LogIn size={18} />
+                <span>登录</span>
+              </Link>
+            )}
+          </div>
           
           <button
             className="mobile-menu-toggle"
