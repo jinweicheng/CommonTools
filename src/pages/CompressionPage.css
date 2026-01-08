@@ -1,243 +1,451 @@
 /* ========================================
-   压缩/解压页面 - 专业商用级设计
+   压缩/解压页面样式 - 专业商用级
    ======================================== */
 
 .compression-page {
-  max-width: 1200px;
+  max-width: 1600px;
   margin: 0 auto;
-  animation: fadeIn 0.6s ease-out;
+  padding: 2.5rem 2rem;
+  background: linear-gradient(180deg, #fafbfc 0%, #ffffff 100%);
+  min-height: 100vh;
 }
 
-/* ==================== 页面头部 ==================== */
-.page-header {
+/* ========================================
+   页面头部 - 精美设计
+   ======================================== */
+
+.compression-header {
+  margin-bottom: 3rem;
+  padding: 3rem;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border-radius: 28px;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.08),
+              0 0 0 1px rgba(226, 232, 240, 0.8) inset;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  position: relative;
+  overflow: hidden;
   text-align: center;
-  margin-bottom: var(--spacing-3xl);
 }
 
-.page-title {
-  font-size: var(--font-4xl);
-  font-weight: var(--font-bold);
-  background: var(--gradient-primary);
+.compression-header::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 50%, #10b981 100%);
+  opacity: 0.8;
+}
+
+.compression-header .page-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  font-size: 3rem;
+  font-weight: 900;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #10b981 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  margin-bottom: var(--spacing-md);
+  margin: 0 0 1.25rem 0;
   letter-spacing: -1px;
+  line-height: 1.2;
 }
 
-.page-subtitle {
-  font-size: var(--font-lg);
-  color: var(--color-gray-600);
-  max-width: 600px;
-  margin: 0 auto;
+.compression-header .page-subtitle {
+  font-size: 1.15rem;
+  color: #64748b;
+  line-height: 1.8;
+  margin: 0;
+  max-width: 800px;
+  margin-left: auto;
+  margin-right: auto;
+  font-weight: 500;
 }
 
-/* ==================== 模式切换器 ==================== */
+/* ========================================
+   消息提示 - 优雅设计
+   ======================================== */
+
+.compression-page .error-message,
+.compression-page .success-message {
+  padding: 1.5rem 2rem;
+  border-radius: 16px;
+  margin-bottom: 2rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  animation: slideDown 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  border: 2px solid;
+  position: relative;
+  overflow: hidden;
+}
+
+.compression-page .error-message::before,
+.compression-page .success-message::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  opacity: 0.6;
+}
+
+.compression-page .error-message {
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+.compression-page .error-message::before {
+  background: linear-gradient(90deg, #ef4444 0%, #dc2626 100%);
+}
+
+.compression-page .success-message {
+  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+  border-color: #86efac;
+  color: #065f46;
+}
+
+.compression-page .success-message::before {
+  background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-15px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ========================================
+   内容区域
+   ======================================== */
+
+.compression-content {
+  animation: fadeInUp 0.5s ease-out;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ========================================
+   响应式设计
+   ======================================== */
+
+@media (max-width: 1024px) {
+  .compression-page {
+    padding: 2rem 1.5rem;
+  }
+
+  .compression-header {
+    padding: 2rem;
+  }
+
+  .compression-header .page-title {
+    font-size: 2.5rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .compression-page {
+    padding: 1.5rem 1rem;
+  }
+
+  .compression-header {
+    padding: 1.5rem;
+    border-radius: 20px;
+  }
+
+  .compression-header .page-title {
+    font-size: 2rem;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .compression-header .page-subtitle {
+    font-size: 1rem;
+  }
+}
+
+/* ========================================
+   模式选择器 - 高级设计
+   ======================================== */
+
 .mode-selector {
   display: flex;
-  gap: var(--spacing-md);
+  gap: 1.5rem;
   justify-content: center;
-  margin-bottom: var(--spacing-3xl);
+  margin-bottom: 3rem;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  padding: 1rem;
+  border-radius: 24px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06),
+              0 0 0 1px rgba(226, 232, 240, 0.8) inset;
+  border: 1px solid rgba(226, 232, 240, 0.8);
 }
 
 .mode-button {
   flex: 1;
-  max-width: 300px;
-  padding: var(--spacing-xl);
-  background: var(--gradient-card);
-  border: 2px solid transparent;
-  border-radius: var(--radius-xl);
+  max-width: 350px;
+  padding: 2rem;
+  background: white;
+  border: 3px solid #e2e8f0;
+  border-radius: 20px;
   cursor: pointer;
-  transition: all var(--transition-base);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--spacing-md);
-  box-shadow: var(--shadow-md);
+  gap: 1rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  position: relative;
+  overflow: hidden;
+}
+
+.mode-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  transform: scaleX(0);
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .mode-button:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-xl);
+  transform: translateY(-6px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
+  border-color: #667eea;
+}
+
+.mode-button:hover::before {
+  transform: scaleX(1);
 }
 
 .mode-button.active {
-  border-color: var(--color-primary);
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
-  box-shadow: var(--shadow-lg), 0 0 0 4px rgba(102, 126, 234, 0.1);
+  border-color: #667eea;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+  box-shadow: 0 16px 48px rgba(102, 126, 234, 0.25),
+              0 0 0 3px rgba(102, 126, 234, 0.15);
+  transform: translateY(-4px);
 }
 
-.mode-button-icon {
-  width: 56px;
-  height: 56px;
-  border-radius: var(--radius-lg);
-  background: var(--gradient-primary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-white);
-  box-shadow: var(--shadow-md);
-  transition: all var(--transition-base);
+.mode-button.active::before {
+  transform: scaleX(1);
 }
 
-.mode-button.active .mode-button-icon {
-  animation: bounce 0.5s ease-in-out;
+.mode-button svg {
+  color: #667eea;
+  transition: all 0.3s ease;
 }
 
-.mode-button-title {
-  font-size: var(--font-xl);
-  font-weight: var(--font-bold);
-  color: var(--color-gray-900);
+.mode-button.active svg {
+  transform: scale(1.15);
+  filter: drop-shadow(0 4px 8px rgba(102, 126, 234, 0.3));
+}
+
+.mode-button span {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #1e293b;
+  letter-spacing: -0.3px;
+}
+
+.mode-button p {
+  font-size: 0.95rem;
+  color: #64748b;
   margin: 0;
+  font-weight: 500;
 }
 
-.mode-button-desc {
-  font-size: var(--font-sm);
-  color: var(--color-gray-600);
-  margin: 0;
-  text-align: center;
+/* ========================================
+   设置组 - 专业设计
+   ======================================== */
+
+.compress-section,
+.decompress-section {
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border-radius: 24px;
+  padding: 2.5rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06),
+              0 0 0 1px rgba(226, 232, 240, 0.8) inset;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  margin-bottom: 2rem;
+  position: relative;
+  overflow: hidden;
 }
 
-/* ==================== 主内容区域 ==================== */
-.compression-content {
-  background: var(--gradient-card);
-  backdrop-filter: blur(20px);
-  border-radius: var(--radius-2xl);
-  padding: var(--spacing-2xl);
-  box-shadow: var(--shadow-xl);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  min-height: 500px;
+.compress-section::before,
+.decompress-section::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  opacity: 0.3;
 }
 
-/* ==================== 设置组 ==================== */
 .settings-group {
-  margin-bottom: var(--spacing-xl);
+  margin-bottom: 2rem;
+}
+
+.settings-group:last-child {
+  margin-bottom: 0;
 }
 
 .settings-group label {
   display: block;
-  font-size: var(--font-base);
-  font-weight: var(--font-semibold);
-  color: var(--color-gray-700);
-  margin-bottom: var(--spacing-sm);
+  font-size: 1rem;
+  font-weight: 800;
+  color: #1e293b;
+  margin-bottom: 1rem;
+  letter-spacing: -0.2px;
 }
 
 .label-hint {
   display: block;
-  font-size: var(--font-sm);
-  color: var(--color-gray-500);
-  font-weight: var(--font-normal);
-  margin-top: var(--spacing-xs);
+  font-size: 0.85rem;
+  color: #64748b;
+  font-weight: 500;
+  margin-top: 0.5rem;
 }
 
 .settings-group input[type="text"],
 .settings-group input[type="password"] {
   width: 100%;
-  padding: var(--spacing-md) var(--spacing-lg);
-  font-size: var(--font-base);
-  color: var(--color-gray-900);
-  background: var(--color-white);
-  border: 2px solid var(--color-gray-300);
-  border-radius: var(--radius-lg);
-  transition: all var(--transition-base);
-  font-family: inherit;
+  padding: 1.25rem 1.5rem;
+  border: 3px solid #e2e8f0;
+  border-radius: 16px;
+  font-size: 1.05rem;
+  color: #1e293b;
+  background: white;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+  font-weight: 500;
 }
 
 .settings-group input:focus {
   outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+  border-color: #667eea;
+  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.2),
+              0 0 0 4px rgba(102, 126, 234, 0.1);
+  transform: translateY(-2px);
 }
 
 .password-hint {
-  margin: var(--spacing-sm) 0 0 0;
-  font-size: var(--font-sm);
-  font-weight: var(--font-medium);
+  margin: 1rem 0 0 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  animation: slideDown 0.3s ease;
 }
 
 .password-hint.error {
-  color: var(--color-error);
+  color: #991b1b;
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+  border: 1px solid #fecaca;
 }
 
 .password-hint.success {
-  color: var(--color-success);
+  color: #065f46;
+  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+  border: 1px solid #86efac;
 }
 
-/* ==================== 上传区域 ==================== */
-.upload-area {
-  margin-bottom: var(--spacing-xl);
+/* ========================================
+   文件列表 - 精美设计
+   ======================================== */
+
+.file-list {
+  margin-bottom: 2rem;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border-radius: 20px;
+  padding: 1.5rem;
+  border: 1px solid rgba(226, 232, 240, 0.8);
 }
 
-.upload-zone {
-  border: 3px dashed var(--color-gray-300);
-  border-radius: var(--radius-xl);
-  padding: var(--spacing-3xl);
-  text-align: center;
+.file-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.file-list-header h3 {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #1e293b;
+  margin: 0;
+  letter-spacing: -0.3px;
+}
+
+.select-files-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: 12px;
   cursor: pointer;
-  transition: all var(--transition-base);
-  background: var(--color-gray-50);
+  font-weight: 700;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.select-files-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+.files {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: var(--spacing-lg);
-  min-height: 300px;
-  justify-content: center;
-}
-
-.upload-zone:hover {
-  border-color: var(--color-primary);
-  background: rgba(102, 126, 234, 0.05);
-  transform: scale(1.02);
-}
-
-.upload-zone svg {
-  color: var(--color-primary);
-}
-
-.upload-zone h3 {
-  font-size: var(--font-2xl);
-  font-weight: var(--font-bold);
-  color: var(--color-gray-900);
-  margin: 0;
-}
-
-.upload-zone p {
-  font-size: var(--font-base);
-  color: var(--color-gray-600);
-  margin: 0;
-}
-
-.loading-text {
-  color: var(--color-primary) !important;
-  font-weight: var(--font-semibold);
-}
-
-/* ==================== 文件列表 ==================== */
-.file-list {
-  margin-bottom: var(--spacing-xl);
+  gap: 0.75rem;
 }
 
 .file-item {
   display: flex;
   align-items: center;
-  gap: var(--spacing-md);
-  padding: var(--spacing-md);
-  background: var(--color-white);
-  border-radius: var(--radius-lg);
-  margin-bottom: var(--spacing-sm);
-  box-shadow: var(--shadow-sm);
-  transition: all var(--transition-base);
+  gap: 1rem;
+  padding: 1.25rem;
+  background: white;
+  border-radius: 14px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  transition: all 0.3s ease;
   animation: slideInRight 0.3s ease-out;
 }
 
 .file-item:hover {
-  box-shadow: var(--shadow-md);
   transform: translateX(4px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
 }
 
 .file-item svg {
+  color: #667eea;
   flex-shrink: 0;
-  color: var(--color-primary);
 }
 
 .file-info {
@@ -246,132 +454,249 @@
 }
 
 .file-name {
-  font-weight: var(--font-semibold);
-  color: var(--color-gray-900);
+  font-weight: 700;
+  color: #1e293b;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  margin-bottom: var(--spacing-xs);
+  margin-bottom: 0.375rem;
 }
 
 .file-size {
-  font-size: var(--font-sm);
-  color: var(--color-gray-500);
+  font-size: 0.875rem;
+  color: #64748b;
+  font-weight: 500;
 }
 
 .remove-button {
-  padding: var(--spacing-sm);
-  background: var(--color-error-light);
-  color: var(--color-error);
-  border-radius: var(--radius-md);
-  transition: all var(--transition-base);
+  padding: 0.5rem;
+  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+  color: #dc2626;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 1.25rem;
+  font-weight: 700;
+  transition: all 0.3s ease;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
 }
 
 .remove-button:hover {
-  background: var(--color-error);
-  color: var(--color-white);
+  background: #dc2626;
+  color: white;
   transform: scale(1.1);
 }
 
-/* ==================== 密码输入界面 ==================== */
+.empty-state {
+  text-align: center;
+  padding: 3rem;
+  color: #64748b;
+}
+
+.empty-state svg {
+  color: #94a3b8;
+  margin-bottom: 1rem;
+}
+
+.empty-state p {
+  font-size: 1rem;
+  font-weight: 500;
+  margin: 0;
+}
+
+/* ========================================
+   上传区域 - 现代化设计
+   ======================================== */
+
+.upload-area {
+  margin-bottom: 2rem;
+}
+
+.upload-zone {
+  border: 3px dashed #cbd5e1;
+  border-radius: 20px;
+  padding: 4rem 2rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+  min-height: 300px;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.upload-zone::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.upload-zone:hover {
+  border-color: #667eea;
+  transform: scale(1.02);
+}
+
+.upload-zone:hover::before {
+  opacity: 1;
+}
+
+.upload-zone svg {
+  color: #667eea;
+  filter: drop-shadow(0 4px 8px rgba(102, 126, 234, 0.2));
+  transition: transform 0.3s ease;
+}
+
+.upload-zone:hover svg {
+  transform: scale(1.1);
+}
+
+.upload-zone h3 {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #1e293b;
+  margin: 0;
+  letter-spacing: -0.3px;
+}
+
+.upload-zone p {
+  font-size: 1rem;
+  color: #64748b;
+  margin: 0;
+  font-weight: 500;
+}
+
+.loading-text {
+  color: #667eea !important;
+  font-weight: 700;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* ========================================
+   密码输入界面 - 优雅设计
+   ======================================== */
+
 .password-required {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: var(--spacing-3xl);
+  padding: 4rem 2rem;
   text-align: center;
   min-height: 400px;
   animation: scaleIn 0.4s ease-out;
 }
 
 .password-lock-icon {
-  color: var(--color-primary);
-  margin-bottom: var(--spacing-xl);
+  color: #667eea;
+  margin-bottom: 2rem;
   animation: pulse 2s ease-in-out infinite;
+  filter: drop-shadow(0 4px 8px rgba(102, 126, 234, 0.3));
 }
 
 .password-required h3 {
-  font-size: var(--font-2xl);
-  font-weight: var(--font-bold);
-  color: var(--color-gray-900);
-  margin: 0 0 var(--spacing-md) 0;
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: #1e293b;
+  margin: 0 0 1rem 0;
+  letter-spacing: -0.3px;
 }
 
 .password-hint-text {
-  font-size: var(--font-base);
-  color: var(--color-gray-600);
-  margin: 0 0 var(--spacing-2xl) 0;
+  font-size: 1rem;
+  color: #64748b;
+  margin: 0 0 2rem 0;
   word-break: break-all;
   max-width: 500px;
+  font-weight: 500;
 }
 
 .password-input-section {
   display: flex;
-  gap: var(--spacing-md);
+  gap: 1rem;
   width: 100%;
   max-width: 500px;
-  margin-bottom: var(--spacing-lg);
+  margin-bottom: 1.5rem;
 }
 
 .password-input-section input[type="password"] {
   flex: 1;
-  padding: var(--spacing-md) var(--spacing-lg);
-  font-size: var(--font-base);
-  border: 2px solid var(--color-gray-300);
-  border-radius: var(--radius-lg);
-  transition: all var(--transition-base);
+  padding: 1.25rem 1.5rem;
+  font-size: 1.05rem;
+  border: 3px solid #e2e8f0;
+  border-radius: 16px;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
 }
 
 .password-input-section input:focus {
   outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+  border-color: #667eea;
+  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.2),
+              0 0 0 4px rgba(102, 126, 234, 0.1);
 }
 
 .unlock-button {
   display: flex;
   align-items: center;
-  gap: var(--spacing-sm);
-  padding: var(--spacing-md) var(--spacing-xl);
-  background: var(--gradient-primary);
-  color: var(--color-white);
-  font-weight: var(--font-semibold);
-  border-radius: var(--radius-lg);
-  transition: all var(--transition-base);
-  box-shadow: var(--shadow-md);
+  gap: 0.5rem;
+  padding: 1.25rem 2rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  font-weight: 800;
+  border-radius: 16px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.35);
   white-space: nowrap;
 }
 
 .unlock-button:hover:not(:disabled) {
-  background: var(--gradient-primary-hover);
-  box-shadow: var(--shadow-lg), var(--shadow-glow);
-  transform: translateY(-2px);
+  transform: translateY(-3px);
+  box-shadow: 0 10px 30px rgba(102, 126, 234, 0.45);
 }
 
 .unlock-button:disabled {
-  opacity: 0.5;
+  opacity: 0.6;
   cursor: not-allowed;
+  transform: none;
 }
 
 .back-button {
-  padding: var(--spacing-sm) var(--spacing-xl);
-  background: var(--color-white);
-  color: var(--color-primary);
-  border: 2px solid var(--color-primary);
-  font-weight: var(--font-semibold);
-  border-radius: var(--radius-lg);
-  transition: all var(--transition-base);
+  padding: 0.875rem 2rem;
+  background: white;
+  color: #667eea;
+  border: 2px solid #667eea;
+  font-weight: 700;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.3s ease;
 }
 
 .back-button:hover {
-  background: var(--color-primary);
-  color: var(--color-white);
+  background: #667eea;
+  color: white;
   transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
 }
 
-/* ==================== ZIP 预览 ==================== */
+/* ========================================
+   ZIP 预览 - 专业设计
+   ======================================== */
+
 .zip-preview {
   animation: fadeIn 0.4s ease-out;
 }
@@ -380,63 +705,66 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: var(--spacing-xl);
-  padding-bottom: var(--spacing-lg);
-  border-bottom: 2px solid var(--color-gray-200);
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 2px solid #e2e8f0;
 }
 
 .zip-preview-header h3 {
-  margin: 0 0 var(--spacing-sm) 0;
-  font-size: var(--font-2xl);
-  font-weight: var(--font-bold);
-  color: var(--color-gray-900);
+  margin: 0 0 0.75rem 0;
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #1e293b;
   word-break: break-all;
+  letter-spacing: -0.3px;
 }
 
 .zip-info {
   margin: 0;
-  font-size: var(--font-sm);
-  color: var(--color-gray-600);
+  font-size: 0.95rem;
+  color: #64748b;
+  font-weight: 500;
 }
 
 .change-file-button {
-  padding: var(--spacing-sm) var(--spacing-lg);
-  background: var(--color-white);
-  color: var(--color-primary);
-  border: 2px solid var(--color-primary);
-  font-weight: var(--font-semibold);
-  border-radius: var(--radius-lg);
-  transition: all var(--transition-base);
+  padding: 0.875rem 1.5rem;
+  background: white;
+  color: #667eea;
+  border: 2px solid #667eea;
+  font-weight: 700;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.3s ease;
   white-space: nowrap;
 }
 
 .change-file-button:hover {
-  background: var(--color-primary);
-  color: var(--color-white);
+  background: #667eea;
+  color: white;
   transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
 }
 
-/* ==================== 文件选择 ==================== */
 .file-selection-header {
-  margin-bottom: var(--spacing-lg);
+  margin-bottom: 1.5rem;
 }
 
 .select-all-checkbox {
   display: flex;
   align-items: center;
-  gap: var(--spacing-md);
-  padding: var(--spacing-md) var(--spacing-lg);
-  background: var(--color-white);
-  border: 2px solid var(--color-gray-300);
-  border-radius: var(--radius-lg);
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  background: white;
+  border: 2px solid #e2e8f0;
+  border-radius: 14px;
   cursor: pointer;
-  font-weight: var(--font-semibold);
-  color: var(--color-gray-900);
-  transition: all var(--transition-base);
+  font-weight: 700;
+  color: #1e293b;
+  transition: all 0.3s ease;
 }
 
 .select-all-checkbox:hover {
-  border-color: var(--color-primary);
+  border-color: #667eea;
   background: rgba(102, 126, 234, 0.05);
 }
 
@@ -444,175 +772,255 @@
   width: 20px;
   height: 20px;
   cursor: pointer;
-  accent-color: var(--color-primary);
+  accent-color: #667eea;
 }
 
-/* ==================== ZIP 文件列表 ==================== */
 .zip-file-list {
   max-height: 400px;
   overflow-y: auto;
-  background: var(--color-white);
-  border: 2px solid var(--color-gray-200);
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-sm);
-  margin-bottom: var(--spacing-xl);
+  background: white;
+  border: 2px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 1rem;
+  margin-bottom: 2rem;
 }
 
 .zip-file-item {
   display: flex;
   align-items: center;
-  gap: var(--spacing-md);
-  padding: var(--spacing-md);
-  border-radius: var(--radius-md);
-  transition: all var(--transition-base);
+  gap: 1rem;
+  padding: 1rem;
+  border-radius: 12px;
+  transition: all 0.3s ease;
   cursor: pointer;
 }
 
 .zip-file-item:hover {
-  background: var(--color-gray-50);
+  background: #f8fafc;
 }
 
 .file-checkbox {
   width: 18px;
   height: 18px;
   cursor: pointer;
-  accent-color: var(--color-primary);
+  accent-color: #667eea;
   flex-shrink: 0;
 }
 
-.zip-file-item .file-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.zip-file-item .file-name {
-  color: var(--color-gray-900);
-  font-weight: var(--font-medium);
-  word-break: break-all;
-}
-
 .zip-file-item .file-meta {
-  color: var(--color-gray-500);
-  font-size: var(--font-sm);
-  margin-top: var(--spacing-xs);
+  color: #64748b;
+  font-size: 0.875rem;
+  margin-top: 0.375rem;
+  font-weight: 500;
 }
 
-/* ==================== 操作按钮 ==================== */
+/* ========================================
+   操作按钮 - 现代化设计
+   ======================================== */
+
 .action-button {
   width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--spacing-md);
-  padding: var(--spacing-lg) var(--spacing-2xl);
-  background: var(--gradient-primary);
-  color: var(--color-white);
-  font-size: var(--font-lg);
-  font-weight: var(--font-bold);
-  border-radius: var(--radius-lg);
+  gap: 0.75rem;
+  padding: 1.5rem 3rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  font-size: 1.1rem;
+  font-weight: 800;
+  border-radius: 18px;
   border: none;
   cursor: pointer;
-  transition: all var(--transition-base);
-  box-shadow: var(--shadow-lg);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 8px 28px rgba(102, 126, 234, 0.4);
+  position: relative;
+  overflow: hidden;
+  letter-spacing: -0.2px;
+}
+
+.action-button::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transform: translate(-50%, -50%);
+  transition: width 0.6s, height 0.6s;
+}
+
+.action-button:hover::before {
+  width: 400px;
+  height: 400px;
 }
 
 .action-button:hover:not(:disabled) {
-  background: var(--gradient-primary-hover);
-  box-shadow: var(--shadow-xl), var(--shadow-glow);
-  transform: translateY(-2px);
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px rgba(102, 126, 234, 0.5),
+              0 0 0 4px rgba(102, 126, 234, 0.15);
 }
 
 .action-button:disabled {
-  opacity: 0.5;
+  opacity: 0.6;
   cursor: not-allowed;
+  transform: none;
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.2);
 }
 
-/* ==================== 消息提示 ==================== */
-.success-message,
-.error-message {
-  padding: var(--spacing-lg) var(--spacing-xl);
-  border-radius: var(--radius-lg);
-  margin-bottom: var(--spacing-xl);
-  display: flex;
-  align-items: flex-start;
-  gap: var(--spacing-md);
-  animation: slideInRight 0.3s ease-out;
-  border-left: 4px solid;
-  box-shadow: var(--shadow-md);
-  font-size: var(--font-base);
-  line-height: 1.8;
-  white-space: pre-line;
+.action-button svg {
+  transition: transform 0.3s ease;
 }
 
-.success-message {
-  background: var(--color-success-light);
-  border-left-color: var(--color-success);
-  color: #065f46;
+.action-button:hover:not(:disabled) svg {
+  transform: scale(1.1);
 }
 
-.error-message {
-  background: var(--color-error-light);
-  border-left-color: var(--color-error);
-  color: #991b1b;
+/* ========================================
+   信息框 - 优雅设计
+   ======================================== */
+
+.info-box {
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  border: 2px solid #93c5fd;
+  border-radius: 24px;
+  padding: 2.5rem;
+  margin-top: 3rem;
+  box-shadow: 0 8px 32px rgba(59, 130, 246, 0.15);
+  position: relative;
+  overflow: hidden;
 }
 
-/* ==================== 响应式设计 ==================== */
-@media (max-width: 1024px) {
-  .page-title {
-    font-size: var(--font-3xl);
+.info-box::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #3b82f6 0%, #2563eb 100%);
+}
+
+.info-box p strong {
+  font-size: 1.15rem;
+  color: #1e40af;
+  font-weight: 800;
+  letter-spacing: -0.2px;
+}
+
+.info-box ul {
+  margin: 1rem 0;
+  padding-left: 1.75rem;
+  color: #1e3a8a;
+  line-height: 2;
+  font-weight: 500;
+}
+
+.info-box li {
+  margin-bottom: 0.75rem;
+}
+
+.info-box code {
+  background: rgba(59, 130, 246, 0.1);
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9em;
+  color: #1e40af;
+}
+
+/* ========================================
+   动画关键帧
+   ======================================== */
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
   }
-  
-  .compression-content {
-    padding: var(--spacing-xl);
+  to {
+    opacity: 1;
+    transform: translateX(0);
   }
 }
 
-@media (max-width: 768px) {
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ========================================
+   响应式设计 - 补充
+   ======================================== */
+
+@media (max-width: 480px) {
+  .compression-page {
+    padding: 1rem 0.75rem;
+  }
+
+  .compression-header {
+    padding: 1.25rem;
+  }
+
+  .compression-header .page-title {
+    font-size: 1.75rem;
+  }
+
   .mode-selector {
     flex-direction: column;
+    gap: 1rem;
   }
-  
+
   .mode-button {
     max-width: 100%;
+    padding: 1.5rem;
   }
-  
-  .compression-content {
-    padding: var(--spacing-lg);
+
+  .compress-section,
+  .decompress-section {
+    padding: 1.5rem;
   }
-  
-  .zip-preview-header {
-    flex-direction: column;
-    gap: var(--spacing-md);
-  }
-  
-  .change-file-button {
-    width: 100%;
-  }
-  
+
   .password-input-section {
     flex-direction: column;
   }
-  
+
   .unlock-button {
     width: 100%;
   }
-}
 
-@media (max-width: 480px) {
-  .page-title {
-    font-size: var(--font-xl);
+  .zip-preview-header {
+    flex-direction: column;
+    gap: 1rem;
   }
-  
-  .compression-content {
-    padding: var(--spacing-md);
-  }
-  
-  .upload-zone {
-    padding: var(--spacing-xl);
-    min-height: 250px;
-  }
-  
-  .mode-button {
-    padding: var(--spacing-md);
+
+  .change-file-button {
+    width: 100%;
   }
 }

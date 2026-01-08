@@ -311,11 +311,11 @@ export default function CompressionPage() {
   }
 
   return (
-    <div className="page-container">
-      <div className="page-header">
-        <h1>文件压缩/解压</h1>
-        <p className="page-description">
-          ZIP 格式文件压缩和解压，100% 浏览器本地处理
+    <div className="page-container compression-page">
+      <div className="page-header compression-header">
+        <h1 className="page-title">📦 文件压缩/解压</h1>
+        <p className="page-subtitle">
+          ZIP 格式文件压缩和解压，100% 浏览器本地处理，支持 AES-256 加密保护
         </p>
       </div>
 
