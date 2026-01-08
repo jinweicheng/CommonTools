@@ -8,6 +8,7 @@ interface FileItem {
   id: string
   file: File
   preview?: string
+  previewLoading?: boolean // 预览加载状态
   status: 'pending' | 'converting' | 'completed' | 'error'
   progress: number
   convertedBlob?: Blob
@@ -33,18 +34,43 @@ export default function HEICToJPG() {
     return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i]
   }, [])
 
-  // 生成文件预览
+  // 生成文件预览（对于HEIC文件，需要先转换为JPG）
   const generatePreview = useCallback(async (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        const result = e.target?.result as string
-        // 如果是HEIC文件，尝试使用转换后的预览
-        resolve(result)
+    try {
+      // 尝试直接读取（可能失败，因为浏览器不支持HEIC）
+      const directPreview = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = (e) => {
+          const result = e.target?.result as string
+          // 检查是否是有效的图片数据
+          if (result && result.startsWith('data:image/')) {
+            resolve(result)
+          } else {
+            reject(new Error('无法直接预览'))
+          }
+        }
+        reader.onerror = reject
+        reader.readAsDataURL(file)
+      })
+      return directPreview
+    } catch {
+      // 如果直接读取失败，尝试转换为JPG预览（使用较低质量以加快速度）
+      try {
+        const result = await heic2any({
+          blob: file,
+          toType: 'image/jpeg',
+          quality: 0.7, // 预览使用较低质量
+        })
+        const blob = Array.isArray(result) ? result[0] : result
+        if (blob instanceof Blob) {
+          return URL.createObjectURL(blob)
+        }
+        throw new Error('转换失败')
+      } catch (error) {
+        console.warn('无法生成预览:', error)
+        return '' // 返回空字符串表示无法预览
       }
-      reader.onerror = reject
-      reader.readAsDataURL(file)
-    })
+    }
   }, [])
 
   // 添加文件
@@ -74,14 +100,29 @@ export default function HEICToJPG() {
         originalSize: file.size,
       }
 
-      // 生成预览（HEIC文件可能无法直接预览，先添加占位符）
-      try {
-        fileItem.preview = await generatePreview(file)
-      } catch (err) {
-        console.warn('无法生成预览:', err)
-      }
-
       newFiles.push(fileItem)
+      
+      // 异步生成预览（不阻塞文件添加）
+      setFiles(prev => prev.map(f => 
+        f.id === fileItem.id ? { ...f, previewLoading: true } : f
+      ))
+      
+      generatePreview(file).then(preview => {
+        if (preview) {
+          setFiles(prev => prev.map(f => 
+            f.id === fileItem.id ? { ...f, preview, previewLoading: false } : f
+          ))
+        } else {
+          setFiles(prev => prev.map(f => 
+            f.id === fileItem.id ? { ...f, previewLoading: false } : f
+          ))
+        }
+      }).catch(err => {
+        console.warn('无法生成预览:', err)
+        setFiles(prev => prev.map(f => 
+          f.id === fileItem.id ? { ...f, previewLoading: false } : f
+        ))
+      })
     }
 
     if (newFiles.length === 0) {
@@ -525,12 +566,23 @@ export default function HEICToJPG() {
                     />
                   ) : (
                     <div className="preview-placeholder">
-                      <FileImage size={32} />
+                      {fileItem.previewLoading ? (
+                        <>
+                          <Loader2 size={32} className="spinning" />
+                          <span style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>生成预览中...</span>
+                        </>
+                      ) : (
+                        <>
+                          <FileImage size={32} />
+                          <span style={{ fontSize: '0.875rem', marginTop: '0.5rem', color: '#94a3b8' }}>暂无预览</span>
+                        </>
+                      )}
                     </div>
                   )}
                   {fileItem.status === 'converting' && (
                     <div className="preview-overlay">
                       <Loader2 size={24} className="spinning" />
+                      <span style={{ marginTop: '0.5rem', fontSize: '0.875rem' }}>转换中...</span>
                     </div>
                   )}
                   {fileItem.status === 'completed' && (
