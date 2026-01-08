@@ -6,6 +6,7 @@ import WatermarkPage from './pages/WatermarkPage'
 import SignaturePage from './pages/SignaturePage'
 import PasswordManagerPage from './pages/PasswordManagerPage'
 import CompressionPage from './pages/CompressionPage'
+import HEICToJPGPage from './pages/HEICToJPGPage'
 import './App.css'
 
 function App() {
@@ -30,6 +31,9 @@ function App() {
           
           {/* 解压/压缩文件 */}
           <Route path="/compression" element={<CompressionPage />} />
+          
+          {/* HEIC转JPG */}
+          <Route path="/heic-to-jpg" element={<HEICToJPGPage />} />
           
           {/* 重定向未知路由到首页 */}
           <Route path="*" element={<Navigate to="/" replace />} />

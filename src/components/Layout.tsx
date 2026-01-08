@@ -1,6 +1,6 @@
 import { ReactNode, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Shield, Repeat, Droplet, PenTool, KeyRound, Archive, Menu, X } from 'lucide-react'
+import { Shield, Repeat, Droplet, PenTool, KeyRound, Archive, Image as ImageIcon, Menu, X } from 'lucide-react'
 import './Layout.css'
 
 interface LayoutProps {
@@ -17,6 +17,7 @@ export default function Layout({ children }: LayoutProps) {
     { path: '/watermark', icon: <Droplet size={18} />, label: '加水印' },
     { path: '/signature', icon: <PenTool size={18} />, label: '电子签名' },
     { path: '/compression', icon: <Archive size={18} />, label: '解压/压缩' },
+    { path: '/heic-to-jpg', icon: <ImageIcon size={18} />, label: 'HEIC转JPG' },
     { path: '/password-manager', icon: <KeyRound size={18} />, label: '密码管理器' },
   ]
   
