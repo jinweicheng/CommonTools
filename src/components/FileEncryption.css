@@ -1,0 +1,883 @@
+/* ========================================
+   通用文件加密组件样式 - 专业商用级
+   ======================================== */
+
+.file-encryption {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0;
+}
+
+/* ========================================
+   头部区域 - 精美设计
+   ======================================== */
+
+.encryption-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 2rem;
+  margin-bottom: 2.5rem;
+  padding: 2.5rem;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border-radius: 24px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06),
+              0 0 0 1px rgba(226, 232, 240, 0.8) inset;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  position: relative;
+  overflow: hidden;
+}
+
+.encryption-header::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+}
+
+.header-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  border-radius: 20px;
+  color: white;
+  box-shadow: 0 8px 24px rgba(16, 185, 129, 0.35),
+              0 0 0 4px rgba(16, 185, 129, 0.1);
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.header-icon::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  opacity: 0.3;
+  z-index: -1;
+  filter: blur(8px);
+}
+
+.header-content {
+  flex: 1;
+  position: relative;
+  z-index: 1;
+}
+
+.section-title {
+  font-size: 2rem;
+  font-weight: 900;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin: 0 0 0.75rem 0;
+  letter-spacing: -0.5px;
+  line-height: 1.2;
+}
+
+.section-description {
+  font-size: 1rem;
+  color: #64748b;
+  line-height: 1.7;
+  margin: 0;
+  font-weight: 500;
+}
+
+/* ========================================
+   消息框 - 优雅设计
+   ======================================== */
+
+.message-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1.5rem;
+  border-radius: 16px;
+  margin-bottom: 2rem;
+  animation: slideDown 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  border: 2px solid;
+  position: relative;
+  overflow: hidden;
+}
+
+.message-box::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  opacity: 0.6;
+}
+
+.error-box {
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+.error-box::before {
+  background: linear-gradient(90deg, #ef4444 0%, #dc2626 100%);
+}
+
+.success-box {
+  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+  border-color: #86efac;
+  color: #065f46;
+}
+
+.success-box::before {
+  background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-15px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ========================================
+   模式选项卡 - 高级设计
+   ======================================== */
+
+.mode-tabs {
+  display: flex;
+  gap: 1.25rem;
+  margin-bottom: 2.5rem;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  padding: 0.75rem;
+  border-radius: 20px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06),
+              0 0 0 1px rgba(226, 232, 240, 0.8) inset;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+.tab-button {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.875rem;
+  padding: 1.25rem 2rem;
+  border: none;
+  border-radius: 16px;
+  background: transparent;
+  color: #64748b;
+  font-size: 1.05rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.tab-button::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(5, 150, 105, 0.08) 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.tab-button:hover::before {
+  opacity: 1;
+}
+
+.tab-button:hover {
+  color: #475569;
+  transform: translateY(-2px);
+}
+
+.tab-button.active {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  box-shadow: 0 8px 28px rgba(16, 185, 129, 0.35),
+              0 0 0 3px rgba(16, 185, 129, 0.15);
+  transform: translateY(-3px);
+}
+
+.tab-button.active::before {
+  opacity: 0;
+}
+
+.tab-button svg {
+  transition: transform 0.3s ease;
+}
+
+.tab-button:hover svg {
+  transform: scale(1.1);
+}
+
+.tab-button.active svg {
+  transform: scale(1.15);
+  filter: drop-shadow(0 2px 4px rgba(255, 255, 255, 0.3));
+}
+
+/* ========================================
+   支持格式展示 - 精美卡片
+   ======================================== */
+
+.supported-formats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2.5rem;
+  padding: 2rem;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border-radius: 24px;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06),
+              0 0 0 1px rgba(226, 232, 240, 0.8) inset;
+  position: relative;
+  overflow: hidden;
+}
+
+.supported-formats::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+  opacity: 0.3;
+}
+
+.format-category {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 1.5rem;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06),
+              0 0 0 1px rgba(226, 232, 240, 0.8);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 2px solid transparent;
+  position: relative;
+  overflow: hidden;
+}
+
+.format-category::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+  transform: scaleX(0);
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.format-category:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12),
+              0 0 0 2px rgba(16, 185, 129, 0.2);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.format-category:hover::before {
+  transform: scaleX(1);
+}
+
+.format-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.format-category:hover .format-icon {
+  transform: scale(1.1) rotate(5deg);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+}
+
+.format-icon.image {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: white;
+}
+
+.format-icon.document {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+}
+
+.format-icon.text {
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  color: white;
+}
+
+.format-icon.code {
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+  color: white;
+}
+
+.format-icon.data {
+  background: linear-gradient(135deg, #ec4899 0%, #db2777 100%);
+  color: white;
+}
+
+.format-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.format-info strong {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #1e293b;
+  letter-spacing: -0.2px;
+}
+
+.format-info span {
+  font-size: 0.85rem;
+  color: #64748b;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+/* ========================================
+   文件类型指示器 - 优雅设计
+   ======================================== */
+
+.file-type-indicator {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  margin-top: 1.5rem;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border: 2px solid #bae6fd;
+  border-radius: 16px;
+  box-shadow: 0 4px 16px rgba(14, 165, 233, 0.1);
+  transition: all 0.3s ease;
+}
+
+.file-type-indicator:hover {
+  transform: translateX(4px);
+  box-shadow: 0 6px 20px rgba(14, 165, 233, 0.15);
+  border-color: #7dd3fc;
+}
+
+.type-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  background: white;
+  border-radius: 14px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  color: #0369a1;
+  border: 2px solid rgba(14, 165, 233, 0.2);
+  transition: all 0.3s ease;
+}
+
+.file-type-indicator:hover .type-icon {
+  transform: scale(1.1);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+}
+
+.type-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.type-info strong {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #0369a1;
+  letter-spacing: -0.2px;
+}
+
+.type-info span {
+  font-size: 0.9rem;
+  color: #0c4a6e;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+/* ========================================
+   密码输入区域 - 专业设计
+   ======================================== */
+
+.password-section {
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border-radius: 24px;
+  padding: 2.5rem;
+  margin-bottom: 2.5rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06),
+              0 0 0 1px rgba(226, 232, 240, 0.8) inset;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  position: relative;
+  overflow: hidden;
+}
+
+.password-section::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+  opacity: 0.3;
+}
+
+.input-group {
+  margin-bottom: 2rem;
+}
+
+.input-group:last-child {
+  margin-bottom: 0;
+}
+
+.input-label {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #1e293b;
+  margin-bottom: 1rem;
+  letter-spacing: -0.2px;
+}
+
+.input-label svg {
+  color: #10b981;
+  filter: drop-shadow(0 2px 4px rgba(16, 185, 129, 0.2));
+}
+
+.password-input {
+  width: 100%;
+  padding: 1.25rem 1.5rem;
+  border: 3px solid #e2e8f0;
+  border-radius: 16px;
+  font-size: 1.05rem;
+  color: #1e293b;
+  background: white;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+  font-weight: 500;
+}
+
+.password-input::placeholder {
+  color: #94a3b8;
+  font-weight: 400;
+}
+
+.password-input:focus {
+  outline: none;
+  border-color: #10b981;
+  box-shadow: 0 8px 24px rgba(16, 185, 129, 0.2),
+              0 0 0 4px rgba(16, 185, 129, 0.1);
+  transform: translateY(-2px);
+}
+
+.password-input.input-error {
+  border-color: #ef4444;
+  box-shadow: 0 8px 24px rgba(239, 68, 68, 0.2),
+              0 0 0 4px rgba(239, 68, 68, 0.1);
+  animation: shake 0.4s ease;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-8px); }
+  75% { transform: translateX(8px); }
+}
+
+.password-input.input-success {
+  border-color: #10b981;
+  box-shadow: 0 8px 24px rgba(16, 185, 129, 0.2),
+              0 0 0 4px rgba(16, 185, 129, 0.1);
+}
+
+.input-feedback {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  margin-top: 1rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  animation: slideDown 0.3s ease;
+}
+
+.input-feedback.error {
+  color: #991b1b;
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+  border: 1px solid #fecaca;
+}
+
+.input-feedback.success {
+  color: #065f46;
+  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+  border: 1px solid #86efac;
+}
+
+.input-hint {
+  margin-top: 1rem;
+  font-size: 0.9rem;
+  color: #64748b;
+  line-height: 1.6;
+  font-weight: 500;
+}
+
+/* ========================================
+   上传区域 - 现代化设计
+   ======================================== */
+
+.upload-section {
+  margin-bottom: 2.5rem;
+}
+
+.upload-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.875rem;
+  padding: 1.5rem 3rem;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  border: none;
+  border-radius: 18px;
+  font-size: 1.1rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 8px 28px rgba(16, 185, 129, 0.4),
+              0 0 0 0 rgba(16, 185, 129, 0.5);
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+  letter-spacing: -0.2px;
+}
+
+.upload-button::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transform: translate(-50%, -50%);
+  transition: width 0.6s, height 0.6s;
+}
+
+.upload-button:hover::before {
+  width: 400px;
+  height: 400px;
+}
+
+.upload-button:hover:not(:disabled) {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px rgba(16, 185, 129, 0.5),
+              0 0 0 4px rgba(16, 185, 129, 0.15);
+}
+
+.upload-button:active:not(:disabled) {
+  transform: translateY(-2px);
+}
+
+.upload-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.2);
+}
+
+.upload-button svg {
+  transition: transform 0.3s ease;
+}
+
+.upload-button:hover:not(:disabled) svg {
+  transform: scale(1.1);
+}
+
+/* ========================================
+   信息面板 - 优雅设计
+   ======================================== */
+
+.info-panel {
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  border: 2px solid #93c5fd;
+  border-radius: 24px;
+  padding: 2.5rem;
+  margin-top: 3rem;
+  box-shadow: 0 8px 32px rgba(59, 130, 246, 0.15),
+              0 0 0 1px rgba(147, 197, 253, 0.3) inset;
+  position: relative;
+  overflow: hidden;
+}
+
+.info-panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #3b82f6 0%, #2563eb 100%);
+}
+
+.info-header {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  font-weight: 800;
+  color: #1e40af;
+  margin-bottom: 2rem;
+  font-size: 1.25rem;
+  letter-spacing: -0.3px;
+}
+
+.info-header svg {
+  color: #3b82f6;
+  filter: drop-shadow(0 2px 4px rgba(59, 130, 246, 0.2));
+}
+
+.info-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.info-item {
+  display: flex;
+  gap: 1.5rem;
+  align-items: flex-start;
+  padding: 1.5rem;
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 16px;
+  border: 1px solid rgba(147, 197, 253, 0.3);
+  transition: all 0.3s ease;
+}
+
+.info-item:hover {
+  background: rgba(255, 255, 255, 0.8);
+  transform: translateX(4px);
+  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.1);
+}
+
+.info-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  flex-shrink: 0;
+  background: white;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border: 2px solid;
+  color: #10b981;
+  border-color: rgba(16, 185, 129, 0.2);
+}
+
+.info-text {
+  flex: 1;
+}
+
+.info-text strong {
+  display: block;
+  font-size: 1.15rem;
+  color: #1e3a8a;
+  margin-bottom: 1rem;
+  font-weight: 800;
+  letter-spacing: -0.2px;
+}
+
+.info-text ul {
+  margin: 0;
+  padding-left: 1.75rem;
+  color: #1e3a8a;
+  line-height: 2;
+  font-weight: 500;
+}
+
+.info-text li {
+  margin-bottom: 0.75rem;
+}
+
+/* ========================================
+   加密/解密面板
+   ======================================== */
+
+.encryption-panel,
+.decryption-panel {
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border-radius: 24px;
+  padding: 2.5rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06),
+              0 0 0 1px rgba(226, 232, 240, 0.8) inset;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  position: relative;
+  overflow: hidden;
+}
+
+.encryption-panel::before,
+.decryption-panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+  opacity: 0.3;
+}
+
+/* ========================================
+   响应式设计
+   ======================================== */
+
+@media (max-width: 1024px) {
+  .supported-formats {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .file-encryption {
+    padding: 0;
+  }
+
+  .encryption-header {
+    flex-direction: column;
+    padding: 2rem 1.5rem;
+    gap: 1.5rem;
+  }
+
+  .header-icon {
+    width: 64px;
+    height: 64px;
+  }
+
+  .section-title {
+    font-size: 1.5rem;
+  }
+
+  .supported-formats {
+    grid-template-columns: 1fr;
+    padding: 1.5rem;
+    gap: 1.25rem;
+  }
+
+  .format-category {
+    padding: 1.25rem;
+  }
+
+  .format-icon {
+    width: 48px;
+    height: 48px;
+  }
+
+  .file-type-indicator {
+    padding: 1.25rem;
+  }
+
+  .type-icon {
+    width: 48px;
+    height: 48px;
+  }
+
+  .mode-tabs {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .tab-button {
+    width: 100%;
+    padding: 1rem 1.5rem;
+  }
+
+  .password-section {
+    padding: 2rem 1.5rem;
+  }
+
+  .upload-button {
+    padding: 1.25rem 2rem;
+    font-size: 1rem;
+  }
+
+  .info-panel {
+    padding: 2rem 1.5rem;
+  }
+
+  .info-item {
+    flex-direction: column;
+    gap: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .encryption-header {
+    padding: 1.5rem;
+  }
+
+  .header-icon {
+    width: 56px;
+    height: 56px;
+  }
+
+  .section-title {
+    font-size: 1.25rem;
+  }
+
+  .section-description {
+    font-size: 0.9rem;
+  }
+
+  .supported-formats {
+    padding: 1.25rem;
+  }
+
+  .format-category {
+    flex-direction: column;
+    text-align: center;
+    padding: 1.5rem;
+  }
+
+  .format-icon {
+    width: 56px;
+    height: 56px;
+  }
+
+  .password-section {
+    padding: 1.5rem;
+  }
+
+  .password-input {
+    padding: 1rem 1.25rem;
+    font-size: 1rem;
+  }
+}
