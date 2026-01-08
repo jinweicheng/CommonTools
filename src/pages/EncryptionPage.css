@@ -59,7 +59,7 @@
 }
 
 .title-icon {
-  font-size: 3rem;
+  font-size: 2.0rem;
   filter: drop-shadow(0 4px 8px rgba(102, 126, 234, 0.3));
   animation: float 3s ease-in-out infinite;
 }

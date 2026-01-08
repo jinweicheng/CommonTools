@@ -13,7 +13,7 @@ export default function EncryptionPage() {
       <div className="page-header encryption-header">
         <div className="header-content">
           <h1 className="page-title">
-            <span className="title-icon">🔐</span>
+            {/* <span className="title-icon">🔐</span> */}
             文件加密
           </h1>
           <p className="page-subtitle">
