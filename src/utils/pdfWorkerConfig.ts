@@ -2,7 +2,7 @@ import * as pdfjsLib from 'pdfjs-dist'
 
 /**
  * PDF.js Worker 配置
- * 支持多个 CDN 备选方案和本地降级
+ * 优先使用 CDN（MIME 类型正确），本地作为降级方案
  */
 const WORKER_CDNS = [
   `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`,
@@ -11,17 +11,38 @@ const WORKER_CDNS = [
 ]
 
 /**
- * 测试 Worker URL 是否可用
+ * 获取本地 Worker URL（从 public 目录）
  */
-async function testWorkerUrl(url: string): Promise<boolean> {
+function getLocalWorkerUrl(): string {
+  // 根据 base path 构建 URL
+  const basePath = import.meta.env.BASE_URL || '/tools/'
+  // 移除末尾的斜杠（如果有）
+  const cleanBasePath = basePath.endsWith('/') ? basePath.slice(0, -1) : basePath
+  return `${cleanBasePath}/pdf.worker.min.mjs`
+}
+
+/**
+ * 测试 Worker URL 是否可用（快速测试，2秒超时）
+ * 注意：只接受正确的 JavaScript MIME 类型，不接受 application/octet-stream
+ */
+async function testWorkerUrl(url: string, timeout: number = 2000): Promise<boolean> {
   try {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), timeout)
+    
     const response = await fetch(url, { 
       method: 'HEAD',
       cache: 'no-cache',
-      signal: AbortSignal.timeout(5000) // 5秒超时
+      signal: controller.signal
     })
+    
+    clearTimeout(timeoutId)
     const contentType = response.headers.get('content-type') || ''
-    return response.ok && contentType.includes('javascript')
+    // 只接受正确的 JavaScript MIME 类型
+    const isValidJS = contentType.includes('javascript') || 
+                      contentType.includes('text/javascript') ||
+                      contentType.includes('application/javascript')
+    return response.ok && isValidJS
   } catch {
     return false
   }
@@ -29,6 +50,7 @@ async function testWorkerUrl(url: string): Promise<boolean> {
 
 /**
  * 配置 PDF.js Worker（带重试机制）
+ * 优先使用 CDN（MIME 类型正确），本地作为降级
  */
 export async function configurePDFWorker(): Promise<boolean> {
   if (typeof window === 'undefined') {
@@ -41,16 +63,10 @@ export async function configurePDFWorker(): Promise<boolean> {
     return true
   }
 
-  // 检查是否为开发环境
-  const isDevelopment = window.location.hostname === 'localhost' || 
-                       window.location.hostname === '127.0.0.1' ||
-                       window.location.hostname === '' ||
-                       window.location.protocol === 'file:'
-  
-  // 1. 优先尝试 CDN（按顺序测试）
+  // 1. 优先尝试 CDN（MIME 类型正确，更可靠）
   for (const cdnUrl of WORKER_CDNS) {
     try {
-      const isAvailable = await testWorkerUrl(cdnUrl)
+      const isAvailable = await testWorkerUrl(cdnUrl, 2000)
       if (isAvailable) {
         pdfjsLib.GlobalWorkerOptions.workerSrc = cdnUrl
         console.log('✅ PDF.js Worker: Using CDN -', cdnUrl)
@@ -62,23 +78,17 @@ export async function configurePDFWorker(): Promise<boolean> {
     }
   }
 
-  // 2. CDN 都失败，尝试本地 worker（开发环境）
-  if (isDevelopment) {
-    try {
-      const localUrl = new URL(
-        'pdfjs-dist/build/pdf.worker.min.mjs',
-        import.meta.url
-      ).href
-      
-      const isAvailable = await testWorkerUrl(localUrl)
-      if (isAvailable) {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = localUrl
-        console.log('✅ PDF.js Worker: Using LOCAL -', localUrl)
-        return true
-      }
-    } catch (err) {
-      console.warn('Local worker test failed:', err)
+  // 2. CDN 都失败，尝试本地 worker（降级方案）
+  const localUrl = getLocalWorkerUrl()
+  try {
+    const isAvailable = await testWorkerUrl(localUrl, 2000)
+    if (isAvailable) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = localUrl
+      console.log('✅ PDF.js Worker: Using LOCAL -', localUrl)
+      return true
     }
+  } catch (err) {
+    console.warn('Local worker test failed:', err)
   }
 
   // 3. 所有方案都失败，使用第一个 CDN 作为默认值（让浏览器尝试加载）
@@ -89,6 +99,7 @@ export async function configurePDFWorker(): Promise<boolean> {
 
 /**
  * 同步配置 PDF.js Worker（立即执行，不等待测试）
+ * 优先使用 CDN（最快，MIME 类型正确）
  */
 export function configurePDFWorkerSync() {
   if (typeof window === 'undefined') {
@@ -99,11 +110,11 @@ export function configurePDFWorkerSync() {
     return
   }
 
-  // 直接使用第一个 CDN（最快）
+  // 优先使用第一个 CDN（最快，MIME 类型正确）
   pdfjsLib.GlobalWorkerOptions.workerSrc = WORKER_CDNS[0]
   console.log('📌 PDF.js Worker: Configured (sync) -', WORKER_CDNS[0])
   
-  // 异步测试并切换到最佳 CDN
+  // 异步测试并优化配置（如果需要）
   configurePDFWorker().catch(err => {
     console.warn('PDF.js Worker async configuration failed:', err)
   })

@@ -240,14 +240,23 @@ export default function PDFSignature() {
       // 确保 PDF.js worker 已配置（带重试）
       if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
         const { configurePDFWorker } = await import('../utils/pdfWorkerConfig')
-        const configured = await configurePDFWorker()
+        let configured = await configurePDFWorker()
         
+        // 如果配置失败，重试最多 2 次
         if (!configured) {
-          // 如果配置失败，等待一下再重试
-          await new Promise(resolve => setTimeout(resolve, 500))
-          
-          // 再次尝试配置
-          await configurePDFWorker()
+          for (let i = 0; i < 2; i++) {
+            await new Promise(resolve => setTimeout(resolve, 500))
+            configured = await configurePDFWorker()
+            if (configured) break
+          }
+        }
+        
+        // 如果仍然失败，使用本地 worker 作为最后尝试
+        if (!configured && !pdfjsLib.GlobalWorkerOptions.workerSrc) {
+          const basePath = import.meta.env.BASE_URL || '/tools/'
+          const cleanBasePath = basePath.endsWith('/') ? basePath.slice(0, -1) : basePath
+          pdfjsLib.GlobalWorkerOptions.workerSrc = `${cleanBasePath}/pdf.worker.min.mjs`
+          console.log('⚠️ PDF.js Worker: Using fallback local worker -', pdfjsLib.GlobalWorkerOptions.workerSrc)
         }
       }
 
