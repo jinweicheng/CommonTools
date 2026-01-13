@@ -15,7 +15,6 @@ export default function EncryptionPage() {
       <div className="page-header encryption-header">
         <div className="header-content">
           <h1 className="page-title">
-            {/* <span className="title-icon">🔐</span> */}
             {t('encryption.title')}
           </h1>
           <p className="page-subtitle">

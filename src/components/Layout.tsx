@@ -23,7 +23,7 @@ export default function Layout({ children }: LayoutProps) {
     { path: '/signature', icon: <PenTool size={18} />, label: t('nav.signature') },
     { path: '/compression', icon: <Archive size={18} />, label: t('nav.compression') },
     { path: '/heic-to-jpg', icon: <ImageIcon size={18} />, label: t('nav.heicToJpg') },
-    { path: '/password-manager', icon: <KeyRound size={18} />, label: t('nav.passwordManager') },
+    // { path: '/password-manager', icon: <KeyRound size={18} />, label: t('nav.passwordManager') },
   ]
   
   const toggleLanguage = () => {
@@ -75,7 +75,7 @@ export default function Layout({ children }: LayoutProps) {
               <span>{language === 'zh-CN' ? 'EN' : '中'}</span>
             </button>
             
-            {user ? (
+            {/* {user ? (
               <div className="user-info">
                 <div className="user-badge">
                   {isVip() ? <Crown size={16} /> : <User size={16} />}
@@ -91,7 +91,7 @@ export default function Layout({ children }: LayoutProps) {
                 <LogIn size={18} />
                 <span>{t('common.login')}</span>
               </Link>
-            )}
+            )} */}
           </div>
           
           <button

@@ -371,7 +371,7 @@ export default function FileEncryption() {
               </div>
               <div className="format-info">
                 <strong>{t('fileEncryption.images')}</strong>
-                <span>JPG, PNG, GIF, BMP, WEBP</span>
+                <span>JPG/PNG/GIF/BMP/WEBP</span>
               </div>
             </div>
             <div className="format-category">
@@ -380,7 +380,7 @@ export default function FileEncryption() {
               </div>
               <div className="format-info">
                 <strong>{t('fileEncryption.documents')}</strong>
-                <span>DOC, DOCX</span>
+                <span>DOC/DOCX</span>
               </div>
             </div>
             <div className="format-category">
@@ -398,7 +398,7 @@ export default function FileEncryption() {
               </div>
               <div className="format-info">
                 <strong>{t('fileEncryption.code')}</strong>
-                <span>HTML, JS, CSS, Java, Python, Swift, JSON, XML 等</span>
+                <span>HTML/JS/CSS/Java/Python/Swift/JSON/XML etc.</span>
               </div>
             </div>
             <div className="format-category">
@@ -407,7 +407,7 @@ export default function FileEncryption() {
               </div>
               <div className="format-info">
                 <strong>{t('fileEncryption.data')}</strong>
-                <span>SQL, DB, SQLite 等</span>
+                <span>SQL/DB/SQLite etc.</span>
               </div>
             </div>
           </div>
