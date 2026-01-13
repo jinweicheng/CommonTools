@@ -5,7 +5,7 @@
  * 参考文档：https://developer.paddle.com/paddlejs/overview
  */
 
-import { paddleConfig, getPaddleCheckoutUrl, isPaddleConfigured as checkPaddleConfigured } from '../config/paddle.config'
+import { paddleConfig, isPaddleConfigured as checkPaddleConfigured } from '../config/paddle.config'
 
 // 重新导出配置检查函数，方便其他模块使用
 export { checkPaddleConfigured as isPaddleConfigured }
