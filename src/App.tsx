@@ -10,6 +10,10 @@ import PasswordManagerPage from './pages/PasswordManagerPage'
 import CompressionPage from './pages/CompressionPage'
 import HEICToJPGPage from './pages/HEICToJPGPage'
 import LoginPage from './pages/LoginPage'
+import SupportPage from './pages/SupportPage'
+import SupportPolicyPage from './pages/SupportPolicyPage'
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage'
+import TermsOfServicePage from './pages/TermsOfServicePage'
 import './App.css'
 
 function App() {
@@ -42,6 +46,12 @@ function App() {
               
               {/* HEIC转JPG */}
               <Route path="/heic-to-jpg" element={<HEICToJPGPage />} />
+              
+              {/* Support & Policy Pages */}
+              <Route path="/support" element={<SupportPage />} />
+              <Route path="/support-policy" element={<SupportPolicyPage />} />
+              <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+              <Route path="/terms-of-service" element={<TermsOfServicePage />} />
               
               {/* 重定向未知路由到首页 */}
               <Route path="*" element={<Navigate to="/" replace />} />

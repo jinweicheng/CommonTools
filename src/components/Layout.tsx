@@ -109,6 +109,30 @@ export default function Layout({ children }: LayoutProps) {
       <main className="main-content">
         {children}
       </main>
+      
+      <footer className="footer">
+        <div className="footer-container">
+          <div className="footer-content">
+            <div className="footer-links">
+              <Link to="/support" className="footer-link">
+                {t('support.title')}
+              </Link>
+              <Link to="/support-policy" className="footer-link">
+                {t('supportPolicy.title')}
+              </Link>
+              <Link to="/privacy-policy" className="footer-link">
+                {t('privacyPolicy.title')}
+              </Link>
+              <Link to="/terms-of-service" className="footer-link">
+                {t('termsOfService.title')}
+              </Link>
+            </div>
+            <div className="footer-copyright">
+              <p>&copy; {new Date().getFullYear()} CommonTools. All rights reserved.</p>
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   )
 }
