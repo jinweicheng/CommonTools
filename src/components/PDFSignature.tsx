@@ -654,9 +654,15 @@ export default function PDFSignature() {
               }
             }
 
-            // 将签名/日期图片嵌入PDF
-            const imageBytes = await fetch(sig.data).then(res => res.arrayBuffer())
-            const image = await pdfDoc.embedPng(imageBytes)
+            // 将签名/日期图片嵌入PDF（不使用 fetch，避免 CSP 错误）
+            // 将 data URL 转换为 Uint8Array
+            const base64Data = sig.data.split(',')[1] // 移除 data:image/png;base64, 前缀
+            const binaryString = atob(base64Data)
+            const bytes = new Uint8Array(binaryString.length)
+            for (let i = 0; i < binaryString.length; i++) {
+              bytes[i] = binaryString.charCodeAt(i)
+            }
+            const image = await pdfDoc.embedPng(bytes)
             
             page.drawImage(image, {
               x: pdfX,
