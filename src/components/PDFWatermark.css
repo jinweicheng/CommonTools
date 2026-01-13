@@ -50,6 +50,11 @@
   letter-spacing: 0.5px;
 }
 
+.supported-formats span {
+  font-weight: 700;
+  color: #110101;
+}
+
 .current-file-type {
   display: inline-flex;
   align-items: center;

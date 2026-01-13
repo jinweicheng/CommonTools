@@ -280,7 +280,7 @@ export default function PDFWatermark() {
 
   // 获取支持的文件类型文本
   const getSupportedFormats = () => {
-    return 'PDF、图片（JPG/PNG/BMP/WEBP/GIF）'
+    return 'PDF、图片(JPG/PNG/BMP/WEBP/GIF)'
   }
 
   return (
@@ -289,7 +289,7 @@ export default function PDFWatermark() {
       
       <div className="format-info">
         <div className="supported-formats">
-          <strong>支持格式：</strong> {getSupportedFormats()}
+          <strong>支持格式：</strong> <span>{getSupportedFormats()}</span> 
         </div>
         {fileType !== 'unknown' && (
           <div className="current-file-type">
