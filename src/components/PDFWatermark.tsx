@@ -43,7 +43,7 @@ export default function PDFWatermark() {
   const { t } = useI18n()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [watermarkText, setWatermarkText] = useState('水印')
+  const [watermarkText, setWatermarkText] = useState(() => t('watermark.defaultWatermarkText'))
   const [opacity, setOpacity] = useState(0.3)
   const [fontSize, setFontSize] = useState(24)
   const [angle, setAngle] = useState(-45)
@@ -58,21 +58,21 @@ export default function PDFWatermark() {
       
       // 验证文件大小
       if (arrayBuffer.byteLength === 0) {
-        throw new Error('PDF 文件为空')
+        throw new Error(t('watermark.pdfEmpty'))
       }
       
       // 验证是否为有效的 PDF 文件
       const uint8Array = new Uint8Array(arrayBuffer)
       const pdfHeader = String.fromCharCode(...uint8Array.slice(0, 4))
       if (pdfHeader !== '%PDF') {
-        throw new Error('不是有效的 PDF 文件')
+        throw new Error(t('watermark.invalidPdf'))
       }
       
       const pdfDoc = await PDFDocument.load(arrayBuffer)
       const pages = pdfDoc.getPages()
       
       if (pages.length === 0) {
-        throw new Error('PDF 文件不包含任何页面')
+        throw new Error(t('watermark.pdfNoPages'))
       }
 
     // 检查是否包含中文
@@ -146,15 +146,15 @@ export default function PDFWatermark() {
     } catch (err) {
       console.error('处理PDF水印失败', err)
       
-      let errorMessage = '处理PDF失败'
+      let errorMessage = t('watermark.processPdfFailed')
       if (err instanceof Error) {
         const errorMsg = err.message.toLowerCase()
         if (errorMsg.includes('invalid') || errorMsg.includes('corrupt')) {
-          errorMessage = 'PDF 文件无效或已损坏，请检查文件'
+          errorMessage = t('watermark.pdfInvalidOrCorrupt')
         } else if (errorMsg.includes('password') || errorMsg.includes('encrypted')) {
-          errorMessage = 'PDF 文件已加密，请先解密后再添加水印'
+          errorMessage = t('watermark.pdfEncrypted')
         } else {
-          errorMessage = `处理PDF失败：${err.message}`
+          errorMessage = t('watermark.processPdfFailedWithMessage').replace('{message}', err.message)
         }
       }
       throw new Error(errorMessage)
@@ -211,19 +211,19 @@ export default function PDFWatermark() {
                 saveAs(blob, newName)
                 resolve()
               } else {
-                reject(new Error('无法生成图片'))
+                reject(new Error(t('watermark.generateImageFailed')))
               }
             }, file.type || 'image/png')
           }
           
-          img.onerror = () => reject(new Error('图片加载失败'))
+          img.onerror = () => reject(new Error(t('watermark.imageLoadFailed')))
           img.src = e.target?.result as string
         } catch (err) {
           reject(err)
         }
       }
       
-      reader.onerror = () => reject(new Error('文件读取失败'))
+      reader.onerror = () => reject(new Error(t('watermark.fileReadFailed')))
       reader.readAsDataURL(file)
     })
   }
@@ -237,7 +237,7 @@ export default function PDFWatermark() {
     setFileType(type)
     
     if (type === 'unknown') {
-      setError('不支持的文件格式。请上传 PDF 或图片（JPG/PNG/BMP/WEBP/GIF）')
+      setError(t('watermark.unsupportedFormat'))
       return
     }
 
@@ -262,10 +262,10 @@ export default function PDFWatermark() {
           break
       }
 
-      alert('✅ 水印添加成功！')
+      alert(t('watermark.watermarkAddedSuccess'))
     } catch (err) {
       console.error('添加水印时出错:', err)
-      setError('处理失败：' + (err instanceof Error ? err.message : '未知错误'))
+      setError(t('watermark.processFailed') + (err instanceof Error ? err.message : t('common.unknownError')))
     } finally {
       setLoading(false)
     }
@@ -282,21 +282,21 @@ export default function PDFWatermark() {
 
   // 获取支持的文件类型文本
   const getSupportedFormats = () => {
-    return 'PDF、图片(JPG/PNG/BMP/WEBP/GIF)'
+    return t('watermark.supportedFormatsList')
   }
 
   return (
     <div className="pdf-watermark">
-      <h2 className="tool-header">📝 PDF/图片水印工具</h2>
+      <h2 className="tool-header">📝 {t('watermark.toolTitle')}</h2>
       
       <div className="format-info">
         <div className="supported-formats">
-          <strong>支持格式：</strong> <span>{getSupportedFormats()}</span> 
+          <strong>{t('watermark.supportedFormatsLabel')}</strong> <span>{getSupportedFormats()}</span> 
         </div>
         {fileType !== 'unknown' && (
           <div className="current-file-type">
             {getFileIcon()}
-            <span>当前文件类型: {fileType.toUpperCase()}</span>
+            <span>{t('watermark.currentFileTypeLabel')} {fileType.toUpperCase()}</span>
           </div>
         )}
       </div>
@@ -311,21 +311,21 @@ export default function PDFWatermark() {
         <div className="setting-group">
           <label className="setting-label">
             <Type size={20} />
-            水印文本
+            {t('watermark.text')}
           </label>
           <input
             type="text"
             className="setting-input"
             value={watermarkText}
             onChange={(e) => setWatermarkText(e.target.value)}
-            placeholder="输入水印文本"
+            placeholder={t('watermark.textPlaceholder')}
           />
         </div>
 
         <div className="setting-group">
           <label className="setting-label">
             <Sliders size={20} />
-            透明度: {Math.round(opacity * 100)}%
+            {t('watermark.opacityLabel')} {Math.round(opacity * 100)}%
           </label>
           <input
             type="range"
@@ -340,7 +340,7 @@ export default function PDFWatermark() {
 
         <div className="setting-group">
           <label className="setting-label">
-            字体大小: {fontSize}px
+            {t('watermark.fontSizeLabel')} {fontSize}px
           </label>
           <input
             type="range"
@@ -355,7 +355,7 @@ export default function PDFWatermark() {
 
         <div className="setting-group">
           <label className="setting-label">
-            旋转角度: {angle}°
+            {t('watermark.angleLabel')} {angle}°
           </label>
           <input
             type="range"
@@ -379,17 +379,17 @@ export default function PDFWatermark() {
             style={{ display: 'none' }}
           />
           <Upload size={20} />
-          {loading ? '处理中...' : '选择文件并添加水印'}
+          {loading ? t('watermark.processing') : t('watermark.selectFileAndAddWatermark')}
         </label>
       </div>
 
       <div className="preview-section">
         <div className="preview-box">
-          <div className="preview-label">水印效果预览：</div>
+          <div className="preview-label">{t('watermark.previewLabel')}</div>
           <div className="watermark-preview">
             {previewUrl && fileType === 'image' ? (
               <div className="image-preview-container">
-                <img src={previewUrl} alt="预览" className="preview-image" />
+                <img src={previewUrl} alt={t('watermark.previewAlt')} className="preview-image" />
                 <canvas ref={canvasRef} className="preview-canvas" />
               </div>
             ) : (
@@ -401,20 +401,20 @@ export default function PDFWatermark() {
                   transform: `rotate(${angle}deg)`,
                 }}
               >
-                {watermarkText || '水印'}
+                {watermarkText || t('watermark.defaultWatermarkText')}
               </div>
             )}
           </div>
         </div>
         
         <div className="tips-box">
-          <h4>💡 使用提示</h4>
+          <h4>💡 {t('watermark.usageTips')}</h4>
           <ul>
-            <li><strong>PDF：</strong>为每一页添加平铺水印，支持中英文</li>
-            <li><strong>图片：</strong>在图片上添加透明水印，支持所有常见格式</li>
-            <li><strong>参数调整：</strong>透明度、字体大小和角度可获得最佳效果</li>
-            <li><strong>中文支持：</strong>中文水印会自动转换为图片以确保正确显示</li>
-            <li><strong>本地处理：</strong>所有操作在浏览器中完成，文件不上传</li>
+            <li><strong>{t('watermark.pdfTipLabel')}</strong>{t('watermark.pdfTip')}</li>
+            <li><strong>{t('watermark.imageTipLabel')}</strong>{t('watermark.imageTip')}</li>
+            <li><strong>{t('watermark.paramsTipLabel')}</strong>{t('watermark.paramsTip')}</li>
+            <li><strong>{t('watermark.chineseTipLabel')}</strong>{t('watermark.chineseTip')}</li>
+            <li><strong>{t('watermark.localTipLabel')}</strong>{t('watermark.localTip')}</li>
           </ul>
         </div>
       </div>
