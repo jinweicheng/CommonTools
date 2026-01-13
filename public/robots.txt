@@ -1,0 +1,21 @@
+User-agent: *
+Allow: /
+
+# 禁止爬取构建产物和资源文件
+Disallow: /assets/
+Disallow: /*.js$
+Disallow: /*.css$
+Disallow: /*.map$
+
+# 允许爬取主要页面
+Allow: /
+Allow: /conversion
+Allow: /watermark
+Allow: /signature
+Allow: /compression
+Allow: /heic-to-jpg
+Allow: /password-manager
+
+# Sitemap 位置（如果创建了 sitemap.xml）
+Sitemap: https://commontools.top/tools/sitemap.xml
+

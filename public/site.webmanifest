@@ -1,0 +1,28 @@
+{
+  "name": "CommonTools",
+  "short_name": "CommonTools",
+  "description": "专业在线工具集 - PDF加密/解密、格式转换、水印、电子签名",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#667eea",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/favicon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["utilities", "productivity", "tools"],
+  "lang": "zh-CN",
+  "dir": "ltr"
+}
+
