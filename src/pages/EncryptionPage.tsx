@@ -2,10 +2,12 @@ import { useState } from 'react'
 import PDFEncryption from '../components/PDFEncryption'
 import FileEncryption from '../components/FileEncryption'
 import { FileText, Shield } from 'lucide-react'
+import { useI18n } from '../i18n/I18nContext'
 import './PageStyles.css'
 import './EncryptionPage.css'
 
 export default function EncryptionPage() {
+  const { t } = useI18n()
   const [activeTab, setActiveTab] = useState<'pdf' | 'file'>('pdf')
 
   return (
@@ -14,25 +16,25 @@ export default function EncryptionPage() {
         <div className="header-content">
           <h1 className="page-title">
             {/* <span className="title-icon">🔐</span> */}
-            文件加密
+            {t('encryption.title')}
           </h1>
           <p className="page-subtitle">
-            使用 AES-256-GCM 军事级加密保护您的文件，支持 PDF、图片、文档、文本等多种格式
+            {t('encryption.subtitle')}
           </p>
         </div>
         
         <div className="features-badges">
           <span className="feature-badge">
             <span className="badge-icon">🔒</span>
-            军事级加密
+            {t('encryption.militaryGrade')}
           </span>
           <span className="feature-badge">
             <span className="badge-icon">⚡</span>
-            本地处理
+            {t('encryption.localProcessing')}
           </span>
           <span className="feature-badge">
             <span className="badge-icon">✨</span>
-            隐私安全
+            {t('encryption.privacySecurity')}
           </span>
         </div>
       </div>
@@ -43,16 +45,16 @@ export default function EncryptionPage() {
           onClick={() => setActiveTab('pdf')}
         >
           <FileText size={20} />
-          <span>PDF 文件加密</span>
-          <span className="tab-badge">两种模式</span>
+          <span>{t('encryption.pdfEncryption')}</span>
+          <span className="tab-badge">{t('encryption.twoModes')}</span>
         </button>
         <button
           className={`encryption-tab ${activeTab === 'file' ? 'active' : ''}`}
           onClick={() => setActiveTab('file')}
         >
           <Shield size={20} />
-          <span>通用文件加密</span>
-          <span className="tab-badge">多格式</span>
+          <span>{t('encryption.fileEncryption')}</span>
+          <span className="tab-badge">{t('encryption.multiFormat')}</span>
         </button>
       </div>
 

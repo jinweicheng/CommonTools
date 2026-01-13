@@ -4,11 +4,13 @@ import { Upload, FileText, Image, AlertCircle, CheckCircle } from 'lucide-react'
 import * as pdfjsLib from 'pdfjs-dist'
 import { saveAs } from 'file-saver'
 import '../utils/pdfWorkerConfig' // 配置 PDF.js worker
+import { useI18n } from '../i18n/I18nContext'
 import './ConvertFromPDF.css'
 
 type ConversionType = 'image' | 'txt'
 
 export default function ConvertFromPDF() {
+  const { t } = useI18n()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -46,13 +48,13 @@ export default function ConvertFromPDF() {
     if (images.length === 1) {
       // 单页 PDF，直接保存为图片
       saveAs(images[0], file.name.replace('.pdf', '.png'))
-      setSuccess(`✅ PDF 已成功转换为图片！`)
+      setSuccess(`✅ ${t('convertFromPdf.successImageSingle')}`)
     } else {
       // 多页 PDF，保存为多个图片
       for (let i = 0; i < images.length; i++) {
         saveAs(images[i], file.name.replace('.pdf', `_page${i + 1}.png`))
       }
-      setSuccess(`✅ PDF 已成功转换为 ${images.length} 张图片！`)
+      setSuccess(`✅ ${t('convertFromPdf.successImageMulti').replace('{count}', String(images.length))}`)
     }
   }
 
@@ -67,7 +69,8 @@ export default function ConvertFromPDF() {
       const page = await pdf.getPage(pageNum)
       const content = await page.getTextContent()
       
-      textContent += `\n========== 第 ${pageNum} 页 ==========\n\n`
+      const pageHeader = t('convertFromPdf.pageHeader').replace('{page}', String(pageNum))
+      textContent += `\n========== ${pageHeader} ==========\n\n`
       
       content.items.forEach((item: any) => {
         if (item.str) {
@@ -80,7 +83,10 @@ export default function ConvertFromPDF() {
     
     const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8' })
     saveAs(blob, file.name.replace('.pdf', '.txt'))
-    setSuccess(`✅ PDF 已成功转换为 TXT！\n提取了 ${pdf.numPages} 页文本内容。`)
+    setSuccess(
+      `✅ ${t('convertFromPdf.successTxt')}`
+        .replace('{pages}', String(pdf.numPages))
+    )
   }
 
 
@@ -103,7 +109,7 @@ export default function ConvertFromPDF() {
       }
     } catch (err) {
       console.error('转换失败:', err)
-      setError('转换失败：' + (err instanceof Error ? err.message : '未知错误'))
+      setError(`${t('convertFromPdf.convertFailed')}：` + (err instanceof Error ? err.message : t('common.unknownError')))
     } finally {
       setLoading(false)
     }
@@ -112,25 +118,25 @@ export default function ConvertFromPDF() {
   const conversionTypes = [
     { 
       id: 'image' as ConversionType, 
-      name: 'PDF 转图片', 
+      name: t('convertFromPdf.pdfToImage'), 
       icon: <Image size={24} />, 
-      formats: '.png (高清)', 
-      difficulty: '⭐⭐⭐⭐⭐ 完美支持',
-      description: '高清 PNG 输出，2倍分辨率'
+      formats: t('convertFromPdf.pngHdFormat'), 
+      difficulty: t('convertFromPdf.ratingPerfect'),
+      description: t('convertFromPdf.pdfToImageDesc')
     },
     { 
       id: 'txt' as ConversionType, 
-      name: 'PDF 转 TXT', 
+      name: t('convertFromPdf.pdfToTxt'), 
       icon: <FileText size={24} />, 
       formats: '.txt', 
-      difficulty: '⭐⭐⭐⭐⭐ 完美支持',
-      description: '准确提取文本，保留页面结构'
+      difficulty: t('convertFromPdf.ratingPerfect'),
+      description: t('convertFromPdf.pdfToTxtDesc')
     },
   ]
 
   return (
     <div className="convert-from-pdf">
-      <h2 className="tool-header">PDF 转化</h2>
+      <h2 className="tool-header">{t('convertFromPdf.title')}</h2>
 
       {error && (
         <div className="error-message">
@@ -156,7 +162,7 @@ export default function ConvertFromPDF() {
             <div className="card-icon">{type.icon}</div>
             <div className="card-content">
               <h3>{type.name}</h3>
-              <p className="card-formats">输出: {type.formats}</p>
+              <p className="card-formats">{t('convertFromPdf.outputPrefix')}: {type.formats}</p>
               <p className="card-difficulty">{type.difficulty}</p>
               <p className="card-description">{type.description}</p>
             </div>
@@ -174,7 +180,7 @@ export default function ConvertFromPDF() {
             style={{ display: 'none' }}
           />
           <Upload size={20} />
-          {loading ? '转换中...' : `选择 PDF 文件并转换`}
+          {loading ? t('convertFromPdf.converting') : t('convertFromPdf.uploadAndConvert')}
         </label>
       </div>
 
@@ -182,16 +188,16 @@ export default function ConvertFromPDF() {
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
           <CheckCircle size={20} style={{ marginTop: '2px', flexShrink: 0, color: '#10b981' }} />
           <div>
-            <p><strong>✨ 高质量转换功能</strong></p>
+            <p><strong>✨ {t('convertFromPdf.tipsTitle')}</strong></p>
             <ul style={{ margin: '8px 0', paddingLeft: '20px', lineHeight: '1.8' }}>
-              <li><strong>🖼️ PDF → 图片：</strong>完美支持，高清 PNG（2x 分辨率）</li>
-              <li><strong>📄 PDF → TXT：</strong>完美支持，准确提取文本内容</li>
-              <li><strong>💡 PDF → Word：</strong>请使用 "Word ↔ PDF" 专用工具（100% 本地）</li>
-              <li><strong>🔧 技术方案：</strong>
+              <li><strong>🖼️ {t('convertFromPdf.pdfToImage')}：</strong>{t('convertFromPdf.tipImage')}</li>
+              <li><strong>📄 {t('convertFromPdf.pdfToTxt')}：</strong>{t('convertFromPdf.tipTxt')}</li>
+              <li><strong>💡 Word：</strong>{t('convertFromPdf.tipWord')}</li>
+              <li><strong>🔧 {t('convertFromPdf.techTitle')}：</strong>
                 <ul style={{ marginTop: '5px' }}>
-                  <li>图片：PDF.js 渲染，Canvas 导出</li>
-                  <li>文本：PDF.js 提取，保留页面结构</li>
-                  <li>全部本地处理：文件不上传，隐私安全</li>
+                  <li>{t('convertFromPdf.techImage')}</li>
+                  <li>{t('convertFromPdf.techText')}</li>
+                  <li>{t('convertFromPdf.techLocal')}</li>
                 </ul>
               </li>
             </ul>

@@ -3,6 +3,7 @@ import { Upload, Download, FileText, Code, AlertCircle, CheckCircle, Settings } 
 import { marked } from 'marked'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
+import { useI18n } from '../i18n/I18nContext'
 import './MarkdownToPDF.css'
 
 // PDF 导出配置
@@ -40,6 +41,7 @@ marked.setOptions({
 })
 
 export default function MarkdownToPDF() {
+  const { t } = useI18n()
   const [markdown, setMarkdown] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -56,21 +58,21 @@ export default function MarkdownToPDF() {
       const text = await file.text()
       setMarkdown(text)
       setError(null)
-      setSuccess('✅ 文件加载成功！')
+      setSuccess(`✅ ${t('markdownToPdf.fileLoaded')}`)
       setTimeout(() => setSuccess(null), 3000)
     } catch (err) {
-      setError('读取文件失败：' + (err instanceof Error ? err.message : '未知错误'))
+      setError(`${t('markdownToPdf.readFileFailed')}：` + (err instanceof Error ? err.message : t('common.unknownError')))
     }
   }
 
   const convertToPDF = async () => {
     if (!markdown.trim()) {
-      setError('请输入Markdown内容')
+      setError(t('markdownToPdf.inputRequired'))
       return
     }
 
     if (!previewRef.current) {
-      setError('预览区域未就绪')
+      setError(t('markdownToPdf.previewNotReady'))
       return
     }
 
@@ -367,8 +369,8 @@ export default function MarkdownToPDF() {
 
       // 添加元数据
       pdf.setProperties({
-        title: 'Markdown转PDF',
-        subject: 'Markdown文档',
+        title: t('markdownToPdf.metaTitle'),
+        subject: t('markdownToPdf.metaSubject'),
         author: 'CommonTools',
         keywords: 'markdown, pdf',
         creator: 'CommonTools PDF Converter'
@@ -377,11 +379,17 @@ export default function MarkdownToPDF() {
       // 保存 PDF
       pdf.save('markdown-converted.pdf')
 
-      setSuccess(`✅ 转换完成！PDF 已下载（${config.quality === 'ultra' ? '超高' : config.quality === 'high' ? '高' : '标准'}质量）`)
+      const qualityLabel =
+        config.quality === 'ultra'
+          ? t('markdownToPdf.qualityUltra')
+          : config.quality === 'high'
+            ? t('markdownToPdf.qualityHigh')
+            : t('markdownToPdf.qualityStandard')
+      setSuccess(`✅ ${t('markdownToPdf.convertDone').replace('{quality}', qualityLabel)}`)
       setTimeout(() => setSuccess(null), 5000)
     } catch (err) {
       console.error('转换失败:', err)
-      setError('转换失败：' + (err instanceof Error ? err.message : '未知错误'))
+      setError(`${t('conversion.conversionFailed')}：` + (err instanceof Error ? err.message : t('common.unknownError')))
     } finally {
       setLoading(false)
     }
@@ -390,9 +398,9 @@ export default function MarkdownToPDF() {
   return (
     <div className="markdown-to-pdf">
       <div className="tool-header">
-        <h2>Markdown → PDF 专业转换</h2>
+        <h2>{t('markdownToPdf.title')}</h2>
         <p className="tool-description">
-          保持格式的高质量转换 • 完美还原预览效果 • 支持中英文混合排版
+          {t('markdownToPdf.subtitle')}
         </p>
       </div>
 
@@ -419,26 +427,26 @@ export default function MarkdownToPDF() {
             style={{ display: 'none' }}
           />
           <Upload size={20} />
-          上传Markdown文件
+          {t('markdownToPdf.uploadFile')}
         </label>
         
         <button 
           className="settings-button"
           onClick={() => setShowSettings(!showSettings)}
-          title="PDF 导出设置"
+          title={t('markdownToPdf.exportSettingsTooltip')}
         >
           <Settings size={20} />
-          导出设置
+          {t('markdownToPdf.exportSettings')}
         </button>
       </div>
 
       {showSettings && (
         <div className="pdf-settings-panel">
-          <h3>PDF 导出设置</h3>
+          <h3>{t('markdownToPdf.exportSettingsTitle')}</h3>
           
           <div className="settings-grid">
             <div className="setting-group">
-              <label>页面格式</label>
+              <label>{t('markdownToPdf.pageFormat')}</label>
               <select 
                 value={config.format} 
                 onChange={(e) => setConfig({ ...config, format: e.target.value as 'a4' | 'letter' })}
@@ -449,30 +457,30 @@ export default function MarkdownToPDF() {
             </div>
 
             <div className="setting-group">
-              <label>页面方向</label>
+              <label>{t('markdownToPdf.pageOrientation')}</label>
               <select 
                 value={config.orientation} 
                 onChange={(e) => setConfig({ ...config, orientation: e.target.value as 'portrait' | 'landscape' })}
               >
-                <option value="portrait">纵向 (Portrait)</option>
-                <option value="landscape">横向 (Landscape)</option>
+                <option value="portrait">{t('markdownToPdf.orientationPortrait')} (Portrait)</option>
+                <option value="landscape">{t('markdownToPdf.orientationLandscape')} (Landscape)</option>
               </select>
             </div>
 
             <div className="setting-group">
-              <label>导出质量</label>
+              <label>{t('markdownToPdf.exportQuality')}</label>
               <select 
                 value={config.quality} 
                 onChange={(e) => setConfig({ ...config, quality: e.target.value as 'standard' | 'high' | 'ultra' })}
               >
-                <option value="standard">标准 (快速)</option>
-                <option value="high">高质量 (推荐)</option>
-                <option value="ultra">超高质量 (慢)</option>
+                <option value="standard">{t('markdownToPdf.qualityStandard')} (Fast)</option>
+                <option value="high">{t('markdownToPdf.qualityHigh')} (Recommended)</option>
+                <option value="ultra">{t('markdownToPdf.qualityUltra')} (Slow)</option>
               </select>
             </div>
 
             <div className="setting-group">
-              <label>页边距 ({config.margins}px)</label>
+              <label>{t('markdownToPdf.margins')} ({config.margins}px)</label>
               <input 
                 type="range" 
                 min="20" 
@@ -485,11 +493,11 @@ export default function MarkdownToPDF() {
           </div>
 
           <div className="settings-info">
-            <p>💡 <strong>提示：</strong></p>
+            <p>💡 <strong>{t('markdownToPdf.qualityHintTitle')}：</strong></p>
             <ul>
-              <li><strong>标准质量</strong>：适合快速预览，文件较小</li>
-              <li><strong>高质量</strong>：推荐用于正式文档，质量与速度平衡</li>
-              <li><strong>超高质量</strong>：适合打印，文件较大，转换较慢</li>
+              <li>{t('markdownToPdf.qualityHintStandard')}</li>
+              <li>{t('markdownToPdf.qualityHintHigh')}</li>
+              <li>{t('markdownToPdf.qualityHintUltra')}</li>
             </ul>
           </div>
         </div>
@@ -499,45 +507,29 @@ export default function MarkdownToPDF() {
         <div className="editor-section">
           <div className="section-header">
             <Code size={20} />
-            <span>Markdown 编辑器</span>
+            <span>{t('markdownToPdf.editorTitle')}</span>
           </div>
           <textarea
             className="markdown-editor"
             value={markdown}
             onChange={(e) => setMarkdown(e.target.value)}
-            placeholder="# 欢迎使用 Markdown 转 PDF
-
-## 功能特点
-- 完整保留 Markdown 格式
-- 支持中英文混合排版
-- 专业的 PDF 输出质量
-
-### 代码示例
-```javascript
-const hello = 'world';
-console.log(hello);
-```
-
-**粗体文本** 和 *斜体文本*
-
-> 这是一个引用块
-> 可以包含多行内容
-
----
-
-试试编辑或上传你的 Markdown 文件！"
+            placeholder={t('markdownToPdf.placeholder')}
             rows={20}
           />
           <div className="editor-stats">
-            {markdown ? `${markdown.length} 字符 • ${markdown.split('\n').length} 行` : '等待输入...'}
+            {markdown
+              ? t('markdownToPdf.statsFormat')
+                  .replace('{chars}', String(markdown.length))
+                  .replace('{lines}', String(markdown.split('\n').length))
+              : t('markdownToPdf.statsWaiting')}
           </div>
         </div>
 
         <div className="preview-section">
           <div className="section-header">
             <FileText size={20} />
-            <span>实时预览</span>
-            <span className="preview-note">（PDF 输出将完美还原此效果）</span>
+            <span>{t('markdownToPdf.previewTitle')}</span>
+            <span className="preview-note">{t('markdownToPdf.previewNote')}</span>
           </div>
           <div 
             ref={previewRef}
@@ -545,7 +537,7 @@ console.log(hello);
             dangerouslySetInnerHTML={{ 
               __html: markdown 
                 ? marked.parse(markdown) as string
-                : '<div class="preview-placeholder"><p>预览将显示在这里...</p><p>你在左侧输入的内容会实时渲染</p></div>' 
+                : t('markdownToPdf.previewPlaceholderHtml')
             }}
           />
         </div>
@@ -561,10 +553,10 @@ console.log(hello);
           {loading ? (
             <>
               <span className="loading-spinner"></span>
-              转换中，请稍候...
+              {t('markdownToPdf.converting')}
             </>
           ) : (
-            '转换为 PDF'
+            t('markdownToPdf.convertToPdf')
           )}
         </button>
         
@@ -577,43 +569,43 @@ console.log(hello);
               setSuccess(null)
             }}
           >
-            清空内容
+            {t('markdownToPdf.clear')}
           </button>
         )}
       </div>
 
       <div className="features-info">
-        <h3>🎯 专业级转换引擎</h3>
+        <h3>🎯 {t('conversion.quality')}</h3>
         <div className="features-grid">
           <div className="feature-card">
-            <h4>✨ 完美还原</h4>
-            <p>PDF 输出与预览效果 100% 一致，所见即所得</p>
+            <h4>✨ {t('conversion.quality')}</h4>
+            <p>{t('markdownToPdf.previewNote')}</p>
           </div>
           <div className="feature-card">
-            <h4>🎨 专业排版</h4>
-            <p>完整保留标题、列表、代码块、引用等所有样式</p>
+            <h4>🎨 {t('conversion.quality')}</h4>
+            <p>{t('conversion.markdownPdfDesc')}</p>
           </div>
           <div className="feature-card">
-            <h4>🌏 中英文支持</h4>
-            <p>完美处理中英文混合排版，字体渲染清晰</p>
+            <h4>🌏 {t('conversion.privacy')}</h4>
+            <p>{t('conversion.localProcessing')}</p>
           </div>
           <div className="feature-card">
-            <h4>📄 智能分页</h4>
-            <p>自动处理多页内容，确保排版连续自然</p>
+            <h4>📄 {t('conversion.fast')}</h4>
+            <p>{t('markdownToPdf.subtitle')}</p>
           </div>
           <div className="feature-card">
-            <h4>🔍 高清输出</h4>
-            <p>支持多种质量级别，适合屏幕阅读和打印</p>
+            <h4>🔍 {t('markdownToPdf.exportQuality')}</h4>
+            <p>{t('markdownToPdf.qualityHintHigh')}</p>
           </div>
           <div className="feature-card">
-            <h4>⚙️ 灵活配置</h4>
-            <p>自定义页面格式、方向、边距等参数</p>
+            <h4>⚙️ {t('markdownToPdf.exportSettings')}</h4>
+            <p>{t('markdownToPdf.exportSettingsTitle')}</p>
           </div>
         </div>
 
         <div className="tech-note">
-          <strong>🚀 技术亮点：</strong>
-          <p>采用 html2canvas + jsPDF 双引擎技术，将 HTML 渲染结果直接转换为 PDF，确保预览和输出完全一致。支持高 DPI 输出，文字清晰锐利，适合商业文档和技术文档。</p>
+          <strong>🚀 {t('markdownToPdf.techHighlightsTitle')}：</strong>
+          <p>{t('markdownToPdf.techHighlightsBody')}</p>
         </div>
       </div>
     </div>

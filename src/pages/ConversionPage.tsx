@@ -3,42 +3,44 @@ import PDFWordConverter from '../components/PDFWordConverter'
 import MarkdownToPDF from '../components/MarkdownToPDF'
 import ConvertToPDF from '../components/ConvertToPDF'
 import ConvertFromPDF from '../components/ConvertFromPDF'
+import { useI18n } from '../i18n/I18nContext'
 import './PageStyles.css'
 import './ConversionPage.css'
 
 type ConversionTool = 'word-pdf' | 'markdown-pdf' | 'to-pdf' | 'from-pdf'
 
 export default function ConversionPage() {
+  const { t } = useI18n()
   const [activeTool, setActiveTool] = useState<ConversionTool>('word-pdf')
   
   const tools = [
     { 
       id: 'word-pdf' as ConversionTool, 
-      name: 'Word ↔ PDF', 
-      description: '100% 本地转换',
+      name: t('conversion.wordPdf'), 
+      description: t('conversion.wordPdfDesc'),
       icon: '📄',
-      badge: '双向'
+      badge: t('conversion.wordPdfBadge')
     },
     { 
       id: 'markdown-pdf' as ConversionTool, 
-      name: 'Markdown → PDF', 
-      description: '实时预览',
+      name: t('conversion.markdownPdf'), 
+      description: t('conversion.markdownPdfDesc'),
       icon: '📝',
-      badge: '单向'
+      badge: t('conversion.markdownPdfBadge')
     },
     { 
       id: 'to-pdf' as ConversionTool, 
-      name: '转成 PDF', 
-      description: '图片 & 文本',
+      name: t('conversion.toPdf'), 
+      description: t('conversion.toPdfDesc'),
       icon: '📥',
-      badge: '高质量'
+      badge: t('conversion.toPdfBadge')
     },
     { 
       id: 'from-pdf' as ConversionTool, 
-      name: 'PDF 转化', 
-      description: '图片 & 文本',
+      name: t('conversion.fromPdf'), 
+      description: t('conversion.fromPdfDesc'),
       icon: '📤',
-      badge: '高质量'
+      badge: t('conversion.fromPdfBadge')
     },
   ]
   
@@ -61,25 +63,25 @@ export default function ConversionPage() {
         <div className="header-content">
           <h1 className="page-title">
             <span className="title-icon">🔄</span>
-            格式转化
+            {t('conversion.title')}
           </h1>
           <p className="page-subtitle">
-            高质量文档格式转换，100% 浏览器本地处理，文件不上传
+            {t('conversion.subtitle')}
           </p>
         </div>
         
         <div className="features-badges">
           <span className="feature-badge">
             <span className="badge-icon">🔒</span>
-            隐私安全
+            {t('conversion.privacy')}
           </span>
           <span className="feature-badge">
             <span className="badge-icon">⚡</span>
-            快速转换
+            {t('conversion.fast')}
           </span>
           <span className="feature-badge">
             <span className="badge-icon">✨</span>
-            高质量
+            {t('conversion.quality')}
           </span>
         </div>
       </div>

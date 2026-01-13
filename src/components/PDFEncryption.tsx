@@ -5,10 +5,12 @@ import { saveAs } from 'file-saver'
 import { CryptoUtils } from '../utils/cryptoUtils'
 import { useAuth } from '../contexts/AuthContext'
 import { backupService, hashPassword } from '../utils/backupService'
+import { useI18n } from '../i18n/I18nContext'
 import './PDFEncryption.css'
 
 export default function PDFEncryption() {
   const { isVip } = useAuth()
+  const { t } = useI18n()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -42,7 +44,7 @@ export default function PDFEncryption() {
   // HTML包装器模式：创建带密码验证页的HTML文件
   const lockPDFHTML = async (file: File) => {
     if (!userPassword) {
-      setError('请设置打开密码')
+      setError(t('encryption.setPassword'))
       return
     }
 
@@ -280,14 +282,14 @@ export default function PDFEncryption() {
         }
       }
       
-      setSuccess(`✅ PDF 已添加密码保护（HTML模式）！\n\n保护信息：\n• 模式：HTML 包装器（浏览器可打开）\n• 文件格式：.html（内嵌 PDF）\n• 密码验证：SHA-256 哈希\n• 文件大小：${(blob.size / 1024).toFixed(2)} KB${isVip() ? '\n• 操作已备份到VIP记录' : ''}\n\n使用方法：\n1. 双击打开 .html 文件\n2. 在浏览器中输入密码\n3. 密码正确后即可查看 PDF 内容\n\n⚠️ 注意：\n• 这不是真正的加密，技术人员可以查看源代码\n• 推荐使用"加密文件模式"获得真正的安全保护`)
+      setSuccess(`✅ ${t('encryption.htmlSuccessTitle')}！\n\n${t('common.success')}：\n• ${t('encryption.htmlSuccessMode')}\n• ${t('encryption.htmlSuccessFormat')}\n• ${t('encryption.htmlSuccessVerify')}\n• ${t('encryption.htmlSuccessSize')}：${(blob.size / 1024).toFixed(2)} KB${isVip() ? `\n• ${t('common.vip')} ${t('common.save')}` : ''}\n\n${t('common.usage')}：\n1. ${t('encryption.htmlSuccessUsage1')}\n2. ${t('encryption.htmlSuccessUsage2')}\n3. ${t('encryption.htmlSuccessUsage3')}\n\n⚠️ ${t('common.note')}：\n• ${t('encryption.htmlSuccessWarning')}\n• ${t('encryption.htmlSuccessRecommend')}`)
       
       setUserPassword('')
       setConfirmPassword('')
       setPasswordError('')
     } catch (err) {
       console.error('HTML加密失败:', err)
-      setError('加密失败：' + (err instanceof Error ? err.message : '未知错误'))
+      setError(t('errors.processingFailed') + ': ' + (err instanceof Error ? err.message : t('common.unknownError')))
     } finally {
       setLoading(false)
     }
@@ -296,7 +298,7 @@ export default function PDFEncryption() {
   // 加密文件模式：使用 AES-256-GCM 加密
   const lockPDFEncrypted = async (file: File) => {
     if (!userPassword) {
-      setError('请设置打开密码')
+      setError(t('encryption.setPassword'))
       return
     }
 
@@ -427,7 +429,7 @@ export default function PDFEncryption() {
       const blob = new Blob([trimmedBytes.buffer], { type: 'application/pdf' })
       saveAs(blob, file.name.replace('.pdf', '-encrypted.pdf'))
       
-      setSuccess(`✅ PDF 已成功加密！\n\n加密信息：\n• 算法：AES-256-GCM\n• 页数：${pageCount}\n• 原始大小：${(originalBytes.byteLength / 1024).toFixed(2)} KB\n• 加密后大小：${(trimmedBytes.byteLength / 1024).toFixed(2)} KB\n\n请妥善保管密码，忘记密码将无法恢复！`)
+      setSuccess(`✅ ${t('encryption.encryptedSuccessTitle')}！\n\n${t('common.success')}：\n• ${t('encryption.encryptedSuccessAlgorithm')}\n• ${t('encryption.encryptedSuccessPages')}：${pageCount}\n• ${t('encryption.encryptedSuccessOriginalSize')}：${(originalBytes.byteLength / 1024).toFixed(2)} KB\n• ${t('encryption.encryptedSuccessEncryptedSize')}：${(trimmedBytes.byteLength / 1024).toFixed(2)} KB\n\n${t('encryption.encryptedSuccessWarning')}`)
       
       setUserPassword('')
       setConfirmPassword('')
@@ -498,7 +500,7 @@ export default function PDFEncryption() {
       try {
         decryptedBytes = await CryptoUtils.decrypt(encryptedData.buffer, key, iv)
       } catch (err) {
-        setError('❌ 密码错误！请检查密码后重试')
+        setError('❌ ' + t('encryption.passwordIncorrect'))
         return
       }
       
@@ -508,7 +510,7 @@ export default function PDFEncryption() {
       const blob = new Blob([finalBytes.buffer as ArrayBuffer], { type: 'application/pdf' })
       saveAs(blob, file.name.replace('-encrypted.pdf', '-decrypted.pdf').replace('.pdf', '-decrypted.pdf'))
       
-      setSuccess(`✅ PDF 已成功解密！\n\n文档信息：\n• 页数：${encryptionInfo.pageCount}\n• 原始大小：${(encryptionInfo.originalSize / 1024).toFixed(2)} KB\n• 加密日期：${new Date(encryptionInfo.encryptedAt).toLocaleDateString()}\n\n解密后的 PDF 已保存`)
+      setSuccess(`✅ ${t('success.fileProcessed')}！\n\n${t('common.success')}：\n• ${t('encryption.encryptedSuccessPages')}：${encryptionInfo.pageCount}\n• ${t('encryption.encryptedSuccessOriginalSize')}：${(encryptionInfo.originalSize / 1024).toFixed(2)} KB\n• ${t('common.date')}：${new Date(encryptionInfo.encryptedAt).toLocaleDateString()}\n\n${t('success.fileDownloaded')}`)
       
       setUnlockPassword('')
     } catch (err) {
@@ -521,11 +523,11 @@ export default function PDFEncryption() {
       })
       
       if (errorMessage.includes('password') || errorMessage.includes('密码错误')) {
-        setError('❌ 密码错误！请检查密码后重试。')
+        setError('❌ ' + t('encryption.passwordIncorrect'))
       } else if (errorMessage.includes('HTTPS') || errorMessage.includes('crypto.subtle')) {
-        setError('❌ ' + errorMessage + '\n\n提示：Web Crypto API 需要 HTTPS 环境。请确保网站使用 HTTPS 协议。')
+        setError('❌ ' + errorMessage + '\n\n' + t('common.hint') + '：Web Crypto API ' + t('common.requires') + ' HTTPS ' + t('common.environment'))
       } else {
-        setError('❌ 解密失败：' + errorMessage + '\n\n如果问题持续，请检查浏览器控制台获取详细信息。')
+        setError('❌ ' + t('encryption.decryptFailed') + '：' + errorMessage + '\n\n' + t('encryption.checkConsole'))
       }
     } finally {
       setLoading(false)
@@ -538,19 +540,19 @@ export default function PDFEncryption() {
 
     if (mode === 'lock') {
       if (!userPassword) {
-        setError('请设置密码')
+        setError(t('encryption.setPassword'))
         return
       }
       
       if (!confirmPassword) {
-        setPasswordError('请再次输入密码以确认')
-        setError('请再次输入密码以确认')
+        setPasswordError(t('compression.confirmPassword'))
+        setError(t('compression.confirmPassword'))
         return
       }
       
       if (userPassword !== confirmPassword) {
-        setPasswordError('两次输入的密码不一致，请重新输入')
-        setError('两次输入的密码不一致，请重新输入')
+        setPasswordError(t('encryption.passwordMismatch'))
+        setError(t('encryption.passwordMismatch'))
         return
       }
       
@@ -563,11 +565,11 @@ export default function PDFEncryption() {
       }
     } else {
       if (file.name.endsWith('.html')) {
-        setError('HTML 包装的 PDF 请直接在浏览器中打开并输入密码查看')
+        setError(t('encryption.htmlFileHint'))
       } else if (file.name.includes('-encrypted.pdf')) {
         await unlockPDF(file)
       } else {
-        setError('无法识别的加密文件。请选择 -encrypted.pdf 文件')
+        setError(t('encryption.unrecognizedFile'))
       }
     }
   }
@@ -579,9 +581,9 @@ export default function PDFEncryption() {
           <FileText size={32} />
         </div>
         <div className="header-content">
-          <h2 className="section-title">PDF 文件加密</h2>
+          <h2 className="section-title">{t('encryption.pdfEncryption')}</h2>
           <p className="section-description">
-            PDF 文件支持两种加密方式：HTML 包装器（浏览器打开）和加密文件（AES-256-GCM）
+            {t('encryption.twoEncryptionModes')}
           </p>
         </div>
       </div>
@@ -606,14 +608,14 @@ export default function PDFEncryption() {
           onClick={() => setMode('lock')}
         >
           <Lock size={20} />
-          <span>加密 PDF</span>
+          <span>{t('encryption.lock')} PDF</span>
         </button>
         <button
           className={`tab-button ${mode === 'unlock' ? 'active' : ''}`}
           onClick={() => setMode('unlock')}
         >
           <Key size={20} />
-          <span>解密 PDF</span>
+          <span>{t('encryption.unlock')} PDF</span>
         </button>
       </div>
 
@@ -634,14 +636,14 @@ export default function PDFEncryption() {
                   <Globe size={32} />
                 </div>
                 <div className="mode-info">
-                  <h3 className="mode-title">HTML 包装器模式</h3>
+                  <h3 className="mode-title">{t('encryption.htmlModeTitle')}</h3>
                   <p className="mode-description">
-                    生成 HTML 文件，浏览器可直接打开，适合日常使用
+                    {t('encryption.htmlModeDesc1')}，{t('encryption.htmlModeDesc3')}
                   </p>
                   <div className="mode-features">
-                    <span className="feature-tag">✓ 浏览器打开</span>
-                    <span className="feature-tag">✓ 简单易用</span>
-                    <span className="feature-tag warning">⚠ 中等安全</span>
+                    <span className="feature-tag">✓ {t('encryption.htmlModeFeature1')}</span>
+                    <span className="feature-tag">✓ {t('encryption.htmlModeFeature2')}</span>
+                    <span className="feature-tag warning">⚠ {t('encryption.htmlModeFeature3')}</span>
                   </div>
                 </div>
               </div>
@@ -661,14 +663,14 @@ export default function PDFEncryption() {
                   <FileLock size={32} />
                 </div>
                 <div className="mode-info">
-                  <h3 className="mode-title">加密文件模式</h3>
+                  <h3 className="mode-title">{t('encryption.encryptedModeTitle')}</h3>
                   <p className="mode-description">
-                    AES-256-GCM 军事级加密，需要本工具解密，适合敏感文档
+                    {t('encryption.encryptedModeDesc1')}，{t('encryption.encryptedModeDesc2')}，{t('encryption.encryptedModeDesc3')}
                   </p>
                   <div className="mode-features">
-                    <span className="feature-tag">✓ AES-256-GCM</span>
-                    <span className="feature-tag">✓ 极高安全</span>
-                    <span className="feature-tag">✓ 需要工具解密</span>
+                    <span className="feature-tag">✓ {t('encryption.encryptedModeFeature1')}</span>
+                    <span className="feature-tag">✓ {t('encryption.encryptedModeDesc4')}</span>
+                    <span className="feature-tag">✓ {t('encryption.encryptedModeDesc2')}</span>
                   </div>
                 </div>
               </div>
@@ -679,7 +681,7 @@ export default function PDFEncryption() {
             <div className="input-group">
               <label className="input-label">
                 <Shield size={18} />
-                设置密码
+                {t('common.password')}
               </label>
               <input
                 type="password"
@@ -688,19 +690,19 @@ export default function PDFEncryption() {
                 onChange={(e) => {
                   setUserPassword(e.target.value)
                   if (confirmPassword && e.target.value !== confirmPassword) {
-                    setPasswordError('两次输入的密码不一致')
+                    setPasswordError(t('encryption.passwordMismatch'))
                   } else {
                     setPasswordError('')
                   }
                 }}
-                placeholder="请输入加密密码"
+                placeholder={t('encryption.passwordRequired')}
               />
             </div>
 
             <div className="input-group">
               <label className="input-label">
                 <Shield size={18} />
-                确认密码
+                {t('compression.confirmPassword')}
               </label>
               <input
                 type="password"
@@ -709,12 +711,12 @@ export default function PDFEncryption() {
                 onChange={(e) => {
                   setConfirmPassword(e.target.value)
                   if (e.target.value && userPassword && e.target.value !== userPassword) {
-                    setPasswordError('两次输入的密码不一致')
+                    setPasswordError(t('encryption.passwordMismatch'))
                   } else {
                     setPasswordError('')
                   }
                 }}
-                placeholder="请再次输入密码以确认"
+                placeholder={t('compression.confirmPassword')}
               />
               {passwordError && (
                 <div className="input-feedback error">
@@ -725,7 +727,7 @@ export default function PDFEncryption() {
               {!passwordError && confirmPassword && userPassword === confirmPassword && (
                 <div className="input-feedback success">
                   <CheckCircle size={14} />
-                  密码一致
+                  {t('common.success')}
                 </div>
               )}
             </div>
@@ -741,7 +743,7 @@ export default function PDFEncryption() {
                 style={{ display: 'none' }}
               />
               <Upload size={20} />
-              {loading ? '处理中...' : '选择 PDF 文件并加密'}
+              {loading ? t('common.loading') : t('encryption.selectFile') + ' ' + t('encryption.lock')}
             </label>
           </div>
         </div>
@@ -750,17 +752,17 @@ export default function PDFEncryption() {
           <div className="input-group">
             <label className="input-label">
               <Key size={18} />
-              输入密码
+              {t('encryption.passwordRequired')}
             </label>
             <input
               type="password"
               className="password-input"
               value={unlockPassword}
               onChange={(e) => setUnlockPassword(e.target.value)}
-              placeholder="输入加密时设置的密码"
+              placeholder={t('encryption.passwordRequired')}
             />
             <p className="input-hint">
-              请输入加密此 PDF 时设置的密码
+              {t('encryption.passwordRequired')}
             </p>
           </div>
 
@@ -774,7 +776,7 @@ export default function PDFEncryption() {
                 style={{ display: 'none' }}
               />
               <Upload size={20} />
-              {loading ? '处理中...' : '选择加密的 PDF 文件并解密'}
+              {loading ? t('common.loading') : t('encryption.selectEncryptedFile') + ' ' + t('encryption.unlock')}
             </label>
           </div>
         </div>
@@ -783,7 +785,7 @@ export default function PDFEncryption() {
       <div className="info-panel">
         <div className="info-header">
           <AlertCircle size={20} />
-          <span>加密模式说明</span>
+          <span>{t('encryption.modeDescription')}</span>
         </div>
         <div className="info-content">
           <div className="info-item">
@@ -791,12 +793,12 @@ export default function PDFEncryption() {
               <Globe size={20} />
             </div>
             <div className="info-text">
-              <strong>HTML 包装器模式</strong>
+              <strong>{t('encryption.htmlModeTitle')}</strong>
               <ul>
-                <li>生成 .html 文件，浏览器可直接打开</li>
-                <li>打开时需要输入密码（SHA-256 验证）</li>
-                <li>适合日常文档保护，使用方便</li>
-                <li>⚠️ 安全性：中等（源代码可被查看）</li>
+                <li>{t('encryption.htmlModeDesc1')}</li>
+                <li>{t('encryption.htmlModeDesc2')}</li>
+                <li>{t('encryption.htmlModeDesc3')}</li>
+                <li>⚠️ {t('encryption.htmlModeDesc4')}</li>
               </ul>
             </div>
           </div>
@@ -805,12 +807,12 @@ export default function PDFEncryption() {
               <FileLock size={20} />
             </div>
             <div className="info-text">
-              <strong>加密文件模式</strong>
+              <strong>{t('encryption.encryptedModeTitle')}</strong>
               <ul>
-                <li>AES-256-GCM 军事级加密算法</li>
-                <li>需要本工具解密才能查看</li>
-                <li>适合敏感文档，安全性极高</li>
-                <li>✅ 安全性：极高（真正的加密保护）</li>
+                <li>{t('encryption.encryptedModeDesc1')}</li>
+                <li>{t('encryption.encryptedModeDesc2')}</li>
+                <li>{t('encryption.encryptedModeDesc3')}</li>
+                <li>✅ {t('encryption.encryptedModeDesc4')}</li>
               </ul>
             </div>
           </div>

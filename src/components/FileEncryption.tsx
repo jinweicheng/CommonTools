@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Upload, Lock, Shield, Key, AlertCircle, CheckCircle, Image, FileText, Code, Database } from 'lucide-react'
 import { saveAs } from 'file-saver'
 import { CryptoUtils } from '../utils/cryptoUtils'
+import { useI18n } from '../i18n/I18nContext'
 import './FileEncryption.css'
 
 // 支持的文件类型
@@ -34,7 +35,7 @@ const getFileTypeIcon = (type: FileType) => {
   }
 }
 
-// 获取文件类型名称
+// 获取文件类型名称（需要国际化，但函数在组件外，暂时保留）
 const getFileTypeName = (type: FileType): string => {
   switch (type) {
     case 'image': return '图片文件'
@@ -59,6 +60,7 @@ const getSupportedFormats = (type: FileType): string[] => {
 }
 
 export default function FileEncryption() {
+  const { t } = useI18n()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -72,7 +74,7 @@ export default function FileEncryption() {
   // 通用文件加密
   const lockFile = async (file: File) => {
     if (!userPassword) {
-      setError('请设置密码')
+      setError(t('fileEncryption.passwordRequired'))
       return
     }
 
@@ -123,7 +125,7 @@ export default function FileEncryption() {
       const baseName = file.name.replace(/\.[^/.]+$/, '')
       saveAs(blob, `${baseName}.locked`)
       
-      setSuccess(`✅ 文件已成功加密！\n\n加密信息：\n• 文件类型：${getFileTypeName(detectFileType(file))}\n• 算法：AES-256-GCM\n• 原始大小：${(originalSize / 1024).toFixed(2)} KB\n• 加密后大小：${(finalBytes.byteLength / 1024).toFixed(2)} KB\n• 加密文件：${baseName}.locked\n\n请妥善保管密码，忘记密码将无法恢复！`)
+      setSuccess(`✅ ${t('fileEncryption.fileEncrypted')}\n\n${t('fileEncryption.encryptionInfo')}：\n• ${t('fileEncryption.fileType')}：${getFileTypeName(detectFileType(file))}\n• ${t('fileEncryption.algorithm')}\n• ${t('fileEncryption.originalSize')}：${(originalSize / 1024).toFixed(2)} KB\n• ${t('fileEncryption.encryptedSize')}：${(finalBytes.byteLength / 1024).toFixed(2)} KB\n• ${t('fileEncryption.encryptedFile')}：${baseName}.locked\n\n${t('fileEncryption.keepPasswordSafe')}`)
       
       setUserPassword('')
       setConfirmPassword('')
@@ -145,7 +147,7 @@ export default function FileEncryption() {
       } else if (errorMessage.includes('不支持')) {
         setError('❌ ' + errorMessage)
       } else {
-        setError('❌ 加密失败：' + errorMessage + '\n\n如果问题持续，请检查浏览器控制台获取详细信息。')
+        setError('❌ ' + t('fileEncryption.encryptionFailed') + '：' + errorMessage + '\n\n' + t('encryption.checkConsole'))
       }
     } finally {
       setLoading(false)
@@ -155,7 +157,7 @@ export default function FileEncryption() {
   // 通用文件解密
   const unlockFile = async (file: File) => {
     if (!unlockPassword) {
-      setError('请输入密码')
+      setError(t('fileEncryption.passwordRequired'))
       return
     }
 
@@ -191,7 +193,7 @@ export default function FileEncryption() {
       try {
         decryptedBytes = await CryptoUtils.decrypt(encryptedData.buffer, key, iv)
       } catch (err) {
-        setError('❌ 密码错误！请检查密码后重试')
+        setError('❌ ' + t('fileEncryption.passwordIncorrect'))
         return
       }
       
@@ -199,7 +201,7 @@ export default function FileEncryption() {
       const originalName = encryptionInfo.originalName || `decrypted.${encryptionInfo.originalExtension}`
       saveAs(blob, originalName)
       
-      setSuccess(`✅ 文件已成功解密！\n\n文件信息：\n• 文件类型：${getFileTypeName(encryptionInfo.fileType)}\n• 原始文件名：${originalName}\n• 文件大小：${(encryptionInfo.originalSize / 1024).toFixed(2)} KB\n• 加密日期：${new Date(encryptionInfo.encryptedAt).toLocaleDateString()}\n\n解密后的文件已保存`)
+      setSuccess(`✅ ${t('fileEncryption.fileDecrypted')}\n\n${t('fileEncryption.decryptionInfo')}：\n• ${t('fileEncryption.fileType')}：${getFileTypeName(encryptionInfo.fileType)}\n• ${t('common.originalFileName')}：${originalName}\n• ${t('common.fileSize')}：${(encryptionInfo.originalSize / 1024).toFixed(2)} KB\n• ${t('encryption.date')}：${new Date(encryptionInfo.encryptedAt).toLocaleDateString()}\n\n${t('success.fileDownloaded')}`)
       
       setUnlockPassword('')
     } catch (err) {
@@ -212,11 +214,11 @@ export default function FileEncryption() {
       })
       
       if (errorMessage.includes('password') || errorMessage.includes('密码错误')) {
-        setError('❌ 密码错误！请检查密码后重试。')
+        setError('❌ ' + t('fileEncryption.passwordIncorrect'))
       } else if (errorMessage.includes('HTTPS') || errorMessage.includes('crypto.subtle')) {
-        setError('❌ ' + errorMessage + '\n\n提示：Web Crypto API 需要 HTTPS 环境。请确保网站使用 HTTPS 协议。')
+        setError('❌ ' + errorMessage + '\n\n' + t('encryption.hint') + '：Web Crypto API ' + t('encryption.requires') + ' HTTPS ' + t('encryption.environment'))
       } else {
-        setError('❌ 解密失败：' + errorMessage + '\n\n如果问题持续，请检查浏览器控制台获取详细信息。')
+        setError('❌ ' + t('fileEncryption.decryptionFailed') + '：' + errorMessage + '\n\n' + t('encryption.checkConsole'))
       }
     } finally {
       setLoading(false)
@@ -322,9 +324,9 @@ export default function FileEncryption() {
           <Shield size={32} />
         </div>
         <div className="header-content">
-          <h2 className="section-title">通用文件加密</h2>
+          <h2 className="section-title">{t('fileEncryption.title')}</h2>
           <p className="section-description">
-            使用 AES-256-GCM 军事级加密保护您的文件，支持图片、文档、文本、代码、数据等多种格式
+            {t('fileEncryption.subtitle')}
           </p>
         </div>
       </div>
@@ -349,14 +351,14 @@ export default function FileEncryption() {
           onClick={() => setMode('lock')}
         >
           <Lock size={20} />
-          <span>加密文件</span>
+          <span>{t('fileEncryption.encryptFile')}</span>
         </button>
         <button
           className={`tab-button ${mode === 'unlock' ? 'active' : ''}`}
           onClick={() => setMode('unlock')}
         >
           <Key size={20} />
-          <span>解密文件</span>
+          <span>{t('fileEncryption.decryptFile')}</span>
         </button>
       </div>
 
@@ -368,7 +370,7 @@ export default function FileEncryption() {
                 <Image size={20} />
               </div>
               <div className="format-info">
-                <strong>图片文件</strong>
+                <strong>{t('fileEncryption.images')}</strong>
                 <span>JPG, PNG, GIF, BMP, WEBP</span>
               </div>
             </div>
@@ -377,7 +379,7 @@ export default function FileEncryption() {
                 <FileText size={20} />
               </div>
               <div className="format-info">
-                <strong>Word 文档</strong>
+                <strong>{t('fileEncryption.documents')}</strong>
                 <span>DOC, DOCX</span>
               </div>
             </div>
@@ -386,7 +388,7 @@ export default function FileEncryption() {
                 <FileText size={20} />
               </div>
               <div className="format-info">
-                <strong>文本文件</strong>
+                <strong>{t('fileEncryption.text')}</strong>
                 <span>TXT</span>
               </div>
             </div>
@@ -395,7 +397,7 @@ export default function FileEncryption() {
                 <Code size={20} />
               </div>
               <div className="format-info">
-                <strong>代码文件</strong>
+                <strong>{t('fileEncryption.code')}</strong>
                 <span>HTML, JS, CSS, Java, Python, Swift, JSON, XML 等</span>
               </div>
             </div>
@@ -404,7 +406,7 @@ export default function FileEncryption() {
                 <Database size={20} />
               </div>
               <div className="format-info">
-                <strong>数据文件</strong>
+                <strong>{t('fileEncryption.data')}</strong>
                 <span>SQL, DB, SQLite 等</span>
               </div>
             </div>
@@ -414,7 +416,7 @@ export default function FileEncryption() {
             <div className="input-group">
               <label className="input-label">
                 <Shield size={18} />
-                设置密码
+                {t('encryption.setPassword')}
               </label>
               <input
                 type="password"
@@ -423,19 +425,19 @@ export default function FileEncryption() {
                 onChange={(e) => {
                   setUserPassword(e.target.value)
                   if (confirmPassword && e.target.value !== confirmPassword) {
-                    setPasswordError('两次输入的密码不一致')
+                    setPasswordError(t('encryption.passwordMismatch'))
                   } else {
                     setPasswordError('')
                   }
                 }}
-                placeholder="请输入加密密码"
+                placeholder={t('encryption.passwordRequired')}
               />
             </div>
 
             <div className="input-group">
               <label className="input-label">
                 <Shield size={18} />
-                确认密码
+                {t('compression.confirmPassword')}
               </label>
               <input
                 type="password"
@@ -444,12 +446,12 @@ export default function FileEncryption() {
                 onChange={(e) => {
                   setConfirmPassword(e.target.value)
                   if (e.target.value && userPassword && e.target.value !== userPassword) {
-                    setPasswordError('两次输入的密码不一致')
+                    setPasswordError(t('encryption.passwordMismatch'))
                   } else {
                     setPasswordError('')
                   }
                 }}
-                placeholder="请再次输入密码以确认"
+                placeholder={t('compression.confirmPassword')}
               />
               {passwordError && (
                 <div className="input-feedback error">
@@ -460,7 +462,7 @@ export default function FileEncryption() {
               {!passwordError && confirmPassword && userPassword === confirmPassword && (
                 <div className="input-feedback success">
                   <CheckCircle size={14} />
-                  密码一致
+                  {t('common.passwordMatch')}
                 </div>
               )}
             </div>
@@ -476,7 +478,7 @@ export default function FileEncryption() {
                 style={{ display: 'none' }}
               />
               <Upload size={20} />
-              {loading ? '处理中...' : '选择文件并加密'}
+              {loading ? t('fileEncryption.processing') : t('fileEncryption.selectFileAndEncrypt')}
             </label>
             
             {currentFileType !== 'unknown' && (
@@ -486,7 +488,7 @@ export default function FileEncryption() {
                 </div>
                 <div className="type-info">
                   <strong>{getFileTypeName(currentFileType)}</strong>
-                  <span>支持格式：{getSupportedFormats(currentFileType).join(', ')}</span>
+                  <span>{t('fileEncryption.supportedFormats')}：{getSupportedFormats(currentFileType).join(', ')}</span>
                 </div>
               </div>
             )}
@@ -497,17 +499,17 @@ export default function FileEncryption() {
           <div className="input-group">
             <label className="input-label">
               <Key size={18} />
-              输入密码
+              {t('encryption.enterPassword')}
             </label>
             <input
               type="password"
               className="password-input"
               value={unlockPassword}
               onChange={(e) => setUnlockPassword(e.target.value)}
-              placeholder="输入加密时设置的密码"
+              placeholder={t('encryption.enterPassword')}
             />
             <p className="input-hint">
-              请输入加密文件时设置的密码
+              {t('encryption.enterPassword')}
             </p>
           </div>
 
@@ -521,7 +523,7 @@ export default function FileEncryption() {
                 style={{ display: 'none' }}
               />
               <Upload size={20} />
-              {loading ? '处理中...' : '选择 .locked 文件并解密'}
+              {loading ? t('fileEncryption.processing') : t('fileEncryption.selectEncryptedFileAndDecrypt')}
             </label>
           </div>
         </div>
@@ -530,7 +532,7 @@ export default function FileEncryption() {
       <div className="info-panel">
         <div className="info-header">
           <AlertCircle size={20} />
-          <span>加密说明</span>
+          <span>{t('fileEncryption.encryptionDescription')}</span>
         </div>
         <div className="info-content">
           <div className="info-item">
@@ -538,12 +540,12 @@ export default function FileEncryption() {
               <Shield size={20} />
             </div>
             <div className="info-text">
-              <strong>AES-256-GCM 加密</strong>
+              <strong>{t('fileEncryption.aes256GcmEncryption')}</strong>
               <ul>
-                <li>使用军事级 AES-256-GCM 加密算法</li>
-                <li>PBKDF2 密钥派生，100,000 次迭代</li>
-                <li>生成 .locked 加密文件</li>
-                <li>使用本工具解密后完美恢复原始文件</li>
+                <li>{t('fileEncryption.militaryGradeAlgorithm')}</li>
+                <li>{t('fileEncryption.pbkdf2KeyDerivation')}</li>
+                <li>{t('fileEncryption.generateLockedFile')}</li>
+                <li>{t('fileEncryption.perfectRecovery')}</li>
               </ul>
             </div>
           </div>
@@ -552,12 +554,12 @@ export default function FileEncryption() {
               <Lock size={20} />
             </div>
             <div className="info-text">
-              <strong>安全提示</strong>
+              <strong>{t('fileEncryption.securityTips')}</strong>
               <ul>
-                <li>请妥善保管密码，忘记密码将无法恢复文件</li>
-                <li>建议使用强密码（至少8位，包含字母、数字、符号）</li>
-                <li>加密文件可以安全传输和存储</li>
-                <li>所有加密操作在浏览器本地完成，文件不上传服务器</li>
+                <li>{t('fileEncryption.keepPasswordSafe')}</li>
+                <li>{t('fileEncryption.strongPasswordRecommendation')}</li>
+                <li>{t('fileEncryption.safeTransmission')}</li>
+                <li>{t('fileEncryption.localProcessingNote')}</li>
               </ul>
             </div>
           </div>

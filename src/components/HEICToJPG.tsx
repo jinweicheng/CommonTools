@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useMemo } from 'react'
 import { Upload, Download, Image as ImageIcon, X, CheckCircle, AlertCircle, Loader2, Settings, Eye, Trash2, FileImage } from 'lucide-react'
 import heic2any from 'heic2any'
 import { saveAs } from 'file-saver'
+import { useI18n } from '../i18n/I18nContext'
 import './HEICToJPG.css'
 
 interface FileItem {
@@ -18,6 +19,7 @@ interface FileItem {
 }
 
 export default function HEICToJPG() {
+  const { t } = useI18n()
   const [files, setFiles] = useState<FileItem[]>([])
   const [quality, setQuality] = useState(0.92) // JPG质量 (0-1)
   const [isConverting, setIsConverting] = useState(false)
@@ -65,7 +67,7 @@ export default function HEICToJPG() {
         if (blob instanceof Blob) {
           return URL.createObjectURL(blob)
         }
-        throw new Error('转换失败')
+        throw new Error(t('errors.processingFailed'))
       } catch (error) {
         console.warn('无法生成预览:', error)
         return '' // 返回空字符串表示无法预览
@@ -176,7 +178,7 @@ export default function HEICToJPG() {
       const blob = Array.isArray(result) ? result[0] : result
       
       if (!(blob instanceof Blob)) {
-        throw new Error('转换结果格式错误')
+        throw new Error(t('errors.processingFailed'))
       }
 
       return blob
@@ -189,7 +191,7 @@ export default function HEICToJPG() {
   // 转换所有文件
   const handleConvertAll = useCallback(async () => {
     if (files.length === 0) {
-      alert('请先添加HEIC文件')
+      alert(t('errors.fileRequired'))
       return
     }
 
@@ -240,7 +242,7 @@ export default function HEICToJPG() {
           f.id === fileItem.id ? { 
             ...f, 
             status: 'error',
-            error: error instanceof Error ? error.message : '转换失败'
+            error: error instanceof Error ? error.message : t('errors.processingFailed')
           } : f
         ))
       }
@@ -404,10 +406,10 @@ export default function HEICToJPG() {
         <div className="header-content">
           <h2 className="tool-title">
             <ImageIcon size={28} />
-            HEIC 转 JPG
+            {t('heicToJpg.toolTitle')}
           </h2>
           <p className="tool-description">
-            将iPhone拍摄的HEIC/HEIF格式图片转换为通用的JPG格式，100%浏览器本地处理，保护隐私安全
+            {t('heicToJpg.toolDescription')}
           </p>
         </div>
         
@@ -415,7 +417,7 @@ export default function HEICToJPG() {
           <button
             className="settings-button"
             onClick={() => setShowSettings(!showSettings)}
-            title="设置"
+            title={t('heicToJpg.settings')}
           >
             <Settings size={20} />
           </button>
@@ -427,7 +429,7 @@ export default function HEICToJPG() {
         <div className="settings-panel">
           <div className="setting-item">
             <label className="setting-label">
-              <span>JPG质量</span>
+              <span>{t('heicToJpg.jpgQuality')}</span>
               <span className="quality-value">{Math.round(quality * 100)}%</span>
             </label>
             <input
@@ -440,8 +442,8 @@ export default function HEICToJPG() {
               className="quality-slider"
             />
             <div className="quality-hint">
-              <span>较小文件</span>
-              <span>较大文件</span>
+              <span>{t('heicToJpg.smallerFile')}</span>
+              <span>{t('heicToJpg.largerFile')}</span>
             </div>
           </div>
         </div>
@@ -466,13 +468,13 @@ export default function HEICToJPG() {
         
         <div className="upload-content">
           <Upload size={48} className="upload-icon" />
-          <h3 className="upload-title">拖拽HEIC文件到此处或点击上传</h3>
-          <p className="upload-hint">支持批量上传，文件将在浏览器本地处理</p>
+          <h3 className="upload-title">{t('heicToJpg.dragFilesHere')}</h3>
+          <p className="upload-hint">{t('heicToJpg.batchUploadHint')}</p>
           <button
             className="upload-button"
             onClick={() => fileInputRef.current?.click()}
           >
-            选择文件
+            {t('heicToJpg.selectFiles')}
           </button>
         </div>
       </div>
@@ -481,28 +483,28 @@ export default function HEICToJPG() {
       {files.length > 0 && (
         <div className="stats-bar">
           <div className="stat-item">
-            <span className="stat-label">总文件数</span>
+            <span className="stat-label">{t('heicToJpg.totalFiles')}</span>
             <span className="stat-value">{stats.total}</span>
           </div>
           <div className="stat-item success">
-            <span className="stat-label">已完成</span>
+            <span className="stat-label">{t('heicToJpg.completed')}</span>
             <span className="stat-value">{stats.completed}</span>
           </div>
           {stats.converting > 0 && (
             <div className="stat-item converting">
-              <span className="stat-label">转换中</span>
+              <span className="stat-label">{t('heicToJpg.converting')}</span>
               <span className="stat-value">{stats.converting}</span>
             </div>
           )}
           {stats.error > 0 && (
             <div className="stat-item error">
-              <span className="stat-label">失败</span>
+              <span className="stat-label">{t('heicToJpg.failed')}</span>
               <span className="stat-value">{stats.error}</span>
             </div>
           )}
           {stats.totalConvertedSize > 0 && (
             <div className="stat-item">
-              <span className="stat-label">压缩率</span>
+              <span className="stat-label">{t('compression.compressionRatio')}</span>
               <span className="stat-value">{stats.compressionRatio}%</span>
             </div>
           )}
@@ -513,7 +515,7 @@ export default function HEICToJPG() {
       {files.length > 0 && (
         <div className="files-container">
           <div className="files-header">
-            <h3 className="files-title">文件列表 ({files.length})</h3>
+            <h3 className="files-title">{t('common.fileList')} ({files.length})</h3>
             <div className="files-actions">
               {stats.pending > 0 && (
                 <button
@@ -524,12 +526,12 @@ export default function HEICToJPG() {
                   {isConverting ? (
                     <>
                       <Loader2 size={16} className="spinning" />
-                      转换中...
+                      {t('heicToJpg.converting')}
                     </>
                   ) : (
                     <>
                       <ImageIcon size={16} />
-                      转换全部 ({stats.pending})
+                      {t('heicToJpg.convert')} ({stats.pending})
                     </>
                   )}
                 </button>
@@ -540,7 +542,7 @@ export default function HEICToJPG() {
                   onClick={handleDownloadAll}
                 >
                   <Download size={16} />
-                  下载全部 ({stats.completed})
+                  {t('heicToJpg.downloadAll')} ({stats.completed})
                 </button>
               )}
               <button
@@ -548,7 +550,7 @@ export default function HEICToJPG() {
                 onClick={handleClearAll}
               >
                 <Trash2 size={16} />
-                清空
+                {t('heicToJpg.clearAll')}
               </button>
             </div>
           </div>
@@ -569,12 +571,12 @@ export default function HEICToJPG() {
                       {fileItem.previewLoading ? (
                         <>
                           <Loader2 size={32} className="spinning" />
-                          <span style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>生成预览中...</span>
+                          <span style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>{t('common.generatingPreview')}</span>
                         </>
                       ) : (
                         <>
                           <FileImage size={32} />
-                          <span style={{ fontSize: '0.875rem', marginTop: '0.5rem', color: '#94a3b8' }}>暂无预览</span>
+                          <span style={{ fontSize: '0.875rem', marginTop: '0.5rem', color: '#94a3b8' }}>{t('common.noPreview')}</span>
                         </>
                       )}
                     </div>
@@ -582,7 +584,7 @@ export default function HEICToJPG() {
                   {fileItem.status === 'converting' && (
                     <div className="preview-overlay">
                       <Loader2 size={24} className="spinning" />
-                      <span style={{ marginTop: '0.5rem', fontSize: '0.875rem' }}>转换中...</span>
+                      <span style={{ marginTop: '0.5rem', fontSize: '0.875rem' }}>{t('heicToJpg.converting')}</span>
                     </div>
                   )}
                   {fileItem.status === 'completed' && (
@@ -604,7 +606,7 @@ export default function HEICToJPG() {
                   </div>
                   <div className="file-meta">
                     <span className="file-size">
-                      原始: {formatFileSize(fileItem.originalSize)}
+                      {t('common.original')}: {formatFileSize(fileItem.originalSize)}
                     </span>
                     {fileItem.convertedSize && (
                       <span className="file-size converted">
@@ -636,7 +638,7 @@ export default function HEICToJPG() {
                       onClick={() => handleConvertSingle(fileItem)}
                     >
                       <ImageIcon size={16} />
-                      转换
+                      {t('heicToJpg.convert')}
                     </button>
                   )}
                   {fileItem.status === 'completed' && (
@@ -644,14 +646,14 @@ export default function HEICToJPG() {
                       <button
                         className="action-btn preview"
                         onClick={() => handlePreview(fileItem)}
-                        title="预览"
+                        title={t('common.preview')}
                       >
                         <Eye size={16} />
                       </button>
                       <button
                         className="action-btn download"
                         onClick={() => handleDownloadSingle(fileItem)}
-                        title="下载"
+                        title={t('heicToJpg.download')}
                       >
                         <Download size={16} />
                       </button>
@@ -661,16 +663,16 @@ export default function HEICToJPG() {
                     <button
                       className="action-btn retry"
                       onClick={() => handleConvertSingle(fileItem)}
-                      title="重试"
+                      title={t('common.retry')}
                     >
                       <ImageIcon size={16} />
-                      重试
+                      {t('common.retry')}
                     </button>
                   )}
                   <button
                     className="action-btn remove"
                     onClick={() => handleRemoveFile(fileItem.id)}
-                    title="删除"
+                    title={t('heicToJpg.delete')}
                   >
                     <X size={16} />
                   </button>
@@ -685,15 +687,15 @@ export default function HEICToJPG() {
       <div className="info-box">
         <div className="info-header">
           <AlertCircle size={20} />
-          <span>使用提示</span>
+          <span>{t('heicToJpg.usageTips')}</span>
         </div>
         <ul className="info-list">
-          <li>✅ 支持批量转换，可同时处理多个HEIC文件</li>
-          <li>✅ 100%浏览器本地处理，文件不会上传到服务器</li>
-          <li>✅ 支持调整JPG质量，平衡文件大小和图片质量</li>
-          <li>✅ 自动预览转换结果，确认无误后再下载</li>
-          <li>⚠️ 大文件转换可能需要一些时间，请耐心等待</li>
-          <li>⚠️ 建议使用Chrome、Edge或Safari浏览器以获得最佳体验</li>
+          <li>✅ {t('heicToJpg.batchConversion')}</li>
+          <li>✅ {t('heicToJpg.localProcessing')}</li>
+          <li>✅ {t('heicToJpg.qualityAdjustment')}</li>
+          <li>✅ {t('heicToJpg.autoPreview')}</li>
+          <li>⚠️ {t('heicToJpg.largeFileWarning')}</li>
+          <li>⚠️ {t('heicToJpg.browserRecommendation')}</li>
         </ul>
       </div>
     </div>

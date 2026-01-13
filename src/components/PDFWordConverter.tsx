@@ -5,12 +5,14 @@ import * as pdfjsLib from 'pdfjs-dist'
 import mammoth from 'mammoth'
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } from 'docx'
 import { saveAs } from 'file-saver'
+import { useI18n } from '../i18n/I18nContext'
 import '../utils/pdfWorkerConfig' // 配置 PDF.js worker
 import './PDFWordConverter.css'
 
 type ConversionMode = 'word-to-pdf' | 'pdf-to-word'
 
 export default function PDFWordConverter() {
+  const { t } = useI18n()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -324,7 +326,7 @@ export default function PDFWordConverter() {
 
   return (
     <div className="pdf-word-converter">
-      <h2 className="tool-header">PDF ↔ Word 转换</h2>
+      <h2 className="tool-header">PDF ↔ Word </h2>
 
       {error && (
         <div className="error-message">
@@ -348,7 +350,7 @@ export default function PDFWordConverter() {
           <FileText size={32} />
           <ArrowRight size={24} />
           <FileText size={32} />
-          <div className="mode-label">Word → PDF</div>
+          <div className="mode-label">{t('conversion.wordToPdf')}</div>
         </button>
         <button
           className={`mode-button ${mode === 'pdf-to-word' ? 'active' : ''}`}
@@ -357,7 +359,7 @@ export default function PDFWordConverter() {
           <FileText size={32} />
           <ArrowRight size={24} />
           <FileText size={32} />
-          <div className="mode-label">PDF → Word</div>
+          <div className="mode-label">{t('conversion.pdfToWord')}</div>
         </button>
       </div>
 
@@ -371,7 +373,7 @@ export default function PDFWordConverter() {
             style={{ display: 'none' }}
           />
           <Upload size={20} />
-          {loading ? '转换中...' : mode === 'word-to-pdf' ? '选择 Word 文件' : '选择 PDF 文件'}
+          {loading ? t('common.processing') : mode === 'word-to-pdf' ? t('common.selectWordFile') : t('encryption.selectFile')}
         </label>
       </div>
 
@@ -379,39 +381,38 @@ export default function PDFWordConverter() {
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
           <Info size={20} style={{ marginTop: '2px', flexShrink: 0, color: '#0066cc' }} />
           <div>
-            <p><strong>🚀 100% 浏览器本地处理</strong></p>
+            <p><strong>🚀 {t('conversion.localProcessing')}</strong></p>
             <ul style={{ margin: '8px 0', paddingLeft: '20px', lineHeight: '1.8' }}>
-              <li><strong>Word → PDF：</strong>
+              <li><strong>{t('conversion.wordToPdf')}：</strong>
                 <ul style={{ marginTop: '5px' }}>
-                  <li>✅ 使用 mammoth.js 提取文本</li>
-                  <li>✅ 使用 pdf-lib 生成 PDF</li>
-                  <li>✅ 支持中文（自动转换为图片）</li>
-                  <li>✅ 自动分页和排版</li>
-                  <li>⚠️ 仅支持文本内容（不保留复杂格式）</li>
+                  <li>✅ {t('conversion.wordToPdfDesc1')}</li>
+                  <li>✅ {t('conversion.wordToPdfDesc2')}</li>
+                  <li>✅ {t('conversion.wordToPdfDesc3')}</li>
+                  <li>✅ {t('conversion.wordToPdfDesc4')}</li>
+                  <li>⚠️ {t('conversion.wordToPdfDesc5')}</li>
                 </ul>
               </li>
-              <li><strong>PDF → Word：</strong>
+              <li><strong>{t('conversion.pdfToWord')}：</strong>
                 <ul style={{ marginTop: '5px' }}>
-                  <li>✅ 使用 PDF.js 提取文本</li>
-                  <li>✅ 使用 docx 库生成 Word</li>
-                  <li>✅ 保留段落结构</li>
-                  <li>✅ 生成标准 .docx 格式</li>
-                  <li>⚠️ 无法提取图片扫描版 PDF</li>
+                  <li>✅ {t('conversion.pdfToWordDesc1')}</li>
+                  <li>✅ {t('conversion.pdfToWordDesc2')}</li>
+                  <li>✅ {t('conversion.pdfToWordDesc3')}</li>
+                  <li>✅ {t('conversion.pdfToWordDesc4')}</li>
+                  <li>⚠️ {t('conversion.pdfToWordDesc5')}</li>
                 </ul>
               </li>
-              <li><strong>💡 优势：</strong>
+              <li><strong>💡 {t('common.advantages')}：</strong>
                 <ul style={{ marginTop: '5px' }}>
-                  <li>🔒 完全本地处理，保护隐私</li>
-                  <li>⚡ 无需上传到服务器</li>
-                  <li>🆓 完全免费，无限制使用</li>
-                  <li>🌐 支持离线使用（刷新后）</li>
+                  <li>🔒 {t('common.localProcessing')}</li>
+                  <li>⚡ {t('common.noUpload')}</li>
+                  <li>🆓 {t('common.free')}</li>
+                  <li>🌐 {t('common.offlineSupport')}</li>
                 </ul>
               </li>
-              <li><strong>⚠️ 限制：</strong>
+              <li><strong>⚠️ {t('common.limitations')}：</strong>
                 <ul style={{ marginTop: '5px' }}>
-                  <li>仅支持文本内容，不保留复杂格式（表格、图片、样式等）</li>
-                  <li>PDF → Word 无法处理扫描版 PDF</li>
-                  <li>如需保留完整格式，建议使用专业软件（Adobe Acrobat、WPS）</li>
+                  <li>{t('conversion.note1')}</li>
+                  <li>{t('conversion.note2')}</li>
                 </ul>
               </li>
             </ul>

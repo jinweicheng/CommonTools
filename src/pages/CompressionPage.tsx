@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Upload, Archive, FileArchive, AlertCircle, CheckCircle, File, Lock, Key } from 'lucide-react'
 import { BlobWriter, ZipWriter, BlobReader, ZipReader, Entry } from '@zip.js/zip.js'
 import { saveAs } from 'file-saver'
+import { useI18n } from '../i18n/I18nContext'
 import './CompressionPage.css'
 
 type Mode = 'compress' | 'decompress'
@@ -15,6 +16,7 @@ interface ZipFileInfo {
 }
 
 export default function CompressionPage() {
+  const { t } = useI18n()
   const [mode, setMode] = useState<Mode>('compress')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -35,18 +37,18 @@ export default function CompressionPage() {
   // 压缩文件（使用 zip.js 支持真正的 AES 加密）
   const handleCompress = async () => {
     if (files.length === 0) {
-      setError('请先选择要压缩的文件')
+      setError(t('compression.selectFilesToCompress'))
       return
     }
 
     // 验证密码
     if (compressPassword) {
       if (compressPassword.length < 4) {
-        setError('密码长度至少为 4 位')
+        setError(t('compression.passwordTooShort'))
         return
       }
       if (compressPassword !== confirmPassword) {
-        setError('两次输入的密码不一致')
+        setError(t('compression.passwordMismatch'))
         return
       }
     }
@@ -86,7 +88,7 @@ export default function CompressionPage() {
 
       saveAs(blob, zipName)
       
-      const successMsg = `✅ 压缩成功！\n\n压缩信息：\n• 文件数：${files.length}\n• 原始大小：${(totalSize / 1024).toFixed(2)} KB\n• 压缩后大小：${(blob.size / 1024).toFixed(2)} KB\n• 压缩率：${(((1 - blob.size / totalSize) * 100).toFixed(1))}%${compressPassword ? '\n• 密码保护：AES-256 加密 🔒✅' : ''}`
+      const successMsg = `✅ ${t('compression.compressSuccess')}\n\n${t('compression.compressInfo')}：\n• ${t('compression.fileCount')}：${files.length}\n• ${t('compression.originalSize')}：${(totalSize / 1024).toFixed(2)} KB\n• ${t('compression.compressedSize')}：${(blob.size / 1024).toFixed(2)} KB\n• ${t('compression.compressionRatio')}：${(((1 - blob.size / totalSize) * 100).toFixed(1))}%${compressPassword ? '\n• ' + t('compression.passwordProtected') : ''}`
       
       setSuccess(successMsg)
       
@@ -96,7 +98,7 @@ export default function CompressionPage() {
       setConfirmPassword('')
     } catch (err) {
       console.error('压缩失败:', err)
-      setError('压缩失败：' + (err instanceof Error ? err.message : '未知错误'))
+      setError(t('compression.compressFailed') + '：' + (err instanceof Error ? err.message : t('common.unknownError')))
     } finally {
       setLoading(false)
     }
@@ -130,7 +132,7 @@ export default function CompressionPage() {
           await reader.close()
           setNeedPassword(true)
           setOriginalZipFile(file)
-          setError('❌ 此 ZIP 文件包含加密内容，请输入密码')
+          setError('❌ ' + t('compression.enterPassword'))
           setLoading(false)
           return
         }
@@ -140,7 +142,7 @@ export default function CompressionPage() {
         if (errorMsg.includes('password') || errorMsg.includes('encrypted') || errorMsg.includes('decrypt') || errorMsg.includes('Entry')) {
           setNeedPassword(true)
           setOriginalZipFile(file)
-          setError('❌ 此 ZIP 文件受密码保护，请输入密码')
+          setError('❌ ' + t('compression.enterPassword'))
           setLoading(false)
           return
         }
@@ -164,7 +166,7 @@ export default function CompressionPage() {
       setSuccess(`✅ ZIP 文件加载成功！\n\n包含 ${fileInfos.filter(f => !f.dir).length} 个文件${password ? ' · AES 密码验证成功 🔒✅' : ''}`)
     } catch (err) {
       console.error('加载 ZIP 失败:', err)
-      setError('加载失败：' + (err instanceof Error ? err.message : '文件可能已损坏或密码错误'))
+      setError(t('errors.processingFailed') + '：' + (err instanceof Error ? err.message : t('common.unknownError')))
     } finally {
       setLoading(false)
     }
@@ -173,7 +175,7 @@ export default function CompressionPage() {
   // 使用密码解锁
   const handleUnlockZip = () => {
     if (!decompressPassword) {
-      setError('请输入密码')
+      setError(t('compression.enterPassword'))
       return
     }
     if (originalZipFile) {
@@ -184,14 +186,14 @@ export default function CompressionPage() {
   // 解压选中的文件（使用 zip.js）
   const handleDecompressSelected = async () => {
     if (!zipReader || !zipEntries) {
-      setError('请先选择 ZIP 文件')
+      setError(t('compression.selectZipFile'))
       return
     }
 
     const selectedFiles = zipFileList.filter(f => f.selected && !f.dir)
     
     if (selectedFiles.length === 0) {
-      setError('请至少选择一个文件')
+      setError(t('compression.selectFilesToExtract'))
       return
     }
 
@@ -223,7 +225,7 @@ export default function CompressionPage() {
               setZipEntries(null)
               setZipFileList([])
               setNeedPassword(true)
-              setError('❌ 文件包含加密内容，请输入密码后重新加载')
+              setError('❌ ' + t('compression.enterPassword'))
               setLoading(false)
               return
             }
@@ -232,10 +234,10 @@ export default function CompressionPage() {
         }
       }
 
-      setSuccess(`✅ 解压成功！\n\n解压信息：\n• 已解压文件：${extractedCount} 个\n• 原始压缩包：${originalZipFile ? (originalZipFile.size / 1024).toFixed(2) : '0'} KB`)
+      setSuccess(`✅ ${t('compression.decompressSuccess')}\n\n${t('compression.decompressInfo')}：\n• ${t('compression.extractedFiles')}：${extractedCount} ${t('common.files')}\n• ${t('compression.originalSize')}：${originalZipFile ? (originalZipFile.size / 1024).toFixed(2) : '0'} KB`)
     } catch (err) {
       console.error('解压失败:', err)
-      const errorMsg = err instanceof Error ? err.message : '未知错误'
+      const errorMsg = err instanceof Error ? err.message : t('common.unknownError')
       
       // 如果是加密相关错误，切换到密码输入界面
       if (errorMsg.includes('encrypted') || errorMsg.includes('password') || errorMsg.includes('decrypt')) {
@@ -252,9 +254,9 @@ export default function CompressionPage() {
         setZipEntries(null)
         setZipFileList([])
         setNeedPassword(true)
-        setError('❌ 此文件需要密码才能解压，请输入密码')
+        setError('❌ ' + t('compression.enterPassword'))
       } else {
-        setError('解压失败：' + errorMsg)
+        setError(t('compression.decompressFailed') + '：' + errorMsg)
       }
     } finally {
       setLoading(false)
@@ -341,16 +343,16 @@ export default function CompressionPage() {
             onClick={() => setMode('compress')}
           >
             <Archive size={32} />
-            <span>压缩文件</span>
-            <p>将多个文件打包为 ZIP</p>
+            <span>{t('compression.compress')}</span>
+            <p>{t('compression.compressDesc')}</p>
           </button>
           <button
             className={`mode-button ${mode === 'decompress' ? 'active' : ''}`}
             onClick={() => setMode('decompress')}
           >
             <FileArchive size={32} />
-            <span>解压文件</span>
-            <p>从 ZIP 中提取文件</p>
+            <span>{t('compression.decompress')}</span>
+            <p>{t('compression.decompressDesc')}</p>
           </button>
         </div>
 
@@ -358,7 +360,7 @@ export default function CompressionPage() {
         {mode === 'compress' && (
           <div className="compress-section">
             <div className="settings-group">
-              <label>压缩包名称</label>
+              <label>{t('compression.archiveName')}</label>
               <input
                 type="text"
                 value={zipName}
@@ -369,38 +371,38 @@ export default function CompressionPage() {
 
             <div className="settings-group">
               <label>
-                密码保护（可选）
-                <span className="label-hint">设置密码可保护压缩包内容</span>
+                {t('compression.passwordProtectionOptional')}
+                <span className="label-hint">{t('compression.passwordProtectionHint')}</span>
               </label>
               <input
                 type="password"
                 value={compressPassword}
                 onChange={(e) => setCompressPassword(e.target.value)}
-                placeholder="至少 4 位"
+                placeholder={t('compression.atLeastFourChars')}
               />
             </div>
 
             {compressPassword && (
               <div className="settings-group">
-                <label>确认密码</label>
+                <label>{t('compression.confirmPassword')}</label>
                 <input
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="再次输入密码"
+                  placeholder={t('compression.reEnterPassword')}
                 />
                 {compressPassword !== confirmPassword && confirmPassword && (
-                  <p className="password-hint error">密码不一致</p>
+                  <p className="password-hint error">{t('compression.passwordMismatch')}</p>
                 )}
                 {compressPassword === confirmPassword && confirmPassword && (
-                  <p className="password-hint success">密码一致 ✓</p>
+                  <p className="password-hint success">{t('compression.passwordMatch')}</p>
                 )}
               </div>
             )}
 
             <div className="file-list">
               <div className="file-list-header">
-                <h3>待压缩文件 ({files.length})</h3>
+                <h3>{t('compression.filesToCompress')} ({files.length})</h3>
                 <label className="select-files-button">
                   <input
                     type="file"
@@ -409,7 +411,7 @@ export default function CompressionPage() {
                     style={{ display: 'none' }}
                   />
                   <Upload size={16} />
-                  选择文件
+                  {t('compression.selectFiles')}
                 </label>
               </div>
 
@@ -434,7 +436,7 @@ export default function CompressionPage() {
               ) : (
                 <div className="empty-state">
                   <Archive size={48} />
-                  <p>点击"选择文件"添加要压缩的文件</p>
+                  <p>{t('compression.clickToAddFiles')}</p>
                 </div>
               )}
             </div>
@@ -445,7 +447,7 @@ export default function CompressionPage() {
               disabled={loading || files.length === 0}
             >
               <Archive size={20} />
-              {loading ? '压缩中...' : '开始压缩'}
+              {loading ? t('compression.compressing') : t('compression.startCompress')}
             </button>
           </div>
         )}
@@ -479,16 +481,16 @@ export default function CompressionPage() {
                     disabled={!decompressPassword}
                   >
                     <Key size={16} />
-                    解锁
+                    {t('compression.unlock')}
                   </button>
                 </div>
                 
-                <button 
-                  className="back-button"
-                  onClick={resetDecompress}
-                >
-                  返回选择文件
-                </button>
+                  <button 
+                    className="back-button"
+                    onClick={resetDecompress}
+                  >
+                  {t('compression.backToSelectFile')}
+                  </button>
               </div>
             ) : !zipReader ? (
               // 未选择文件：显示上传区域
@@ -502,9 +504,9 @@ export default function CompressionPage() {
                     style={{ display: 'none' }}
                   />
                   <FileArchive size={64} />
-                  <h3>选择 ZIP 文件</h3>
-                  <p>支持 .zip 格式（包括加密 ZIP）</p>
-                  {loading && <p className="loading-text">加载中...</p>}
+                  <h3>{t('compression.selectZipFile')}</h3>
+                  <p>{t('compression.supportedFormats')}</p>
+                  {loading && <p className="loading-text">{t('common.loading')}</p>}
                 </label>
               </div>
             ) : (
@@ -561,7 +563,7 @@ export default function CompressionPage() {
                   disabled={loading || zipFileList.filter(f => f.selected).length === 0}
                 >
                   <FileArchive size={20} />
-                  {loading ? '解压中...' : `解压选中的文件 (${zipFileList.filter(f => f.selected).length})`}
+                  {loading ? t('common.processing') : `${t('compression.decompress')} (${zipFileList.filter(f => f.selected).length})`}
                 </button>
               </div>
             )}
@@ -573,36 +575,36 @@ export default function CompressionPage() {
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
             <AlertCircle size={20} style={{ marginTop: '2px', flexShrink: 0, color: '#0066cc' }} />
             <div>
-              <p><strong>💡 功能说明</strong></p>
+              <p><strong>💡 {t('compression.functionDescription')}</strong></p>
               <ul style={{ margin: '8px 0', paddingLeft: '20px', lineHeight: '1.8' }}>
-                <li><strong>压缩文件：</strong>
+                <li><strong>{t('compression.compressFilesDesc')}</strong>
                   <ul style={{ marginTop: '5px' }}>
-                    <li>✅ 支持多文件打包</li>
-                    <li>✅ DEFLATE 压缩算法（最高级别）</li>
-                    <li>✅ 生成标准 ZIP 格式</li>
-                    <li>✅ 完全本地处理，保护隐私</li>
+                    <li>✅ {t('compression.multiFilePackaging')}</li>
+                    <li>✅ {t('compression.deflateAlgorithm')}</li>
+                    <li>✅ {t('compression.standardZipFormat')}</li>
+                    <li>✅ {t('compression.fullyLocalProcessing')}</li>
                   </ul>
                 </li>
-                <li><strong>解压文件：</strong>
+                <li><strong>{t('compression.decompressFilesDesc')}</strong>
                   <ul style={{ marginTop: '5px' }}>
-                    <li>✅ 支持标准 ZIP 格式</li>
-                    <li>✅ 自动提取所有文件</li>
-                    <li>✅ 保留原始文件名</li>
-                    <li>⚠️ 暂不支持加密的 ZIP</li>
+                    <li>✅ {t('compression.standardZipSupport')}</li>
+                    <li>✅ {t('compression.autoExtract')}</li>
+                    <li>✅ {t('compression.preserveOriginalNames')}</li>
+                    <li>⚠️ {t('compression.encryptedZipNotSupported')}</li>
                   </ul>
                 </li>
-                <li><strong>⚠️ 注意事项：</strong>
+                <li><strong>⚠️ {t('compression.notes')}</strong>
                   <ul style={{ marginTop: '5px' }}>
-                    <li>大文件处理可能需要较长时间</li>
-                    <li>建议单次压缩文件总大小不超过 100MB</li>
-                    <li>所有操作在浏览器本地完成</li>
+                    <li>{t('compression.largeFileProcessing')}</li>
+                    <li>{t('compression.recommendMaxSize')}</li>
+                    <li>{t('compression.allOperationsLocal')}</li>
                   </ul>
                 </li>
-                <li><strong>🚀 本地服务模式：</strong>
+                <li><strong>🚀 {t('compression.localServerMode')}</strong>
                   <ul style={{ marginTop: '5px' }}>
-                    <li>如需处理大文件或加密 ZIP，可使用本地服务</li>
-                    <li>运行 <code>npm run server</code> 启动本地服务</li>
-                    <li>本地服务提供更强大的压缩和解压能力</li>
+                    <li>{t('compression.largeFileOrEncryptedZip')}</li>
+                    <li>{t('compression.runNpmServer')}</li>
+                    <li>{t('compression.powerfulCapabilities')}</li>
                   </ul>
                 </li>
               </ul>

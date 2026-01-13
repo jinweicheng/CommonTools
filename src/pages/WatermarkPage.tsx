@@ -1,14 +1,17 @@
 import PDFWatermark from '../components/PDFWatermark'
+import { useI18n } from '../i18n/I18nContext'
 import './PageStyles.css'
 import './WatermarkPage.css'
 
 export default function WatermarkPage() {
+  const { t } = useI18n()
+  
   return (
     <div className="page-container watermark-page">
       <div className="page-header">
-        <h1 className="page-title">💧 水印工具</h1>
+        <h1 className="page-title">💧 {t('watermark.title')}</h1>
         <p className="page-subtitle">
-          为 PDF 和图片添加专业水印，支持中英文、自定义透明度和旋转角度
+          {t('watermark.subtitle')}
         </p>
       </div>
       

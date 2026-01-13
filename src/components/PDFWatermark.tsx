@@ -2,6 +2,7 @@ import { useState, useRef } from 'react'
 import { Upload, Type, Sliders, FileImage, File } from 'lucide-react'
 import { PDFDocument, rgb, degrees } from 'pdf-lib'
 import { saveAs } from 'file-saver'
+import { useI18n } from '../i18n/I18nContext'
 import './PDFWatermark.css'
 
 // 文件类型枚举
@@ -39,6 +40,7 @@ const detectFileType = (file: File): FileType => {
 }
 
 export default function PDFWatermark() {
+  const { t } = useI18n()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [watermarkText, setWatermarkText] = useState('水印')

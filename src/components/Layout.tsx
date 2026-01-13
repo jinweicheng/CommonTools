@@ -1,7 +1,8 @@
 import { ReactNode, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Shield, Repeat, Droplet, PenTool, KeyRound, Archive, Image as ImageIcon, Menu, X, LogIn, LogOut, Crown, User, Lock } from 'lucide-react'
+import { Shield, Repeat, Droplet, PenTool, KeyRound, Archive, Image as ImageIcon, Menu, X, LogIn, LogOut, Crown, User, Globe } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
+import { useI18n } from '../i18n/I18nContext'
 import './Layout.css'
 
 interface LayoutProps {
@@ -12,17 +13,22 @@ export default function Layout({ children }: LayoutProps) {
   const location = useLocation()
   const navigate = useNavigate()
   const { user, logout, isVip } = useAuth()
+  const { t, language, setLanguage } = useI18n()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   
   const navItems = [
-    { path: '/', icon: <Shield size={18} />, label: '加密文件' },
-    { path: '/conversion', icon: <Repeat size={18} />, label: '格式转化' },
-    { path: '/watermark', icon: <Droplet size={18} />, label: '加水印' },
-    { path: '/signature', icon: <PenTool size={18} />, label: '电子签名' },
-    { path: '/compression', icon: <Archive size={18} />, label: '解压/压缩' },
-    { path: '/heic-to-jpg', icon: <ImageIcon size={18} />, label: 'HEIC转JPG' },
-    { path: '/password-manager', icon: <KeyRound size={18} />, label: '密码管理器' },
+    { path: '/', icon: <Shield size={18} />, label: t('nav.encryption') },
+    { path: '/conversion', icon: <Repeat size={18} />, label: t('nav.conversion') },
+    { path: '/watermark', icon: <Droplet size={18} />, label: t('nav.watermark') },
+    { path: '/signature', icon: <PenTool size={18} />, label: t('nav.signature') },
+    { path: '/compression', icon: <Archive size={18} />, label: t('nav.compression') },
+    { path: '/heic-to-jpg', icon: <ImageIcon size={18} />, label: t('nav.heicToJpg') },
+    { path: '/password-manager', icon: <KeyRound size={18} />, label: t('nav.passwordManager') },
   ]
+  
+  const toggleLanguage = () => {
+    setLanguage(language === 'zh-CN' ? 'en-US' : 'zh-CN')
+  }
   
   const handleNavClick = () => {
     setMobileMenuOpen(false)
@@ -60,21 +66,30 @@ export default function Layout({ children }: LayoutProps) {
           </nav>
 
           <div className="header-actions">
+            <button 
+              className="language-toggle" 
+              onClick={toggleLanguage}
+              title={language === 'zh-CN' ? 'Switch to English' : '切换到中文'}
+            >
+              <Globe size={18} />
+              <span>{language === 'zh-CN' ? 'EN' : '中'}</span>
+            </button>
+            
             {user ? (
               <div className="user-info">
                 <div className="user-badge">
                   {isVip() ? <Crown size={16} /> : <User size={16} />}
                   <span className="username">{user.username}</span>
-                  {isVip() && <span className="vip-badge">VIP</span>}
+                  {isVip() && <span className="vip-badge">{t('common.vip')}</span>}
                 </div>
-                <button className="logout-button" onClick={handleLogout} title="登出">
+                <button className="logout-button" onClick={handleLogout} title={t('common.logout')}>
                   <LogOut size={18} />
                 </button>
               </div>
             ) : (
               <Link to="/login" className="login-button-header">
                 <LogIn size={18} />
-                <span>登录</span>
+                <span>{t('common.login')}</span>
               </Link>
             )}
           </div>
@@ -94,7 +109,7 @@ export default function Layout({ children }: LayoutProps) {
         <div className="security-banner-content">
           {/* <Lock size={18} className="security-icon" /> */}
           <span className="security-text">
-            <strong>🔐 所有文件处理支持</strong> 纯前端加密 / 本地处理 / 不上传服务器
+            <strong>🔐 {t('security.banner')}</strong> {t('security.description')}
           </span>
         </div>
       </div>

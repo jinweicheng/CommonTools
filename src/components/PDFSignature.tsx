@@ -4,6 +4,7 @@ import SignatureCanvas from 'react-signature-canvas'
 import { PDFDocument, rgb } from 'pdf-lib'
 import { saveAs } from 'file-saver'
 import * as pdfjsLib from 'pdfjs-dist'
+import { useI18n } from '../i18n/I18nContext'
 import '../utils/pdfWorkerConfig' // 配置 PDF.js worker
 import './PDFSignature.css'
 
@@ -20,6 +21,7 @@ interface Signature {
 }
 
 export default function PDFSignature() {
+  const { t } = useI18n()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pdfFile, setPdfFile] = useState<File | null>(null)
@@ -150,7 +152,7 @@ export default function PDFSignature() {
       })
     } catch (err) {
       console.error('渲染PDF失败', err)
-      setError(`渲染第 ${pageNum} 页失败`)
+      setError(t('signature.renderPageFailed').replace('{page}', pageNum.toString()))
     }
   }, [])
 
@@ -264,14 +266,14 @@ export default function PDFSignature() {
       
       // 验证文件大小
       if (arrayBuffer.byteLength === 0) {
-        throw new Error('PDF 文件为空')
+        throw new Error(t('signature.pdfEmpty'))
       }
       
       // 验证是否为有效的 PDF 文件
       const uint8Array = new Uint8Array(arrayBuffer)
       const pdfHeader = String.fromCharCode(...uint8Array.slice(0, 4))
       if (pdfHeader !== '%PDF') {
-        throw new Error('不是有效的 PDF 文件')
+        throw new Error(t('signature.invalidPdf'))
       }
       
       // 使用更详细的错误处理和重试机制
@@ -307,7 +309,7 @@ export default function PDFSignature() {
       }
       
       if (!pdf) {
-        throw lastError || new Error('PDF 加载失败')
+        throw lastError || new Error(t('signature.pdfLoadFailed'))
       }
       
       setPdfDocument(pdf)
@@ -358,26 +360,26 @@ export default function PDFSignature() {
         const errorMsg = err.message.toLowerCase()
         
         if (errorMsg.includes('worker') || errorMsg.includes('pdf.worker') || errorMsg.includes('setting up fake worker')) {
-          errorMessage = 'PDF.js Worker 加载失败。可能原因：网络问题或 CDN 不可用。'
+          errorMessage = t('signature.workerLoadFailed')
           showRetryButton = true
           
           // 提供解决方案提示
-          console.warn('💡 解决方案：')
-          console.warn('1. 检查网络连接')
-          console.warn('2. 刷新页面重试')
-          console.warn('3. 如果问题持续，请联系管理员')
+          console.warn('💡 ' + t('common.solution') + '：')
+          console.warn('1. ' + t('signature.solution1'))
+          console.warn('2. ' + t('signature.solution2'))
+          console.warn('3. ' + t('signature.solution3'))
         } else if (errorMsg.includes('invalid') || errorMsg.includes('corrupt')) {
-          errorMessage = 'PDF 文件无效或已损坏，请检查文件是否完整'
+          errorMessage = t('signature.pdfInvalidOrCorrupt')
         } else if (errorMsg.includes('password') || errorMsg.includes('encrypted')) {
-          errorMessage = 'PDF 文件已加密，请先解密后再添加签名'
+          errorMessage = t('signature.pdfEncrypted')
         } else if (errorMsg.includes('network') || errorMsg.includes('fetch')) {
-          errorMessage = '网络错误，请检查网络连接后重试'
+          errorMessage = t('signature.networkError')
           showRetryButton = true
         } else {
-          errorMessage = `加载PDF失败：${err.message}`
+          errorMessage = t('signature.loadPdfFailed').replace('{message}', err.message)
         }
       } else {
-        errorMessage = '加载PDF失败：未知错误，请检查文件格式'
+        errorMessage = t('signature.loadPdfFailedUnknown')
       }
       
       setError(errorMessage)
@@ -412,7 +414,7 @@ export default function PDFSignature() {
 
     const dataURL = signatureCanvasRef.current.toDataURL()
     if (!dataURL || dataURL === 'data:,') {
-      setError('请先绘制签名')
+      setError(t('signature.pleaseDrawSignature'))
       return
     }
 
@@ -438,7 +440,7 @@ export default function PDFSignature() {
 
     const dataURL = dateCanvasRef.current.toDataURL()
     if (!dataURL || dataURL === 'data:,') {
-      setError('请先手写日期')
+      setError(t('signature.pleaseWriteDate'))
       return
     }
 
@@ -546,7 +548,7 @@ export default function PDFSignature() {
 
   const handleApplySignatures = async () => {
     if (!pdfFile || signatures.length === 0) {
-      setError('请先上传PDF文件并添加签名')
+      setError(t('signature.selectPdfAndAddSignature'))
       return
     }
 
@@ -589,7 +591,7 @@ export default function PDFSignature() {
         // 计算该页的缩放比例
         // 需要渲染该页来获取canvas尺寸
         if (!pdfDocument) {
-          throw new Error('PDF文档未加载')
+          throw new Error(t('signature.pdfNotLoaded'))
         }
 
         const pdfPage = await pdfDocument.getPage(pageNumber)
@@ -637,7 +639,7 @@ export default function PDFSignature() {
             
             // 验证坐标是否在PDF页面范围内
             if (pdfX < 0 || pdfY < 0 || pdfX + pdfSigWidth > pdfWidth || pdfY + pdfSigHeight > pdfHeight) {
-              console.warn(`  签名 ${sig.id} 超出PDF页面范围，将被裁剪`)
+              console.warn(t('signature.signatureOutOfRange').replace('{id}', sig.id))
             }
 
             // 如果有背景色，先绘制背景矩形
@@ -687,9 +689,9 @@ export default function PDFSignature() {
       const blob = new Blob([pdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' })
       saveAs(blob, pdfFile.name.replace('.pdf', '-signed.pdf'))
 
-      alert(`签名添加成功！共在 ${signaturesByPage.size} 页添加了 ${signatures.length} 个签名`)
+      alert(t('signature.signatureAdded').replace('{pages}', signaturesByPage.size.toString()).replace('{count}', signatures.length.toString()))
     } catch (err) {
-      setError('处理失败：' + (err instanceof Error ? err.message : '未知错误'))
+      setError(t('signature.processingFailed') + '：' + (err instanceof Error ? err.message : t('common.unknownError')))
     } finally {
       setLoading(false)
     }
@@ -748,7 +750,7 @@ export default function PDFSignature() {
   // 使用EyeDropper API取色
   const handleEyeDropperPick = async () => {
     if (!('EyeDropper' in window)) {
-      setError('您的浏览器不支持取色器功能')
+      setError(t('signature.eyeDropperNotSupported'))
       return
     }
 
@@ -764,7 +766,7 @@ export default function PDFSignature() {
       // 用户取消了取色
       if ((err as Error).name !== 'AbortError') {
         console.warn('取色失败', err)
-        setError('取色失败，请重试')
+        setError(t('signature.colorPickFailed'))
       }
       setColorPickerMode(false)
     }
@@ -817,7 +819,7 @@ export default function PDFSignature() {
 
   return (
     <div className="pdf-signature">
-      <h2 className="tool-header">PDF 签名</h2>
+      <h2 className="tool-header">{t('signature.toolTitle')}</h2>
 
       {error && (
         <div className="error-message">
@@ -828,7 +830,7 @@ export default function PDFSignature() {
       <div className="signature-controls">
         <div className="control-group">
           <label className="control-label">
-            背景颜色
+            {t('signature.backgroundColor')}
           </label>
           <div className="color-picker-wrapper">
             <input
@@ -836,7 +838,7 @@ export default function PDFSignature() {
               className="color-picker"
               value={backgroundColor}
               onChange={(e) => setBackgroundColor(e.target.value)}
-              title="选择签名面板背景色"
+              title={t('signature.selectSignatureBgColor')}
             />
             <button
               className={`color-picker-button ${colorPickerMode ? 'active' : ''}`}
@@ -845,19 +847,19 @@ export default function PDFSignature() {
                   setColorPickerMode(true)
                   handleEyeDropperPick()
                 } else {
-                  setError('您的浏览器不支持取色器功能，请使用颜色选择器手动选择')
+                  setError(t('signature.eyeDropperNotSupportedHint'))
                 }
               }}
-              title="从PDF中取色"
+              title={t('signature.pickColorFromPdf')}
             >
               <Droplet size={16} />
             </button>
             <button
               className="color-reset-button"
               onClick={() => setBackgroundColor(pdfBackgroundColor)}
-              title="使用PDF背景色"
+              title={t('signature.matchPdfBg')}
             >
-              匹配PDF
+              {t('signature.matchPdfBg')}
             </button>
           </div>
         </div>
@@ -871,7 +873,7 @@ export default function PDFSignature() {
             }}
           >
             <PenTool size={20} />
-            添加签名
+            {t('signature.addSignature')}
           </button>
           <button
             className="control-button"
@@ -881,7 +883,7 @@ export default function PDFSignature() {
             }}
           >
             <Calendar size={20} />
-            添加日期
+            {t('signature.addDate')}
           </button>
         </div>
       </div>
@@ -889,7 +891,7 @@ export default function PDFSignature() {
       {showSignaturePanel && (
         <div className="signature-panel">
           <div className="panel-header">
-            <h3>手写签名</h3>
+            <h3>{t('signature.handwrittenSignature')}</h3>
             <button className="panel-close" onClick={() => setShowSignaturePanel(false)}>
               <X size={20} />
             </button>
@@ -897,7 +899,7 @@ export default function PDFSignature() {
           <div className="canvas-controls">
             <div className="pen-size-control">
               <label className="pen-size-label">
-                笔大小: {penSize}px
+                {t('signature.penSize')}: {penSize}px
               </label>
               <input
                 type="range"
@@ -945,10 +947,10 @@ export default function PDFSignature() {
           </div>
           <div className="panel-actions">
             <button className="action-button secondary" onClick={clearSignature}>
-              清除
+              {t('signature.clear')}
             </button>
             <button className="action-button primary" onClick={handleAddSignature}>
-              确认添加
+              {t('signature.confirmAdd')}
             </button>
           </div>
         </div>
@@ -957,7 +959,7 @@ export default function PDFSignature() {
       {showDatePanel && (
         <div className="date-panel">
           <div className="panel-header">
-            <h3>手写日期</h3>
+            <h3>{t('signature.handwrittenDate')}</h3>
             <button className="panel-close" onClick={() => setShowDatePanel(false)}>
               <X size={20} />
             </button>
@@ -965,7 +967,7 @@ export default function PDFSignature() {
           <div className="canvas-controls">
             <div className="pen-size-control">
               <label className="pen-size-label">
-                笔大小: {penSize}px
+                {t('signature.penSize')}: {penSize}px
               </label>
               <input
                 type="range"
@@ -1013,10 +1015,10 @@ export default function PDFSignature() {
           </div>
           <div className="panel-actions">
             <button className="action-button secondary" onClick={clearDate}>
-              清除
+              {t('signature.clear')}
             </button>
             <button className="action-button primary" onClick={handleAddDate}>
-              确认添加
+              {t('signature.confirmAdd')}
             </button>
           </div>
         </div>
@@ -1031,7 +1033,7 @@ export default function PDFSignature() {
             style={{ display: 'none' }}
           />
           <Upload size={20} />
-          上传PDF文件
+          {t('signature.uploadPdf')}
         </label>
       </div>
 
@@ -1045,12 +1047,12 @@ export default function PDFSignature() {
                   className="page-nav-btn"
                   onClick={prevPage}
                   disabled={currentPage === 1}
-                  title="上一页"
+                  title={t('signature.previousPage')}
                 >
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                     <path d="M10 2L4 8l6 6V2z"/>
                   </svg>
-                  上一页
+                  {t('signature.previousPage')}
                 </button>
                 
                 <div className="page-indicator">
@@ -1059,8 +1061,8 @@ export default function PDFSignature() {
                   <span className="total-pages">{totalPages}</span>
                   <div className="page-info">
                     {signatureStats.byPage.get(currentPage) 
-                      ? `本页 ${signatureStats.byPage.get(currentPage)} 个签名` 
-                      : '本页无签名'}
+                      ? t('signature.pageSignatures').replace('{count}', signatureStats.byPage.get(currentPage)!.toString())
+                      : t('signature.noPageSignatures')}
                   </div>
                 </div>
                 
@@ -1068,9 +1070,9 @@ export default function PDFSignature() {
                   className="page-nav-btn"
                   onClick={nextPage}
                   disabled={currentPage === totalPages}
-                  title="下一页"
+                  title={t('signature.nextPage')}
                 >
-                  下一页
+                  {t('signature.nextPage')}
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                     <path d="M6 2l6 6-6 6V2z"/>
                   </svg>
@@ -1089,7 +1091,9 @@ export default function PDFSignature() {
                         key={pageNum}
                         className={`thumbnail-item ${pageNum === currentPage ? 'active' : ''} ${pageSignatureCount > 0 ? 'has-signatures' : ''}`}
                         onClick={() => goToPage(pageNum)}
-                        title={`第 ${pageNum} 页${pageSignatureCount > 0 ? ` (${pageSignatureCount} 个签名)` : ''}`}
+                        title={pageSignatureCount > 0 
+                          ? t('signature.pageNumWithSignatures').replace('{num}', pageNum.toString()).replace('{count}', pageSignatureCount.toString())
+                          : t('signature.pageNum').replace('{num}', pageNum.toString())}
                       >
                         {thumbnail ? (
                           <img src={thumbnail} alt={`Page ${pageNum}`} className="thumbnail-image" />
@@ -1113,17 +1117,17 @@ export default function PDFSignature() {
               {/* 签名统计信息 */}
               {signatures.length > 0 && (
                 <div className="signature-summary">
-                  <span>总计: {signatureStats.total} 个签名</span>
-                  <span>分布在 {signatureStats.pagesWithSignatures} 页</span>
+                  <span>{t('signature.totalSignatures').replace('{total}', signatureStats.total.toString())}</span>
+                  <span>{t('signature.distributedInPages').replace('{pages}', signatureStats.pagesWithSignatures.toString())}</span>
                 </div>
               )}
             </div>
           )}
           
           <div className="preview-label">
-            PDF预览（拖拽签名面板到合适位置，拖拽右下角调整大小）
+            {t('signature.pdfPreview')}
             {colorPickerMode && (
-              <span className="color-picker-hint">点击取色器按钮，然后在屏幕上选择颜色</span>
+              <span className="color-picker-hint">{t('signature.colorPickerHint')}</span>
             )}
           </div>
           <div
@@ -1182,12 +1186,12 @@ export default function PDFSignature() {
                         className="signature-color-picker"
                         value={sig.backgroundColor || backgroundColor}
                         onChange={(e) => updateSignatureBackground(sig.id, e.target.value)}
-                        title="调整背景色"
+                        title={t('signature.adjustBgColor')}
                       />
                       <button
                         className="signature-delete"
                         onClick={() => handleDeleteSignature(sig.id)}
-                        title="删除"
+                        title={t('signature.delete')}
                       >
                         <X size={16} />
                       </button>
@@ -1195,7 +1199,7 @@ export default function PDFSignature() {
                     <div
                       className="resize-handle"
                       onMouseDown={(e) => handleResizeStart(e, sig.id)}
-                      title="拖拽调整大小"
+                      title={t('signature.dragToResize')}
                     >
                       <Maximize2 size={12} />
                     </div>
@@ -1215,7 +1219,7 @@ export default function PDFSignature() {
             disabled={loading}
           >
             <Download size={20} />
-            {loading ? '处理中...' : '应用签名并下载'}
+            {loading ? t('signature.processing') : t('signature.applySignatures')}
           </button>
         </div>
       )}
