@@ -72,7 +72,7 @@ export default function Layout({ children }: LayoutProps) {
               title={language === 'zh-CN' ? 'Switch to English' : '切换到中文'}
             >
               <Globe size={18} />
-              <span>{language === 'zh-CN' ? 'EN' : '中'}</span>
+              <span>{language === 'zh-CN' ? 'EN' : 'CN'}</span>
             </button>
             
             {/* {user ? (

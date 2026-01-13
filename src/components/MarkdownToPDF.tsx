@@ -527,9 +527,9 @@ export default function MarkdownToPDF() {
 
         <div className="preview-section">
           <div className="section-header">
-            <FileText size={20} />
-            <span>{t('markdownToPdf.previewTitle')}</span>
-            <span className="preview-note">{t('markdownToPdf.previewNote')}</span>
+            {/* <FileText size={20} /> */}
+            {/* <span>{t('markdownToPdf.previewTitle')}</span> */}
+            {/* <span className="preview-note">{t('markdownToPdf.previewNote')}</span> */}
           </div>
           <div 
             ref={previewRef}
