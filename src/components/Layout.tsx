@@ -1,6 +1,6 @@
 import { ReactNode, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Shield, Repeat, Droplet, PenTool, KeyRound, Archive, Image as ImageIcon, Menu, X, LogIn, LogOut, Crown, User } from 'lucide-react'
+import { Shield, Repeat, Droplet, PenTool, KeyRound, Archive, Image as ImageIcon, Menu, X, LogIn, LogOut, Crown, User, Lock } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import './Layout.css'
 
@@ -88,6 +88,16 @@ export default function Layout({ children }: LayoutProps) {
           </button>
         </div>
       </header>
+      
+      {/* 安全提示横幅 */}
+      <div className="security-banner">
+        <div className="security-banner-content">
+          {/* <Lock size={18} className="security-icon" /> */}
+          <span className="security-text">
+            <strong>🔐 所有文件处理支持</strong> 纯前端加密 / 本地处理 / 不上传服务器
+          </span>
+        </div>
+      </div>
       
       <main className="main-content">
         {children}
