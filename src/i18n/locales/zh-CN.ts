@@ -28,6 +28,8 @@ export default {
     email: '邮箱',
     vip: 'VIP',
     unknownError: '未知错误',
+    passwordMatch: '密码一致 ✓',
+    selectWordFile: '请选择 Word 文件',
   },
 
   // 导航

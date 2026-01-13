@@ -28,6 +28,8 @@ export default {
     email: 'Email',
     vip: 'VIP',
     unknownError: 'Unknown error',
+    passwordMatch: 'Passwords match ✓',
+    selectWordFile: 'Please select a Word file',
   },
 
   // Navigation
