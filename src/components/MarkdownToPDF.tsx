@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { Upload, Download, FileText, Code, AlertCircle, CheckCircle, Settings } from 'lucide-react'
+import { Upload, Download, Code, AlertCircle, CheckCircle, Settings } from 'lucide-react'
 import { marked } from 'marked'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'

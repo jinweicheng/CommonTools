@@ -86,7 +86,6 @@ export default {
     generateLockedFile: 'Generate .locked encrypted file',
     perfectRecovery: 'Perfect recovery after decryption with this tool',
     securityTips: 'Security Tips',
-    keepPasswordSafe: 'Keep password safe, cannot recover if forgotten',
     strongPasswordRecommendation: 'Use strong password (min 8 chars, letters, numbers, symbols)',
     safeTransmission: 'Encrypted files can be safely transmitted and stored',
     localProcessingNote: 'All encryption operations done locally in browser, no server upload',
@@ -470,7 +469,6 @@ export default {
     passwordProtectionHint: 'Set password to protect archive contents',
     atLeastFourChars: 'At least 4 characters',
     filesToCompress: 'Files to Compress',
-    selectFiles: 'Select Files',
     clickToAddFiles: 'Click "Select Files" to add files to compress',
     startCompress: 'Start Compression',
     compressing: 'Compressing...',
@@ -493,12 +491,9 @@ export default {
     largeFileOrEncryptedZip: 'For large files or encrypted ZIP, use local server',
     runNpmServer: 'Run npm run server to start local server',
     powerfulCapabilities: 'Local server provides more powerful compression/decompression',
-    confirmPassword: 'Confirm Password',
     reEnterPassword: 'Re-enter password',
-    passwordMismatch: 'Passwords do not match',
     passwordMatch: 'Passwords match ✓',
     backToSelectFile: 'Back to Select File',
-    unlock: 'Unlock',
   },
 
   // HEIC to JPG
@@ -533,7 +528,6 @@ export default {
     largeFileWarning: 'Large files may take some time, please be patient',
     browserRecommendation: 'Recommend Chrome, Edge or Safari for best experience',
     noFilesToDownload: 'No files to download, please complete conversion first',
-    convert: 'Convert',
     fileList: 'File List',
   },
 

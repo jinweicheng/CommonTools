@@ -86,7 +86,6 @@ export default {
     generateLockedFile: '生成 .locked 加密文件',
     perfectRecovery: '使用本工具解密后完美恢复原始文件',
     securityTips: '安全提示',
-    keepPasswordSafe: '请妥善保管密码，忘记密码将无法恢复文件',
     strongPasswordRecommendation: '建议使用强密码（至少8位，包含字母、数字、符号）',
     safeTransmission: '加密文件可以安全传输和存储',
     localProcessingNote: '所有加密操作在浏览器本地完成，文件不上传服务器',
@@ -470,7 +469,6 @@ export default {
     passwordProtectionHint: '设置密码可保护压缩包内容',
     atLeastFourChars: '至少 4 位',
     filesToCompress: '待压缩文件',
-    selectFiles: '选择文件',
     clickToAddFiles: '点击"选择文件"添加要压缩的文件',
     startCompress: '开始压缩',
     compressing: '压缩中...',
@@ -493,12 +491,9 @@ export default {
     largeFileOrEncryptedZip: '如需处理大文件或加密 ZIP，可使用本地服务',
     runNpmServer: '运行 npm run server 启动本地服务',
     powerfulCapabilities: '本地服务提供更强大的压缩和解压能力',
-    confirmPassword: '确认密码',
     reEnterPassword: '再次输入密码',
-    passwordMismatch: '密码不一致',
     passwordMatch: '密码一致 ✓',
     backToSelectFile: '返回选择文件',
-    unlock: '解锁',
   },
 
   // HEIC转JPG
@@ -533,7 +528,6 @@ export default {
     largeFileWarning: '大文件转换可能需要一些时间，请耐心等待',
     browserRecommendation: '建议使用Chrome、Edge或Safari浏览器以获得最佳体验',
     noFilesToDownload: '没有可下载的文件，请先完成转换',
-    convert: '转换',
     fileList: '文件列表',
   },
 

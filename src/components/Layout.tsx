@@ -1,7 +1,6 @@
 import { ReactNode, useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Shield, Repeat, Droplet, PenTool, KeyRound, Archive, Image as ImageIcon, Menu, X, LogIn, LogOut, Crown, User, Globe } from 'lucide-react'
-import { useAuth } from '../contexts/AuthContext'
+import { Link, useLocation } from 'react-router-dom'
+import { Shield, Repeat, Droplet, PenTool, Archive, Image as ImageIcon, Menu, X, Globe } from 'lucide-react'
 import { useI18n } from '../i18n/I18nContext'
 import './Layout.css'
 
@@ -11,8 +10,6 @@ interface LayoutProps {
 
 export default function Layout({ children }: LayoutProps) {
   const location = useLocation()
-  const navigate = useNavigate()
-  const { user, logout, isVip } = useAuth()
   const { t, language, setLanguage } = useI18n()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   
@@ -34,11 +31,6 @@ export default function Layout({ children }: LayoutProps) {
     setMobileMenuOpen(false)
   }
 
-  const handleLogout = () => {
-    logout()
-    navigate('/')
-    setMobileMenuOpen(false)
-  }
   
   return (
     <div className="layout">
