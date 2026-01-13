@@ -56,9 +56,16 @@ export default function PDFEncryption() {
         new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
       )
       
+      // 检查 Web Crypto API 是否可用
+      if (!window.crypto || !window.crypto.subtle) {
+        setError('❌ 浏览器不支持 Web Crypto API，请使用现代浏览器（Chrome、Firefox、Edge、Safari）或在 HTTPS 环境下使用')
+        setLoading(false)
+        return
+      }
+
       const encoder = new TextEncoder()
       const passwordData = encoder.encode(userPassword)
-      const hashBuffer = await crypto.subtle.digest('SHA-256', passwordData)
+      const hashBuffer = await window.crypto.subtle.digest('SHA-256', passwordData)
       const hashArray = Array.from(new Uint8Array(hashBuffer))
       const passwordHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
       
@@ -191,9 +198,12 @@ export default function PDFEncryption() {
     const PDF_DATA = '${pdfBase64}';
     
     async function hashPassword(password) {
+      if (!window.crypto || !window.crypto.subtle) {
+        throw new Error('Web Crypto API 不可用');
+      }
       const encoder = new TextEncoder();
       const data = encoder.encode(password);
-      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+      const hashBuffer = await window.crypto.subtle.digest('SHA-256', data);
       const hashArray = Array.from(new Uint8Array(hashBuffer));
       return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
     }
@@ -301,7 +311,14 @@ export default function PDFEncryption() {
       const pageCount = originalPdfDoc.getPageCount()
       const originalBytes = await originalPdfDoc.save()
       
-      const salt = crypto.getRandomValues(new Uint8Array(16))
+      // 检查 Web Crypto API 是否可用
+      if (!window.crypto || !window.crypto.subtle) {
+        setError('❌ 浏览器不支持 Web Crypto API，请使用现代浏览器（Chrome、Firefox、Edge、Safari）或在 HTTPS 环境下使用')
+        setLoading(false)
+        return
+      }
+      
+      const salt = window.crypto.getRandomValues(new Uint8Array(16))
       const userKey = await CryptoUtils.deriveKeyFromPassword(userPassword, salt)
       const { encrypted: encryptedContent, iv } = await CryptoUtils.encrypt(originalBytes.buffer as ArrayBuffer, userKey)
       
@@ -416,8 +433,23 @@ export default function PDFEncryption() {
       setConfirmPassword('')
       setPasswordError('')
     } catch (err) {
-      console.error('加密 PDF 失败:', err)
-      setError('加密失败：' + (err instanceof Error ? err.message : '未知错误'))
+      const errorMessage = err instanceof Error ? err.message : String(err)
+      console.error('[PDFEncryption] 加密 PDF 失败:', {
+        error: errorMessage,
+        errorType: err?.constructor?.name,
+        stack: err instanceof Error ? err.stack : undefined,
+        fileName: file.name,
+        fileSize: file.size
+      })
+      
+      // 提供更友好的错误信息
+      if (errorMessage.includes('HTTPS') || errorMessage.includes('crypto.subtle')) {
+        setError('❌ ' + errorMessage + '\n\n提示：Web Crypto API 需要 HTTPS 环境。请确保网站使用 HTTPS 协议。')
+      } else if (errorMessage.includes('不支持')) {
+        setError('❌ ' + errorMessage)
+      } else {
+        setError('❌ 加密失败：' + errorMessage + '\n\n如果问题持续，请检查浏览器控制台获取详细信息。')
+      }
     } finally {
       setLoading(false)
     }
@@ -435,6 +467,13 @@ export default function PDFEncryption() {
     setSuccess(null)
 
     try {
+      // 检查 Web Crypto API 是否可用
+      if (!window.crypto || !window.crypto.subtle) {
+        setError('❌ 浏览器不支持 Web Crypto API，请使用现代浏览器（Chrome、Firefox、Edge、Safari）或在 HTTPS 环境下使用')
+        setLoading(false)
+        return
+      }
+
       const arrayBuffer = await file.arrayBuffer()
       const bytes = new Uint8Array(arrayBuffer)
       
@@ -473,11 +512,20 @@ export default function PDFEncryption() {
       
       setUnlockPassword('')
     } catch (err) {
-      console.error('解密 PDF 失败:', err)
-      if (err instanceof Error && err.message.includes('password')) {
-        setError('❌ 密码错误！')
+      const errorMessage = err instanceof Error ? err.message : String(err)
+      console.error('[PDFEncryption] 解密 PDF 失败:', {
+        error: errorMessage,
+        errorType: err?.constructor?.name,
+        stack: err instanceof Error ? err.stack : undefined,
+        fileName: file.name
+      })
+      
+      if (errorMessage.includes('password') || errorMessage.includes('密码错误')) {
+        setError('❌ 密码错误！请检查密码后重试。')
+      } else if (errorMessage.includes('HTTPS') || errorMessage.includes('crypto.subtle')) {
+        setError('❌ ' + errorMessage + '\n\n提示：Web Crypto API 需要 HTTPS 环境。请确保网站使用 HTTPS 协议。')
       } else {
-        setError('解密失败：' + (err instanceof Error ? err.message : '未知错误'))
+        setError('❌ 解密失败：' + errorMessage + '\n\n如果问题持续，请检查浏览器控制台获取详细信息。')
       }
     } finally {
       setLoading(false)

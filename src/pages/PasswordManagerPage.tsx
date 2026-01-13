@@ -54,10 +54,16 @@ export default function PasswordManagerPage() {
       return
     }
 
+    // 检查 Web Crypto API 是否可用
+    if (!window.crypto || !window.crypto.subtle) {
+      setError('❌ 浏览器不支持 Web Crypto API，请使用现代浏览器（Chrome、Firefox、Edge、Safari）或在 HTTPS 环境下使用')
+      return
+    }
+
     // 生成主密码哈希
     const encoder = new TextEncoder()
     const data = encoder.encode(masterPassword)
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+    const hashBuffer = await window.crypto.subtle.digest('SHA-256', data)
     const hashArray = Array.from(new Uint8Array(hashBuffer))
     const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
 

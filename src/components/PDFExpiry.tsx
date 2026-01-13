@@ -49,9 +49,16 @@ export default function PDFExpiry() {
         const generatedDocId = docId || CryptoUtils.generateDocId()
         setDocId(generatedDocId)
 
+        // 检查 Web Crypto API 是否可用
+        if (!window.crypto || !window.crypto.subtle) {
+          setError('❌ 浏览器不支持 Web Crypto API，请使用现代浏览器（Chrome、Firefox、Edge、Safari）或在 HTTPS 环境下使用')
+          setLoading(false)
+          return
+        }
+
         // 将PDF内容加密
         const pdfBytes = await pdfDoc.save()
-        const salt = crypto.getRandomValues(new Uint8Array(16))
+        const salt = window.crypto.getRandomValues(new Uint8Array(16))
         const key = await CryptoUtils.deriveKeyFromPassword(encryptionPassword, salt)
         const { encrypted: _encrypted, iv } = await CryptoUtils.encrypt(pdfBytes.buffer as ArrayBuffer, key)
 

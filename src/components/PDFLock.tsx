@@ -92,10 +92,17 @@ export default function PDFLock() {
         new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
       )
       
+      // 检查 Web Crypto API 是否可用
+      if (!window.crypto || !window.crypto.subtle) {
+        setError('❌ 浏览器不支持 Web Crypto API，请使用现代浏览器（Chrome、Firefox、Edge、Safari）或在 HTTPS 环境下使用')
+        setLoading(false)
+        return
+      }
+
       // 生成密码哈希（用于验证）
       const encoder = new TextEncoder()
       const passwordData = encoder.encode(userPassword)
-      const hashBuffer = await crypto.subtle.digest('SHA-256', passwordData)
+      const hashBuffer = await window.crypto.subtle.digest('SHA-256', passwordData)
       const hashArray = Array.from(new Uint8Array(hashBuffer))
       const passwordHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
       
@@ -229,9 +236,12 @@ export default function PDFLock() {
     const PDF_DATA = '${pdfBase64}';
     
     async function hashPassword(password) {
+      if (!window.crypto || !window.crypto.subtle) {
+        throw new Error('Web Crypto API 不可用');
+      }
       const encoder = new TextEncoder();
       const data = encoder.encode(password);
-      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+      const hashBuffer = await window.crypto.subtle.digest('SHA-256', data);
       const hashArray = Array.from(new Uint8Array(hashBuffer));
       return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
     }
@@ -314,8 +324,20 @@ export default function PDFLock() {
       setConfirmPassword('')
       setPasswordError('')
     } catch (err) {
-      console.error('标准加密失败:', err)
-      setError('加密失败：' + (err instanceof Error ? err.message : '未知错误'))
+      const errorMessage = err instanceof Error ? err.message : String(err)
+      console.error('[PDFLock] 标准加密失败:', {
+        error: errorMessage,
+        errorType: err?.constructor?.name,
+        stack: err instanceof Error ? err.stack : undefined
+      })
+      
+      if (errorMessage.includes('HTTPS') || errorMessage.includes('crypto.subtle')) {
+        setError('❌ ' + errorMessage + '\n\n提示：Web Crypto API 需要 HTTPS 环境。请确保网站使用 HTTPS 协议。')
+      } else if (errorMessage.includes('不支持')) {
+        setError('❌ ' + errorMessage)
+      } else {
+        setError('❌ 加密失败：' + errorMessage + '\n\n如果问题持续，请检查浏览器控制台获取详细信息。')
+      }
     } finally {
       setLoading(false)
     }
@@ -337,11 +359,18 @@ export default function PDFLock() {
       const arrayBuffer = await file.arrayBuffer()
       const originalSize = arrayBuffer.byteLength
       
+      // 检查 Web Crypto API 是否可用
+      if (!window.crypto || !window.crypto.subtle) {
+        setError('❌ 浏览器不支持 Web Crypto API，请使用现代浏览器（Chrome、Firefox、Edge、Safari）或在 HTTPS 环境下使用')
+        setLoading(false)
+        return
+      }
+
       // 获取文件扩展名
       const extension = file.name.split('.').pop() || 'bin'
       
       // 使用 AES-256-GCM 加密文件内容
-      const salt = crypto.getRandomValues(new Uint8Array(16))
+      const salt = window.crypto.getRandomValues(new Uint8Array(16))
       const userKey = await CryptoUtils.deriveKeyFromPassword(userPassword, salt)
       const { encrypted: encryptedContent, iv } = await CryptoUtils.encrypt(arrayBuffer, userKey)
       
@@ -388,8 +417,22 @@ export default function PDFLock() {
       setConfirmPassword('')
       setPasswordError('')
     } catch (err) {
-      console.error('加密文件失败:', err)
-      setError('加密失败：' + (err instanceof Error ? err.message : '未知错误'))
+      const errorMessage = err instanceof Error ? err.message : String(err)
+      console.error('[PDFLock] 加密文件失败:', {
+        error: errorMessage,
+        errorType: err?.constructor?.name,
+        stack: err instanceof Error ? err.stack : undefined,
+        fileName: file.name,
+        fileSize: file.size
+      })
+      
+      if (errorMessage.includes('HTTPS') || errorMessage.includes('crypto.subtle')) {
+        setError('❌ ' + errorMessage + '\n\n提示：Web Crypto API 需要 HTTPS 环境。请确保网站使用 HTTPS 协议。')
+      } else if (errorMessage.includes('不支持')) {
+        setError('❌ ' + errorMessage)
+      } else {
+        setError('❌ 加密失败：' + errorMessage + '\n\n如果问题持续，请检查浏览器控制台获取详细信息。')
+      }
     } finally {
       setLoading(false)
     }
@@ -446,11 +489,20 @@ export default function PDFLock() {
       // 清空密码
       setUnlockPassword('')
     } catch (err) {
-      console.error('解密文件失败:', err)
-      if (err instanceof Error && err.message.includes('password')) {
-        setError('❌ 密码错误！')
+      const errorMessage = err instanceof Error ? err.message : String(err)
+      console.error('[PDFLock] 解密文件失败:', {
+        error: errorMessage,
+        errorType: err?.constructor?.name,
+        stack: err instanceof Error ? err.stack : undefined,
+        fileName: file.name
+      })
+      
+      if (errorMessage.includes('password') || errorMessage.includes('密码错误')) {
+        setError('❌ 密码错误！请检查密码后重试。')
+      } else if (errorMessage.includes('HTTPS') || errorMessage.includes('crypto.subtle')) {
+        setError('❌ ' + errorMessage + '\n\n提示：Web Crypto API 需要 HTTPS 环境。请确保网站使用 HTTPS 协议。')
       } else {
-        setError('解密失败：' + (err instanceof Error ? err.message : '未知错误'))
+        setError('❌ 解密失败：' + errorMessage + '\n\n如果问题持续，请检查浏览器控制台获取详细信息。')
       }
     } finally {
       setLoading(false)
@@ -555,10 +607,17 @@ export default function PDFLock() {
       
       // 获取 PDF 基本信息
       const pageCount = originalPdfDoc.getPageCount()
+      // 检查 Web Crypto API 是否可用
+      if (!window.crypto || !window.crypto.subtle) {
+        setError('❌ 浏览器不支持 Web Crypto API，请使用现代浏览器（Chrome、Firefox、Edge、Safari）或在 HTTPS 环境下使用')
+        setLoading(false)
+        return
+      }
+
       const originalBytes = await originalPdfDoc.save()
       
       // 使用 AES-256-GCM 加密 PDF 内容
-      const salt = crypto.getRandomValues(new Uint8Array(16))
+      const salt = window.crypto.getRandomValues(new Uint8Array(16))
       const userKey = await CryptoUtils.deriveKeyFromPassword(userPassword, salt)
       const { encrypted: encryptedContent, iv } = await CryptoUtils.encrypt(originalBytes.buffer as ArrayBuffer, userKey)
       
@@ -729,8 +788,22 @@ export default function PDFLock() {
       setConfirmPassword('')
       setPasswordError('')
     } catch (err) {
-      console.error('加密 PDF 失败:', err)
-      setError('加密失败：' + (err instanceof Error ? err.message : '未知错误'))
+      const errorMessage = err instanceof Error ? err.message : String(err)
+      console.error('[PDFLock] 加密 PDF 失败:', {
+        error: errorMessage,
+        errorType: err?.constructor?.name,
+        stack: err instanceof Error ? err.stack : undefined,
+        fileName: file.name,
+        fileSize: file.size
+      })
+      
+      if (errorMessage.includes('HTTPS') || errorMessage.includes('crypto.subtle')) {
+        setError('❌ ' + errorMessage + '\n\n提示：Web Crypto API 需要 HTTPS 环境。请确保网站使用 HTTPS 协议。')
+      } else if (errorMessage.includes('不支持')) {
+        setError('❌ ' + errorMessage)
+      } else {
+        setError('❌ 加密失败：' + errorMessage + '\n\n如果问题持续，请检查浏览器控制台获取详细信息。')
+      }
     } finally {
       setLoading(false)
     }
@@ -793,11 +866,20 @@ export default function PDFLock() {
       // 清空密码
       setUnlockPassword('')
     } catch (err) {
-      console.error('解密 PDF 失败:', err)
-      if (err instanceof Error && err.message.includes('password')) {
-        setError('❌ 密码错误！')
+      const errorMessage = err instanceof Error ? err.message : String(err)
+      console.error('[PDFLock] 解密 PDF 失败:', {
+        error: errorMessage,
+        errorType: err?.constructor?.name,
+        stack: err instanceof Error ? err.stack : undefined,
+        fileName: file.name
+      })
+      
+      if (errorMessage.includes('password') || errorMessage.includes('密码错误')) {
+        setError('❌ 密码错误！请检查密码后重试。')
+      } else if (errorMessage.includes('HTTPS') || errorMessage.includes('crypto.subtle')) {
+        setError('❌ ' + errorMessage + '\n\n提示：Web Crypto API 需要 HTTPS 环境。请确保网站使用 HTTPS 协议。')
       } else {
-        setError('解密失败：' + (err instanceof Error ? err.message : '未知错误'))
+        setError('❌ 解密失败：' + errorMessage + '\n\n如果问题持续，请检查浏览器控制台获取详细信息。')
       }
     } finally {
       setLoading(false)
