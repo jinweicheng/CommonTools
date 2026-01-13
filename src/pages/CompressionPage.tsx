@@ -163,7 +163,7 @@ export default function CompressionPage() {
       setZipFileList(fileInfos)
       setOriginalZipFile(file)
       setNeedPassword(false)
-      setSuccess(`✅ ZIP 文件加载成功！\n\n包含 ${fileInfos.filter(f => !f.dir).length} 个文件${password ? ' · AES 密码验证成功 🔒✅' : ''}`)
+      setSuccess(`✅ ${t('compression.zipLoadedSuccess')}\n\n${t('compression.containsFiles')} ${fileInfos.filter(f => !f.dir).length} ${t('common.files')}${password ? ` · ${t('compression.aesPasswordVerified')} 🔒✅` : ''}`)
     } catch (err) {
       console.error('加载 ZIP 失败:', err)
       setError(t('errors.processingFailed') + '：' + (err instanceof Error ? err.message : t('common.unknownError')))
@@ -315,9 +315,9 @@ export default function CompressionPage() {
   return (
     <div className="page-container compression-page">
       <div className="page-header compression-header">
-        <h1 className="page-title">📦 文件压缩/解压</h1>
+        <h1 className="page-title">📦 {t('compression.title')}</h1>
         <p className="page-subtitle">
-          ZIP 格式文件压缩和解压，100% 浏览器本地处理，支持 AES-256 加密保护
+          {t('compression.subtitle')}
         </p>
       </div>
 
@@ -461,9 +461,9 @@ export default function CompressionPage() {
                 <div className="password-lock-icon">
                   <Lock size={64} />
                 </div>
-                <h3>此压缩包需要密码</h3>
+                <h3>{t('compression.passwordRequiredTitle')}</h3>
                 <p className="password-hint-text">
-                  文件：{originalZipFile?.name}
+                  {t('common.file')}: {originalZipFile?.name}
                 </p>
                 
                 <div className="password-input-section">
@@ -472,7 +472,7 @@ export default function CompressionPage() {
                     value={decompressPassword}
                     onChange={(e) => setDecompressPassword(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && handleUnlockZip()}
-                    placeholder="请输入密码"
+                    placeholder={t('compression.enterPassword')}
                     autoFocus
                   />
                   <button 
@@ -521,7 +521,7 @@ export default function CompressionPage() {
                     </p>
                   </div>
                   <button className="change-file-button" onClick={resetDecompress}>
-                    更换文件
+                    {t('compression.changeFile')}
                   </button>
                 </div>
 
@@ -532,7 +532,7 @@ export default function CompressionPage() {
                       checked={zipFileList.filter(f => !f.dir).every(f => f.selected)}
                       onChange={toggleSelectAll}
                     />
-                    <span>全选 ({zipFileList.filter(f => f.selected).length}/{zipFileList.filter(f => !f.dir).length})</span>
+                    <span>{t('compression.selectAll')} ({zipFileList.filter(f => f.selected).length}/{zipFileList.filter(f => !f.dir).length})</span>
                   </label>
                 </div>
 
