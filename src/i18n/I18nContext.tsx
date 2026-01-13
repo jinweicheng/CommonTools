@@ -78,6 +78,108 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // 监听语言变化，更新 HTML lang 属性
     document.documentElement.lang = language
+    
+    // 更新 meta 标签
+    const locale = locales[language]
+    const meta = locale.meta
+    
+    // 更新 title
+    if (meta?.title) {
+      document.title = meta.title
+    }
+    
+    // 更新 description
+    const descMeta = document.querySelector('meta[name="description"]')
+    if (descMeta && meta?.description) {
+      descMeta.setAttribute('content', meta.description)
+    }
+    
+    // 更新 keywords
+    const keywordsMeta = document.querySelector('meta[name="keywords"]')
+    if (keywordsMeta && meta?.keywords) {
+      keywordsMeta.setAttribute('content', meta.keywords)
+    }
+    
+    // 更新 language meta
+    const langMeta = document.querySelector('meta[name="language"]')
+    if (langMeta) {
+      langMeta.setAttribute('content', language)
+    }
+    
+    // 更新 Open Graph 标签
+    const ogTitle = document.querySelector('meta[property="og:title"]')
+    if (ogTitle && meta?.ogTitle) {
+      ogTitle.setAttribute('content', meta.ogTitle)
+    }
+    
+    const ogDesc = document.querySelector('meta[property="og:description"]')
+    if (ogDesc && meta?.ogDescription) {
+      ogDesc.setAttribute('content', meta.ogDescription)
+    }
+    
+    const ogLocale = document.querySelector('meta[property="og:locale"]')
+    if (ogLocale) {
+      ogLocale.setAttribute('content', language === 'zh-CN' ? 'zh_CN' : 'en_US')
+    }
+    
+    const ogImageAlt = document.querySelector('meta[property="og:image:alt"]')
+    if (ogImageAlt && meta?.ogImageAlt) {
+      ogImageAlt.setAttribute('content', meta.ogImageAlt)
+    }
+    
+    // 更新 Twitter Card 标签
+    const twitterTitle = document.querySelector('meta[name="twitter:title"]')
+    if (twitterTitle && meta?.twitterTitle) {
+      twitterTitle.setAttribute('content', meta.twitterTitle)
+    }
+    
+    const twitterDesc = document.querySelector('meta[name="twitter:description"]')
+    if (twitterDesc && meta?.twitterDescription) {
+      twitterDesc.setAttribute('content', meta.twitterDescription)
+    }
+    
+    const twitterImageAlt = document.querySelector('meta[name="twitter:image:alt"]')
+    if (twitterImageAlt && meta?.twitterImageAlt) {
+      twitterImageAlt.setAttribute('content', meta.twitterImageAlt)
+    }
+    
+    // 更新结构化数据 (JSON-LD)
+    const jsonLdScript = document.querySelector('script[type="application/ld+json"]')
+    if (jsonLdScript && meta) {
+      try {
+        const jsonLd = {
+          "@context": "https://schema.org",
+          "@type": "WebApplication",
+          "name": meta.structuredDataName || "CommonTools",
+          "alternateName": meta.structuredDataAlternateName || "CommonTools",
+          "url": "https://commontools.top/tools/",
+          "description": meta.structuredDataDescription || "",
+          "applicationCategory": "UtilityApplication",
+          "operatingSystem": "Web Browser",
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": language === 'zh-CN' ? "CNY" : "USD"
+          },
+          "featureList": [
+            meta.featurePdfEncryption || "PDF Encryption/Decryption",
+            meta.featureFileEncryption || "File Encryption",
+            meta.featureFormatConversion || "Format Conversion",
+            meta.featurePdfWatermark || "PDF Watermark",
+            meta.featureElectronicSignature || "Electronic Signature",
+            meta.featureFileCompression || "File Compression/Decompression",
+            meta.featureHeicToJpg || "HEIC to JPG"
+          ],
+          "screenshot": "https://commontools.top/tools/og-image.png",
+          "softwareVersion": "1.0",
+          "browserRequirements": "Requires JavaScript. Requires HTML5.",
+          "permissions": meta.structuredDataPermissions || ""
+        }
+        jsonLdScript.textContent = JSON.stringify(jsonLd)
+      } catch (err) {
+        console.error('Failed to update JSON-LD:', err)
+      }
+    }
   }, [language])
 
   return (

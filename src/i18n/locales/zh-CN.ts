@@ -30,6 +30,12 @@ export default {
     unknownError: '未知错误',
     passwordMatch: '密码一致 ✓',
     selectWordFile: '请选择 Word 文件',
+    advantages: '优势',
+    localProcessing: '本地处理',
+    noUpload: '不上传',
+    free: '免费',
+    offlineSupport: '离线支持',
+    limitations: '限制',
   },
 
   // 导航
@@ -564,5 +570,29 @@ export default {
     passwordSaved: '密码已保存',
     fileCompressed: '文件压缩成功',
     fileDecompressed: '文件解压成功',
+  },
+
+  // HTML Meta 标签
+  meta: {
+    title: 'CommonTools - 专业在线工具集 | PDF加密/解密、格式转换、水印、电子签名',
+    description: 'CommonTools 提供专业的在线工具服务：PDF加密解密、文件加密、格式转换、PDF水印、电子签名、文件压缩解压、HEIC转JPG等。100%浏览器本地处理，保护隐私安全，无需上传文件到服务器。',
+    keywords: 'PDF加密,PDF解密,文件加密,格式转换,PDF水印,电子签名,文件压缩,HEIC转JPG,在线工具,隐私安全,本地处理',
+    ogTitle: 'CommonTools - 专业在线工具集 | PDF加密/解密、格式转换、水印、电子签名',
+    ogDescription: '提供专业的在线工具服务：PDF加密解密、文件加密、格式转换、PDF水印、电子签名、文件压缩解压、HEIC转JPG等。100%浏览器本地处理，保护隐私安全。',
+    ogImageAlt: 'CommonTools - 专业在线工具集',
+    twitterTitle: 'CommonTools - 专业在线工具集',
+    twitterDescription: '提供专业的在线工具服务：PDF加密解密、文件加密、格式转换、PDF水印、电子签名等。100%浏览器本地处理，保护隐私安全。',
+    twitterImageAlt: 'CommonTools - 专业在线工具集',
+    structuredDataName: 'CommonTools',
+    structuredDataAlternateName: 'CommonTools - 专业在线工具集',
+    structuredDataDescription: '提供专业的在线工具服务：PDF加密解密、文件加密、格式转换、PDF水印、电子签名、文件压缩解压、HEIC转JPG等。100%浏览器本地处理，保护隐私安全。',
+    structuredDataPermissions: '无需注册，无需上传文件，100%本地处理',
+    featurePdfEncryption: 'PDF加密解密',
+    featureFileEncryption: '文件加密',
+    featureFormatConversion: '格式转换',
+    featurePdfWatermark: 'PDF水印',
+    featureElectronicSignature: '电子签名',
+    featureFileCompression: '文件压缩解压',
+    featureHeicToJpg: 'HEIC转JPG',
   },
 }

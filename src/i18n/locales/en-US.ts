@@ -30,6 +30,12 @@ export default {
     unknownError: 'Unknown error',
     passwordMatch: 'Passwords match ✓',
     selectWordFile: 'Please select a Word file',
+    advantages: 'Advantages',
+    localProcessing: 'Local Processing',
+    noUpload: 'No Upload',
+    free: 'Free',
+    offlineSupport: 'Offline Support',
+    limitations: 'Limitations',
   },
 
   // Navigation
@@ -564,5 +570,29 @@ export default {
     passwordSaved: 'Password saved',
     fileCompressed: 'File compressed successfully',
     fileDecompressed: 'File decompressed successfully',
+  },
+
+  // HTML Meta tags
+  meta: {
+    title: 'CommonTools - Professional Online Tools | PDF Encryption/Decryption, Format Conversion, Watermark, E-Signature',
+    description: 'CommonTools provides professional online tools: PDF encryption/decryption, file encryption, format conversion, PDF watermark, electronic signature, file compression/decompression, HEIC to JPG, etc. 100% browser local processing, privacy protected, no file upload to server.',
+    keywords: 'PDF encryption,PDF decryption,file encryption,format conversion,PDF watermark,electronic signature,file compression,HEIC to JPG,online tools,privacy security,local processing',
+    ogTitle: 'CommonTools - Professional Online Tools | PDF Encryption/Decryption, Format Conversion, Watermark, E-Signature',
+    ogDescription: 'Professional online tools: PDF encryption/decryption, file encryption, format conversion, PDF watermark, electronic signature, file compression/decompression, HEIC to JPG, etc. 100% browser local processing, privacy protected.',
+    ogImageAlt: 'CommonTools - Professional Online Tools',
+    twitterTitle: 'CommonTools - Professional Online Tools',
+    twitterDescription: 'Professional online tools: PDF encryption/decryption, file encryption, format conversion, PDF watermark, electronic signature, etc. 100% browser local processing, privacy protected.',
+    twitterImageAlt: 'CommonTools - Professional Online Tools',
+    structuredDataName: 'CommonTools',
+    structuredDataAlternateName: 'CommonTools - Professional Online Tools',
+    structuredDataDescription: 'Professional online tools: PDF encryption/decryption, file encryption, format conversion, PDF watermark, electronic signature, file compression/decompression, HEIC to JPG, etc. 100% browser local processing, privacy protected.',
+    structuredDataPermissions: 'No registration required, no file upload, 100% local processing',
+    featurePdfEncryption: 'PDF Encryption/Decryption',
+    featureFileEncryption: 'File Encryption',
+    featureFormatConversion: 'Format Conversion',
+    featurePdfWatermark: 'PDF Watermark',
+    featureElectronicSignature: 'Electronic Signature',
+    featureFileCompression: 'File Compression/Decompression',
+    featureHeicToJpg: 'HEIC to JPG',
   },
 }
