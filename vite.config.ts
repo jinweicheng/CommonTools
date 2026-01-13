@@ -58,8 +58,13 @@ export default defineConfig({
               transformObjectKeys: true,        // 转换对象键
               unicodeEscapeSequence: false      // Unicode 转义序列（可开启增强混淆）
             },
-            // 排除 node_modules（不混淆第三方库）
-            exclude: ['node_modules/**'],
+            // 排除 node_modules 和 PDF.js 相关文件（不混淆第三方库和 PDF.js）
+            exclude: [
+              'node_modules/**',
+              '**/pdfjs-dist/**',
+              '**/pdf.worker*',
+              '**/pdfWorkerConfig*'
+            ],
             // 仅混淆 JS 文件
             include: ['**/*.js', '**/*.mjs']
           })

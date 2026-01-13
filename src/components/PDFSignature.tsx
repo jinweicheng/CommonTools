@@ -237,8 +237,69 @@ export default function PDFSignature() {
 
     // 使用pdf.js加载并渲染PDF
     try {
+      // 确保 PDF.js worker 已配置（带重试）
+      if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+        const { configurePDFWorker } = await import('../utils/pdfWorkerConfig')
+        const configured = await configurePDFWorker()
+        
+        if (!configured) {
+          // 如果配置失败，等待一下再重试
+          await new Promise(resolve => setTimeout(resolve, 500))
+          
+          // 再次尝试配置
+          await configurePDFWorker()
+        }
+      }
+
       const arrayBuffer = await file.arrayBuffer()
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
+      
+      // 验证文件大小
+      if (arrayBuffer.byteLength === 0) {
+        throw new Error('PDF 文件为空')
+      }
+      
+      // 验证是否为有效的 PDF 文件
+      const uint8Array = new Uint8Array(arrayBuffer)
+      const pdfHeader = String.fromCharCode(...uint8Array.slice(0, 4))
+      if (pdfHeader !== '%PDF') {
+        throw new Error('不是有效的 PDF 文件')
+      }
+      
+      // 使用更详细的错误处理和重试机制
+      let pdf
+      let retries = 3
+      let lastError: Error | null = null
+      
+      while (retries > 0) {
+        try {
+          const loadingTask = pdfjsLib.getDocument({ 
+            data: arrayBuffer,
+            verbosity: 0, // 减少日志输出
+            useWorkerFetch: false, // 禁用 worker fetch，避免 CORS 问题
+            isEvalSupported: false // 禁用 eval，提高安全性
+          })
+          
+          pdf = await loadingTask.promise
+          break // 成功，退出重试循环
+        } catch (err) {
+          lastError = err instanceof Error ? err : new Error(String(err))
+          retries--
+          
+          // 如果是 worker 相关错误，尝试重新配置
+          if (lastError.message.toLowerCase().includes('worker')) {
+            const { configurePDFWorker } = await import('../utils/pdfWorkerConfig')
+            await configurePDFWorker()
+            await new Promise(resolve => setTimeout(resolve, 500))
+          } else {
+            // 其他错误直接抛出
+            throw lastError
+          }
+        }
+      }
+      
+      if (!pdf) {
+        throw lastError || new Error('PDF 加载失败')
+      }
       
       setPdfDocument(pdf)
       setTotalPages(pdf.numPages)
@@ -279,7 +340,61 @@ export default function PDFSignature() {
       }
     } catch (err) {
       console.error('加载PDF失败', err)
-      setError('加载PDF失败：' + (err instanceof Error ? err.message : '未知错误'))
+      
+      // 提供更详细的错误信息和解决方案
+      let errorMessage = '加载PDF失败'
+      let showRetryButton = false
+      
+      if (err instanceof Error) {
+        const errorMsg = err.message.toLowerCase()
+        
+        if (errorMsg.includes('worker') || errorMsg.includes('pdf.worker') || errorMsg.includes('setting up fake worker')) {
+          errorMessage = 'PDF.js Worker 加载失败。可能原因：网络问题或 CDN 不可用。'
+          showRetryButton = true
+          
+          // 提供解决方案提示
+          console.warn('💡 解决方案：')
+          console.warn('1. 检查网络连接')
+          console.warn('2. 刷新页面重试')
+          console.warn('3. 如果问题持续，请联系管理员')
+        } else if (errorMsg.includes('invalid') || errorMsg.includes('corrupt')) {
+          errorMessage = 'PDF 文件无效或已损坏，请检查文件是否完整'
+        } else if (errorMsg.includes('password') || errorMsg.includes('encrypted')) {
+          errorMessage = 'PDF 文件已加密，请先解密后再添加签名'
+        } else if (errorMsg.includes('network') || errorMsg.includes('fetch')) {
+          errorMessage = '网络错误，请检查网络连接后重试'
+          showRetryButton = true
+        } else {
+          errorMessage = `加载PDF失败：${err.message}`
+        }
+      } else {
+        errorMessage = '加载PDF失败：未知错误，请检查文件格式'
+      }
+      
+      setError(errorMessage)
+      
+      // 清理状态
+      setPdfFile(null)
+      setPdfDocument(null)
+      setTotalPages(0)
+      setCurrentPage(1)
+      if (pdfPreview) {
+        URL.revokeObjectURL(pdfPreview)
+        setPdfPreview(null)
+      }
+      
+      // 如果是 worker 错误，尝试重新配置
+      if (showRetryButton) {
+        setTimeout(async () => {
+          try {
+            const { configurePDFWorker } = await import('../utils/pdfWorkerConfig')
+            await configurePDFWorker()
+            console.log('✅ PDF.js Worker reconfigured, ready for retry')
+          } catch (reconfigErr) {
+            console.error('Failed to reconfigure worker:', reconfigErr)
+          }
+        }, 1000)
+      }
     }
   }, [renderPdfToCanvas, generateThumbnail])
 

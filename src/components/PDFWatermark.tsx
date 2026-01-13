@@ -51,9 +51,27 @@ export default function PDFWatermark() {
 
   // 处理PDF水印
   const handlePDFWatermark = async (file: File) => {
-    const arrayBuffer = await file.arrayBuffer()
-    const pdfDoc = await PDFDocument.load(arrayBuffer)
-    const pages = pdfDoc.getPages()
+    try {
+      const arrayBuffer = await file.arrayBuffer()
+      
+      // 验证文件大小
+      if (arrayBuffer.byteLength === 0) {
+        throw new Error('PDF 文件为空')
+      }
+      
+      // 验证是否为有效的 PDF 文件
+      const uint8Array = new Uint8Array(arrayBuffer)
+      const pdfHeader = String.fromCharCode(...uint8Array.slice(0, 4))
+      if (pdfHeader !== '%PDF') {
+        throw new Error('不是有效的 PDF 文件')
+      }
+      
+      const pdfDoc = await PDFDocument.load(arrayBuffer)
+      const pages = pdfDoc.getPages()
+      
+      if (pages.length === 0) {
+        throw new Error('PDF 文件不包含任何页面')
+      }
 
     // 检查是否包含中文
     const hasChinese = /[\u4e00-\u9fa5]/.test(watermarkText)
@@ -66,8 +84,16 @@ export default function PDFWatermark() {
       const grayValue = Math.round(0.5 * 255)
       const hexColor = `#${grayValue.toString(16).padStart(2, '0')}${grayValue.toString(16).padStart(2, '0')}${grayValue.toString(16).padStart(2, '0')}`
       const watermarkDataUrl = await textToImage(watermarkText, fontSize, hexColor)
-      const watermarkBytes = await fetch(watermarkDataUrl).then(res => res.arrayBuffer())
-      watermarkImage = await pdfDoc.embedPng(watermarkBytes)
+      
+      // 将 data URL 转换为 Uint8Array（不使用 fetch，避免网络错误）
+      const base64Data = watermarkDataUrl.split(',')[1] // 移除 data:image/png;base64, 前缀
+      const binaryString = atob(base64Data)
+      const bytes = new Uint8Array(binaryString.length)
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i)
+      }
+      
+      watermarkImage = await pdfDoc.embedPng(bytes)
       imageDims = watermarkImage.scale(1)
     }
 
@@ -112,9 +138,25 @@ export default function PDFWatermark() {
       }
     }
 
-    const pdfBytes = await pdfDoc.save()
-    const blob = new Blob([pdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' })
-    saveAs(blob, file.name.replace('.pdf', '-watermarked.pdf'))
+      const pdfBytes = await pdfDoc.save()
+      const blob = new Blob([pdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' })
+      saveAs(blob, file.name.replace('.pdf', '-watermarked.pdf'))
+    } catch (err) {
+      console.error('处理PDF水印失败', err)
+      
+      let errorMessage = '处理PDF失败'
+      if (err instanceof Error) {
+        const errorMsg = err.message.toLowerCase()
+        if (errorMsg.includes('invalid') || errorMsg.includes('corrupt')) {
+          errorMessage = 'PDF 文件无效或已损坏，请检查文件'
+        } else if (errorMsg.includes('password') || errorMsg.includes('encrypted')) {
+          errorMessage = 'PDF 文件已加密，请先解密后再添加水印'
+        } else {
+          errorMessage = `处理PDF失败：${err.message}`
+        }
+      }
+      throw new Error(errorMessage)
+    }
   }
 
   // 处理图片水印
