@@ -9,7 +9,10 @@ export default function HEICToJPGPage() {
   return (
     <div className="page-container heic-jpg-page">
       <div className="page-header">
-        <h1>🖼️ {t('heicToJpg.title')}</h1>
+        <h1>
+          <span className="title-emoji">🖼️</span>
+          <span className="title-text">{t('heicToJpg.title')}</span>
+        </h1>
         <p className="page-description">
           {t('heicToJpg.subtitle')}
         </p>

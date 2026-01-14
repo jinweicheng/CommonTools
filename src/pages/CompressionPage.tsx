@@ -315,7 +315,10 @@ export default function CompressionPage() {
   return (
     <div className="page-container compression-page">
       <div className="page-header compression-header">
-        <h1 className="page-title">📦 {t('compression.title')}</h1>
+        <h1 className="page-title">
+          <span className="title-emoji">📦</span>
+          <span className="title-text">{t('compression.title')}</span>
+        </h1>
         <p className="page-subtitle">
           {t('compression.subtitle')}
         </p>

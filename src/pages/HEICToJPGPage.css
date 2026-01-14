@@ -45,13 +45,25 @@
   gap: 1.25rem;
   font-size: 3rem;
   font-weight: 900;
+  margin: 0 0 1.25rem 0;
+  letter-spacing: -1px;
+  line-height: 1.2;
+}
+
+.heic-jpg-page .page-header h1 .title-emoji {
+  background: none !important;
+  -webkit-background-clip: unset !important;
+  -webkit-text-fill-color: initial !important;
+  background-clip: unset !important;
+  color: #667eea !important;
+  display: inline-block;
+}
+
+.heic-jpg-page .page-header h1 .title-text {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  margin: 0 0 1.25rem 0;
-  letter-spacing: -1px;
-  line-height: 1.2;
 }
 
 .heic-jpg-page .page-description {

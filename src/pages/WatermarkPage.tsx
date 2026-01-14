@@ -9,7 +9,10 @@ export default function WatermarkPage() {
   return (
     <div className="page-container watermark-page">
       <div className="page-header">
-        <h1 className="page-title">💧 {t('watermark.title')}</h1>
+        <h1 className="page-title">
+          <span className="title-emoji">💧</span>
+          <span className="title-text">{t('watermark.title')}</span>
+        </h1>
         <p className="page-subtitle">
           {t('watermark.subtitle')}
         </p>
