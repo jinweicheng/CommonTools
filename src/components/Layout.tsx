@@ -114,9 +114,9 @@ export default function Layout({ children }: LayoutProps) {
         <div className="footer-container">
           <div className="footer-content">
             <div className="footer-links">
-              <Link to="/support" className="footer-link">
+              {/* <Link to="/support" className="footer-link">
                 {t('support.title')}
-              </Link>
+              </Link> */}
               <Link to="/support-policy" className="footer-link">
                 {t('supportPolicy.title')}
               </Link>
