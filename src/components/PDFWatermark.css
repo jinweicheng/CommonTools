@@ -286,6 +286,70 @@
   animation: none;
 }
 
+/* ==================== 操作按钮区域 ==================== */
+.action-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin: 2rem 0;
+  flex-wrap: wrap;
+}
+
+.preview-button,
+.download-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  color: white;
+  padding: 1rem 2rem;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  border: none;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  font-weight: 600;
+  font-size: 1rem;
+  letter-spacing: 0.5px;
+  box-shadow: 0 8px 30px rgba(102, 126, 234, 0.4);
+  position: relative;
+  overflow: hidden;
+}
+
+.preview-button {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.download-button {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  box-shadow: 0 8px 30px rgba(16, 185, 129, 0.4);
+}
+
+.preview-button:hover:not(:disabled),
+.download-button:hover:not(:disabled) {
+  transform: translateY(-3px) scale(1.02);
+  box-shadow: 0 12px 40px rgba(102, 126, 234, 0.5);
+}
+
+.preview-button:hover:not(:disabled) {
+  background: linear-gradient(135deg, #5568d3 0%, #6b3fa0 100%);
+}
+
+.download-button:hover:not(:disabled) {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  box-shadow: 0 12px 40px rgba(16, 185, 129, 0.5);
+}
+
+.preview-button:active:not(:disabled),
+.download-button:active:not(:disabled) {
+  transform: translateY(-1px) scale(0.98);
+}
+
+.preview-button:disabled,
+.download-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* ==================== 预览区域 ==================== */
 .preview-section {
   /* display: grid; */
@@ -346,7 +410,7 @@
 
 .watermark-preview {
   position: relative;
-  height: 250px;
+  min-height: 250px;
   border: 2px dashed #d1d5db;
   border-radius: var(--radius-xl);
   display: flex;
@@ -354,7 +418,8 @@
   justify-content: center;
   background: linear-gradient(135deg, #fafafa 0%, #f3f4f6 100%);
   transition: all 0.3s ease;
-  overflow: hidden;
+  overflow: auto;
+  padding: 1rem;
 }
 
 .watermark-preview:hover {
@@ -371,21 +436,42 @@
   transition: all 0.3s ease;
 }
 
+.preview-placeholder {
+  color: #9ca3af;
+  font-weight: 500;
+  font-size: 1rem;
+  text-align: center;
+}
+
+.preview-ready-message {
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+  border: 1px solid #10b981;
+  border-radius: var(--radius-lg);
+  color: #065f46;
+  font-weight: 600;
+  text-align: center;
+  font-size: 0.9rem;
+}
+
 .image-preview-container {
   position: relative;
   width: 100%;
-  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
+  min-height: 250px;
 }
 
 .preview-image {
   max-width: 100%;
-  max-height: 100%;
+  width: auto;
+  height: auto;
   object-fit: contain;
   border-radius: var(--radius-lg);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  display: block;
 }
 
 .preview-canvas {
@@ -635,7 +721,12 @@
   }
 
   .watermark-preview {
-    height: 180px;
+    min-height: 180px;
+    padding: 0.5rem;
+  }
+
+  .image-preview-container {
+    min-height: 180px;
   }
 
   .upload-button {
