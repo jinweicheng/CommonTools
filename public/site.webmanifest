@@ -1,12 +1,13 @@
 {
-  "name": "CommonTools",
+  "name": "CommonTools - Professional Online Tools",
   "short_name": "CommonTools",
-  "description": "专业在线工具集 - PDF加密/解密、格式转换、水印、电子签名",
-  "start_url": "/",
+  "description": "Professional online tools: PDF encryption/decryption, file encryption, format conversion, PDF watermark, electronic signature, file compression/decompression, HEIC to JPG, etc. 100% browser local processing, privacy protected, no file upload to server.",
+  "start_url": "/tools/",
+  "scope": "/tools/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#667eea",
-  "orientation": "portrait-primary",
+  "orientation": "any",
   "icons": [
     {
       "src": "/favicon-192x192.png",
@@ -22,7 +23,8 @@
     }
   ],
   "categories": ["utilities", "productivity", "tools"],
-  "lang": "zh-CN",
-  "dir": "ltr"
+  "lang": "en-US",
+  "dir": "ltr",
+  "prefer_related_applications": false
 }
 
