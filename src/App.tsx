@@ -20,7 +20,7 @@ function App() {
   return (
     <I18nProvider>
       <AuthProvider>
-        <Router>
+        <Router basename="/tools">
           <Layout>
             <Routes>
               {/* 登录页面 */}

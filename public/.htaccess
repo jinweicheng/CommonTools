@@ -1,0 +1,80 @@
+# ========================================
+# Apache 服务器配置 - SPA 路由支持
+# ========================================
+# 此文件用于解决单页应用（SPA）路由刷新 404 问题
+# 部署时请将此文件复制到 dist/ 目录（或服务器 tools/ 目录）
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /tools/
+    
+    # ========================================
+    # 处理不带 /tools/ 前缀的路径（重定向到带前缀的URL）
+    # ========================================
+    # 匹配不带 /tools/ 前缀的路由路径
+    RewriteCond %{REQUEST_URI} ^/(conversion|watermark|signature|compression|heic-to-jpg|password-manager|support|support-policy|privacy-policy|terms-of-service|login)/?$ [NC]
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(.*)$ /tools/$1 [R=301,L]
+    
+    # ========================================
+    # 处理根路径重定向到 /tools/
+    # ========================================
+    RewriteCond %{REQUEST_URI} ^/$ [NC]
+    RewriteRule ^(.*)$ /tools/ [R=301,L]
+    
+    # ========================================
+    # SPA 路由支持 - 处理 /tools/ 路径下的路由
+    # ========================================
+    # 如果请求的是真实文件或目录，直接访问
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    
+    # 否则重定向到 index.html（SPA 路由）
+    RewriteRule ^ index.html [L]
+</IfModule>
+
+# ========================================
+# MIME 类型配置（PDF.js Worker 支持）
+# ========================================
+<IfModule mod_mime.c>
+    AddType application/javascript .mjs
+    AddType application/javascript .js
+</IfModule>
+
+# ========================================
+# 缓存控制
+# ========================================
+<IfModule mod_expires.c>
+    ExpiresActive On
+    # HTML 文件不缓存
+    ExpiresByType text/html "access plus 0 seconds"
+    # 静态资源缓存 1 年
+    ExpiresByType text/css "access plus 1 year"
+    ExpiresByType application/javascript "access plus 1 year"
+    ExpiresByType image/png "access plus 1 year"
+    ExpiresByType image/jpg "access plus 1 year"
+    ExpiresByType image/jpeg "access plus 1 year"
+    ExpiresByType image/gif "access plus 1 year"
+    ExpiresByType image/svg+xml "access plus 1 year"
+    ExpiresByType application/json "access plus 0 seconds"
+</IfModule>
+
+# ========================================
+# 安全头设置
+# ========================================
+<IfModule mod_headers.c>
+    # 防止点击劫持
+    Header set X-Frame-Options "SAMEORIGIN"
+    # 防止 MIME 类型嗅探
+    Header set X-Content-Type-Options "nosniff"
+    # 启用 XSS 保护
+    Header set X-XSS-Protection "1; mode=block"
+    # 引用策略
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# ========================================
+# 字符编码
+# ========================================
+AddDefaultCharset UTF-8

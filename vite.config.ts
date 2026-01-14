@@ -91,6 +91,11 @@ export default defineConfig({
   server: {
     port: 3000,
     open: true
+    // 注意：Vite 默认支持 SPA 路由，无需额外配置
+  },
+  preview: {
+    port: 3000
+    // 注意：Vite 预览模式默认支持 SPA 路由
   }
 })
 
