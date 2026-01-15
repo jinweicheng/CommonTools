@@ -794,12 +794,13 @@ export default function LivePhotoConverter() {
               onClick={() => heicInputRef.current?.click()}
               disabled={isProcessing}
             >
-              <ImageIcon size={24} />
+              <ImageIcon />
               <span>{t('livePhoto.uploadHeic')}</span>
+              <small>{language === 'zh-CN' ? '支持 .heic 格式' : 'Supports .heic format'}</small>
             </button>
             {livePhoto.heic && (
               <div className="file-info">
-                <CheckCircle size={16} className="check-icon" />
+                <CheckCircle className="check-icon" />
                 <span className="file-name">{livePhoto.heic.name}</span>
                 <span className="file-size">{formatFileSize(livePhoto.heic.size)}</span>
               </div>
@@ -820,12 +821,13 @@ export default function LivePhotoConverter() {
               onClick={() => movInputRef.current?.click()}
               disabled={isProcessing}
             >
-              <Film size={24} />
+              <Film />
               <span>{t('livePhoto.uploadMov')}</span>
+              <small>{language === 'zh-CN' ? '支持 .mov, .mp4 格式' : 'Supports .mov, .mp4 format'}</small>
             </button>
             {livePhoto.mov && (
               <div className="file-info">
-                <CheckCircle size={16} className="check-icon" />
+                <CheckCircle className="check-icon" />
                 <span className="file-name">{livePhoto.mov.name}</span>
                 <span className="file-size">{formatFileSize(livePhoto.mov.size)}</span>
               </div>
@@ -839,8 +841,8 @@ export default function LivePhotoConverter() {
             onClick={handleClearFiles}
             disabled={isProcessing}
           >
-            <Trash2 size={18} />
-            {t('livePhoto.clearFiles')}
+            <Trash2 />
+            <span>{t('livePhoto.clearFiles')}</span>
           </button>
         )}
       </div>
@@ -848,13 +850,14 @@ export default function LivePhotoConverter() {
       {/* 转换模式选择 */}
       <div className="mode-selector">
         <h3>{t('livePhoto.selectMode')}</h3>
+        <p>{language === 'zh-CN' ? '选择您想要的输出格式' : 'Choose your desired output format'}</p>
         <div className="mode-buttons">
           <button
             className={`mode-button ${mode === 'static' ? 'active' : ''}`}
             onClick={() => setMode('static')}
             disabled={isProcessing}
           >
-            <ImageIcon size={20} />
+            <ImageIcon />
             <span>{t('livePhoto.modeStatic')}</span>
             <small>{t('livePhoto.modeStaticDesc')}</small>
           </button>
@@ -864,7 +867,7 @@ export default function LivePhotoConverter() {
             onClick={() => setMode('gif')}
             disabled={isProcessing}
           >
-            <Play size={20} />
+            <Play />
             <span>{t('livePhoto.modeGif')}</span>
             <small>{t('livePhoto.modeGifDesc')}</small>
           </button>
@@ -874,7 +877,7 @@ export default function LivePhotoConverter() {
             onClick={() => setMode('mp4')}
             disabled={isProcessing}
           >
-            <FileVideo size={20} />
+            <FileVideo />
             <span>{t('livePhoto.modeMp4')}</span>
             <small>{t('livePhoto.modeMp4Desc')}</small>
           </button>
