@@ -141,6 +141,16 @@ server {
         expires 1y;
         add_header Cache-Control "public, immutable";
     }
+    
+    # ========================================
+    # FFmpeg WASM 支持（SharedArrayBuffer）
+    # ========================================
+    location ~* \.(wasm|js)$ {
+        add_header Cross-Origin-Opener-Policy "same-origin";
+        add_header Cross-Origin-Embedder-Policy "require-corp";
+        add_header Cross-Origin-Resource-Policy "cross-origin";
+        add_header Access-Control-Allow-Origin *;
+    }
 
     # ========================================
     # 静态资源缓存（JS, CSS, 图片等）

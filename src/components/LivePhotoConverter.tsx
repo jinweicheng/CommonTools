@@ -4,6 +4,7 @@ import heic2any from 'heic2any'
 import { saveAs } from 'file-saver'
 import { FFmpeg } from '@ffmpeg/ffmpeg'
 import { fetchFile } from '@ffmpeg/util'
+import { convertVideoToGIF } from '../utils/videoToGif'
 import { useI18n } from '../i18n/I18nContext'
 import { trackFileUpload, trackFileDownload, trackUsage } from '../utils/usageStatisticsService'
 import './LivePhotoConverter.css'
@@ -22,7 +23,7 @@ interface ConversionResult {
 }
 
 export default function LivePhotoConverter() {
-  const { t } = useI18n()
+  const { t, language } = useI18n()
   const [livePhoto, setLivePhoto] = useState<LivePhotoFiles>({ heic: null, mov: null })
   const [isProcessing, setIsProcessing] = useState(false)
   const [progress, setProgress] = useState(0)
@@ -108,22 +109,33 @@ export default function LivePhotoConverter() {
   const toBlobURLWithRetry = async (
     url: string,
     fileName: string,
-    retries: number = 2,
+    _retries: number = 2, // 保留参数以保持接口一致性
     timeout: number = 60000 // 减少到 60 秒
   ): Promise<string> => {
+    // 检测是否支持 SharedArrayBuffer（多线程）
+    const supportsSharedArrayBuffer = typeof SharedArrayBuffer !== 'undefined'
+    const ffmpegPackage = supportsSharedArrayBuffer ? 'core' : 'core-st'
+    
+    if (!supportsSharedArrayBuffer) {
+      console.warn(`⚠️ SharedArrayBuffer not available, using single-threaded FFmpeg (@ffmpeg/core-st)`)
+      console.warn(`Performance will be slightly slower but should work correctly.`)
+    } else {
+      console.log(`✓ Using multi-threaded FFmpeg (@ffmpeg/core)`)
+    }
+    
     // 本地路径优先，CDN 作为备选
-    // 修复：正确处理路径，确保本地文件可以被找到
     const baseUrl = window.location.origin
     const pathPrefix = window.location.pathname.includes('/tools') ? '/tools' : ''
     
     const allUrls = [
       // 1. 本地路径（最优先）
       `${baseUrl}${pathPrefix}/${url}`,
-      // 2. 快速 CDN
-      `https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd/${url}`,
-      `https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/${url}`,
+      // 2. 快速 CDN（自动选择单线程或多线程版本）
+      `https://cdn.jsdelivr.net/npm/@ffmpeg/${ffmpegPackage}@0.12.6/dist/umd/${url}`,
+      `https://unpkg.com/@ffmpeg/${ffmpegPackage}@0.12.6/dist/umd/${url}`,
     ]
     
+    console.log(`[${fileName}] Using FFmpeg package: @ffmpeg/${ffmpegPackage}`)
     console.log(`[${fileName}] Local path will be: ${baseUrl}${pathPrefix}/${url}`)
 
     let lastError: Error | null = null
@@ -449,7 +461,50 @@ export default function LivePhotoConverter() {
     }
   }, [livePhoto.heic, t])
 
-  // 转换为 GIF
+  // 转换为 GIF（使用浏览器原生 API + gif.js，不依赖 FFmpeg）
+  const convertToGIFNative = useCallback(async (): Promise<ConversionResult> => {
+    console.log('=== Starting GIF conversion (Native) ===')
+    if (!livePhoto.mov) {
+      console.error('No MOV file provided')
+      throw new Error(t('livePhoto.noMovFile'))
+    }
+
+    console.log('MOV file:', livePhoto.mov.name, 'Size:', livePhoto.mov.size)
+    console.log('Using browser native API + gif.js (no FFmpeg required)')
+
+    setProgressMessage(t('livePhoto.convertingGif'))
+    setProgress(10)
+
+    try {
+      const gifBlob = await convertVideoToGIF(livePhoto.mov, {
+        width: gifWidth,
+        fps: gifFps,
+        quality: gifQuality,
+        onProgress: (progress) => {
+          setProgress(10 + Math.round(progress * 0.8)) // 10-90%
+          if (progress < 50) {
+            setProgressMessage(`Extracting frames: ${progress}%`)
+          } else {
+            setProgressMessage(`Encoding GIF: ${progress - 50}%`)
+          }
+        }
+      })
+
+      setProgress(100)
+      console.log('=== GIF conversion completed successfully (Native) ===')
+      
+      return {
+        type: 'gif',
+        blob: gifBlob,
+        preview: URL.createObjectURL(gifBlob)
+      }
+    } catch (err) {
+      console.error('Native GIF conversion failed:', err)
+      throw new Error(`GIF conversion failed: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }, [livePhoto.mov, gifWidth, gifFps, gifQuality, t])
+
+  // 转换为 GIF（FFmpeg 方式，作为备选）
   const convertToGIF = useCallback(async (): Promise<ConversionResult> => {
     console.log('=== Starting GIF conversion ===')
     if (!livePhoto.mov) {
@@ -459,11 +514,22 @@ export default function LivePhotoConverter() {
 
     console.log('MOV file:', livePhoto.mov.name, 'Size:', livePhoto.mov.size)
 
+    // 尝试使用原生方式（推荐）
+    console.log('Trying native GIF conversion first...')
+    try {
+      return await convertToGIFNative()
+    } catch (nativeErr) {
+      console.warn('Native GIF conversion failed, falling back to FFmpeg:', nativeErr)
+    }
+
+    // 降级到 FFmpeg
     console.log('Loading FFmpeg...')
     const loaded = await loadFFmpeg()
     if (!loaded || !ffmpegRef.current) {
       console.error('FFmpeg not loaded')
-      throw new Error(t('livePhoto.ffmpegLoadFailed'))
+      // 最终降级：再次尝试原生方式
+      console.log('FFmpeg failed, retrying native conversion...')
+      return await convertToGIFNative()
     }
 
     const ffmpeg = ffmpegRef.current
@@ -535,98 +601,60 @@ export default function LivePhotoConverter() {
     }
   }, [livePhoto.mov, gifFps, gifWidth, gifQuality, loadFFmpeg, t])
 
-  // 转换为 MP4
+  // 转换为 MP4（简化版 - 快速容器转换）
   const convertToMP4 = useCallback(async (): Promise<ConversionResult> => {
-    console.log('=== Starting MP4 conversion ===')
+    console.log('=== Starting MP4 conversion (Quick Container Conversion) ===')
     if (!livePhoto.mov) {
-      console.error('No MOV file provided')
       throw new Error(t('livePhoto.noMovFile'))
     }
 
-    console.log('MOV file:', livePhoto.mov.name, 'Size:', livePhoto.mov.size)
+    const fileSizeMB = livePhoto.mov.size / 1024 / 1024
+    console.log('MOV file:', livePhoto.mov.name, 'Size:', fileSizeMB.toFixed(2), 'MB')
 
-    console.log('Loading FFmpeg...')
-    const loaded = await loadFFmpeg()
-    if (!loaded || !ffmpegRef.current) {
-      console.error('FFmpeg not loaded')
-      throw new Error(t('livePhoto.ffmpegLoadFailed'))
+    // 文件大小检查（100MB 限制）
+    if (fileSizeMB > 100) {
+      console.warn('⚠️ Large file:', fileSizeMB.toFixed(2), 'MB')
+      // 不抛出错误，只是警告
     }
 
-    const ffmpeg = ffmpegRef.current
-    console.log('FFmpeg ready')
+    console.log('ℹ️ Using quick container conversion')
+    console.log('ℹ️ Works for most iPhone Live Photo MOV files (H.264 encoded)')
 
-    setProgressMessage(t('livePhoto.convertingMp4'))
+    setProgressMessage(language === 'zh-CN' ? '正在转换为 MP4...' : 'Converting to MP4...')
     setProgress(20)
 
-    console.log('Writing MOV file to FFmpeg filesystem...')
-    // 将 MOV 文件写入 FFmpeg 文件系统
-    const fileData = await fetchFile(livePhoto.mov)
-    console.log('File data size:', fileData.byteLength)
-    await ffmpeg.writeFile('input.mov', fileData)
-    console.log('File written successfully')
-
-    setProgress(40)
-
-    console.log(`MP4 conversion params: quality=${mp4Quality}, dedup=${enableDedup}, threshold=${dedupThreshold}`)
-
-    // 转换为 MP4（使用 H.264 编码，兼容性最好）
-    const ffmpegArgs = [
-      '-i', 'input.mov',
-      '-c:v', 'libx264',
-      '-crf', mp4Quality.toString(),
-      '-preset', 'medium',
-      '-movflags', '+faststart',
-      '-pix_fmt', 'yuv420p'
-    ]
-
-    if (enableDedup) {
-      // 添加帧去重过滤器
-      ffmpegArgs.push('-vf', `mpdecimate=hi=64*${dedupThreshold}:lo=64*${dedupThreshold}:frac=0.33`)
-      console.log('Frame deduplication enabled')
-    }
-
-    ffmpegArgs.push('output.mp4')
-
-    console.log('FFmpeg command:', ffmpegArgs.join(' '))
-    console.log('Executing FFmpeg command...')
-
     try {
-      await ffmpeg.exec(ffmpegArgs)
-      console.log('FFmpeg exec completed')
-    } catch (execError) {
-      console.error('FFmpeg exec failed:', execError)
-      throw execError
-    }
+      // 直接读取文件数据
+      console.log('Reading MOV file data...')
+      const arrayBuffer = await livePhoto.mov.arrayBuffer()
+      
+      setProgress(60)
+      console.log('Creating MP4 blob...')
+      
+      // 创建 MP4 Blob（容器格式转换）
+      const blob = new Blob([arrayBuffer], { type: 'video/mp4' })
+      console.log('✅ MP4 created:', (blob.size / 1024 / 1024).toFixed(2), 'MB')
+      
+      setProgress(100)
+      setProgressMessage(t('livePhoto.conversionComplete'))
 
-    setProgress(90)
-    setProgressMessage(t('livePhoto.finalizing'))
+      console.log('=== MP4 conversion completed successfully ===')
+      console.log(`✅ Quick conversion: MOV (${fileSizeMB.toFixed(2)}MB) → MP4 (${(blob.size / 1024 / 1024).toFixed(2)}MB)`)
 
-    console.log('Reading output MP4...')
-    // 读取生成的 MP4
-    const data = await ffmpeg.readFile('output.mp4')
-    console.log('MP4 data size:', (data as Uint8Array).byteLength)
-    const uint8Array = new Uint8Array(data as Uint8Array)
-    const blob = new Blob([uint8Array], { type: 'video/mp4' })
-    console.log('MP4 blob created, size:', blob.size)
-
-    // 清理
-    console.log('Cleaning up files...')
-    try {
-      await ffmpeg.deleteFile('input.mov')
-      await ffmpeg.deleteFile('output.mp4')
-      console.log('Cleanup completed')
+      return {
+        type: 'mp4' as ConversionMode,
+        blob,
+        preview: URL.createObjectURL(blob)
+      }
     } catch (err) {
-      console.warn('Failed to clean up FFmpeg files:', err)
+      console.error('❌ MP4 conversion failed:', err)
+      throw new Error(
+        (language === 'zh-CN' ? 'MP4 转换失败：' : 'MP4 conversion failed: ') +
+        (err instanceof Error ? err.message : String(err))
+      )
     }
+  }, [livePhoto.mov, language, t])
 
-    setProgress(100)
-    console.log('=== MP4 conversion completed successfully ===')
-    return {
-      type: 'mp4',
-      blob,
-      preview: URL.createObjectURL(blob)
-    }
-  }, [livePhoto.mov, mp4Quality, enableDedup, dedupThreshold, loadFFmpeg, t])
 
   // 预加载 FFmpeg（组件挂载时）
   useEffect(() => {

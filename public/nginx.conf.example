@@ -60,6 +60,16 @@ server {
     }
     
     # ========================================
+    # FFmpeg WASM 支持（SharedArrayBuffer）
+    # ========================================
+    location ~* \.(wasm|js)$ {
+        add_header Cross-Origin-Opener-Policy "same-origin";
+        add_header Cross-Origin-Embedder-Policy "require-corp";
+        add_header Cross-Origin-Resource-Policy "cross-origin";
+        add_header Access-Control-Allow-Origin *;
+    }
+    
+    # ========================================
     # 静态资源缓存
     # ========================================
     location ~* \.(jpg|jpeg|png|gif|ico|css|js|svg|woff|woff2|ttf|eot)$ {

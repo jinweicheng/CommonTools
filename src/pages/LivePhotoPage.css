@@ -1,5 +1,5 @@
 /* ========================================
-   Live Photo 页面样式 - 专业商用级
+   Live Photo 页面样式 - 专业商用级 + 完整功能
    ======================================== */
 
 .live-photo-page {
@@ -8,6 +8,7 @@
   padding: 2.5rem 2rem;
   background: linear-gradient(180deg, #fafbfc 0%, #ffffff 100%);
   min-height: 100vh;
+  position: relative;
 }
 
 /* ========================================
@@ -77,8 +78,461 @@
   font-weight: 500;
 }
 
-.live-photo-page .page-content {
-  animation: fadeInUp 0.5s ease-out;
+/* ========================================
+   标签导航
+   ======================================== */
+
+.live-photo-tabs {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  background: white;
+  padding: 0.75rem;
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+.tab-button {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #64748b;
+  background: transparent;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.tab-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.tab-button:hover {
+  color: #667eea;
+  background: rgba(102, 126, 234, 0.05);
+  transform: translateY(-2px);
+}
+
+.tab-button.active {
+  color: white;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  box-shadow: 0 8px 16px rgba(102, 126, 234, 0.3);
+}
+
+.tab-button.active::before {
+  opacity: 1;
+}
+
+.tab-icon {
+  font-size: 1.25rem;
+  position: relative;
+  z-index: 1;
+}
+
+.tab-button span {
+  position: relative;
+  z-index: 1;
+}
+
+/* ========================================
+   标签内容
+   ======================================== */
+
+.tab-content {
+  animation: fadeIn 0.4s ease-out;
+}
+
+/* ========================================
+   特性展示
+   ======================================== */
+
+.features-section {
+  margin-top: 3rem;
+  padding: 3rem;
+  background: white;
+  border-radius: 24px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+.features-title {
+  font-size: 2rem;
+  font-weight: 800;
+  text-align: center;
+  margin-bottom: 2.5rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+.feature-card {
+  padding: 2rem;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border-radius: 16px;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.feature-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  transform: scaleX(0);
+  transition: transform 0.3s ease;
+}
+
+.feature-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(102, 126, 234, 0.15);
+}
+
+.feature-card:hover::before {
+  transform: scaleX(1);
+}
+
+.feature-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  display: inline-block;
+  animation: float 3s ease-in-out infinite;
+}
+
+.feature-card h3 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 0.75rem;
+}
+
+.feature-card p {
+  font-size: 0.95rem;
+  color: #64748b;
+  line-height: 1.6;
+  margin: 0;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+/* ========================================
+   使用指南
+   ======================================== */
+
+.guide-section {
+  padding: 3rem;
+  background: white;
+  border-radius: 24px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+.guide-section h2 {
+  font-size: 2rem;
+  font-weight: 800;
+  margin-bottom: 2.5rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.guide-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  margin-bottom: 3rem;
+}
+
+.guide-step {
+  display: flex;
+  gap: 1.5rem;
+  padding: 2rem;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border-radius: 16px;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  transition: all 0.3s ease;
+}
+
+.guide-step:hover {
+  transform: translateX(8px);
+  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.1);
+}
+
+.step-number {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: white;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.step-content h3 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0 0 0.75rem 0;
+}
+
+.step-content p {
+  font-size: 0.95rem;
+  color: #64748b;
+  line-height: 1.7;
+  margin: 0;
+}
+
+.settings-tips {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: rgba(102, 126, 234, 0.05);
+  border-radius: 8px;
+  border-left: 3px solid #667eea;
+}
+
+.tip-item {
+  font-size: 0.9rem;
+  color: #475569;
+  line-height: 1.8;
+}
+
+.tip-item strong {
+  color: #667eea;
+}
+
+.guide-tips {
+  padding: 2rem;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+  border-radius: 16px;
+  border: 1px solid rgba(102, 126, 234, 0.2);
+}
+
+.guide-tips h3 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0 0 1rem 0;
+}
+
+.guide-tips ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.guide-tips li {
+  padding: 0.75rem 0;
+  padding-left: 2rem;
+  position: relative;
+  color: #475569;
+  line-height: 1.6;
+}
+
+.guide-tips li::before {
+  content: '✓';
+  position: absolute;
+  left: 0;
+  color: #667eea;
+  font-weight: bold;
+  font-size: 1.2rem;
+}
+
+/* ========================================
+   常见问题
+   ======================================== */
+
+.faq-section {
+  padding: 3rem;
+  background: white;
+  border-radius: 24px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+.faq-section h2 {
+  font-size: 2rem;
+  font-weight: 800;
+  margin-bottom: 2.5rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.faq-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.faq-item {
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border-radius: 12px;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.faq-item:hover {
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.1);
+}
+
+.faq-item summary {
+  padding: 1.5rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #1e293b;
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  transition: all 0.3s ease;
+}
+
+.faq-item summary::-webkit-details-marker {
+  display: none;
+}
+
+.faq-item summary::before {
+  content: '+';
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: white;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 6px;
+  transition: all 0.3s ease;
+}
+
+.faq-item[open] summary::before {
+  content: '−';
+  transform: rotate(180deg);
+}
+
+.faq-item summary:hover {
+  color: #667eea;
+  padding-left: 2rem;
+}
+
+.faq-item p,
+.faq-item div {
+  padding: 0 1.5rem 1.5rem 1.5rem;
+  color: #64748b;
+  line-height: 1.7;
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.faq-item ul {
+  padding-left: 1.5rem;
+  margin: 0.5rem 0;
+}
+
+.faq-item li {
+  padding: 0.25rem 0;
+  color: #475569;
+}
+
+.recommendation {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: rgba(102, 126, 234, 0.05);
+  border-radius: 8px;
+  border-left: 3px solid #667eea;
+}
+
+.recommendation strong {
+  color: #667eea;
+}
+
+/* ========================================
+   页脚
+   ======================================== */
+
+.live-photo-footer {
+  margin-top: 4rem;
+  padding: 2rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 20px;
+  box-shadow: 0 8px 32px rgba(102, 126, 234, 0.3);
+  text-align: center;
+}
+
+.footer-content {
+  color: white;
+}
+
+.footer-text {
+  font-size: 1rem;
+  margin: 0 0 0.75rem 0;
+  font-weight: 500;
+}
+
+.footer-tech {
+  font-size: 0.9rem;
+  margin: 0;
+  opacity: 0.9;
+  font-weight: 400;
+}
+
+/* ========================================
+   动画效果
+   ======================================== */
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes fadeInUp {
@@ -90,6 +544,14 @@
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+.fade-in {
+  animation: fadeIn 0.4s ease-out;
+}
+
+.fade-in-up {
+  animation: fadeInUp 0.6s ease-out;
 }
 
 /* ========================================
@@ -107,6 +569,16 @@
 
   .live-photo-page .page-header h1 {
     font-size: 2.5rem;
+  }
+
+  .features-grid {
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  }
+
+  .guide-section,
+  .faq-section,
+  .features-section {
+    padding: 2rem;
   }
 }
 
@@ -129,6 +601,37 @@
   .live-photo-page .page-subtitle {
     font-size: 1rem;
   }
+
+  .live-photo-tabs {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .tab-button {
+    padding: 0.875rem 1rem;
+  }
+
+  .features-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .features-title,
+  .guide-section h2,
+  .faq-section h2 {
+    font-size: 1.5rem;
+  }
+
+  .guide-step {
+    flex-direction: column;
+    padding: 1.5rem;
+  }
+
+  .guide-section,
+  .faq-section,
+  .features-section {
+    padding: 1.5rem;
+    border-radius: 16px;
+  }
 }
 
 @media (max-width: 480px) {
@@ -142,5 +645,37 @@
 
   .live-photo-page .page-header h1 {
     font-size: 1.75rem;
+  }
+
+  .tab-button {
+    font-size: 0.9rem;
+    padding: 0.75rem;
+  }
+
+  .tab-icon {
+    font-size: 1rem;
+  }
+
+  .feature-card,
+  .guide-step,
+  .faq-item {
+    padding: 1.25rem;
+  }
+
+  .feature-icon {
+    font-size: 2.5rem;
+  }
+
+  .live-photo-footer {
+    padding: 1.5rem;
+    margin-top: 3rem;
+  }
+
+  .footer-text {
+    font-size: 0.9rem;
+  }
+
+  .footer-tech {
+    font-size: 0.8rem;
   }
 }

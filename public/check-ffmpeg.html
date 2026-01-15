@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>FFmpeg Environment Check</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .check { margin: 10px 0; padding: 10px; border-radius: 4px; }
+        .pass { background: #d4edda; color: #155724; }
+        .fail { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        h2 { color: #333; }
+        pre { background: #f4f4f4; padding: 10px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🔍 FFmpeg WASM Environment Check</h1>
+    <div id="results"></div>
+
+    <script>
+        const results = [];
+        const resultsDiv = document.getElementById('results');
+
+        function addResult(title, status, message, details = '') {
+            const className = status === 'pass' ? 'pass' : status === 'fail' ? 'fail' : 'info';
+            const icon = status === 'pass' ? '✅' : status === 'fail' ? '❌' : 'ℹ️';
+            results.push({title, status, message, details});
+            
+            const div = document.createElement('div');
+            div.className = `check ${className}`;
+            div.innerHTML = `
+                <strong>${icon} ${title}</strong><br>
+                ${message}
+                ${details ? `<pre>${details}</pre>` : ''}
+            `;
+            resultsDiv.appendChild(div);
+        }
+
+        // Check 1: WebAssembly
+        if (typeof WebAssembly !== 'undefined') {
+            addResult('WebAssembly Support', 'pass', 'WebAssembly is supported');
+        } else {
+            addResult('WebAssembly Support', 'fail', 'WebAssembly is NOT supported');
+        }
+
+        // Check 2: SharedArrayBuffer
+        if (typeof SharedArrayBuffer !== 'undefined') {
+            addResult('SharedArrayBuffer', 'pass', 'SharedArrayBuffer is available (multi-threaded FFmpeg will work)');
+        } else {
+            addResult('SharedArrayBuffer', 'fail', 
+                'SharedArrayBuffer is NOT available',
+                'This means COOP/COEP headers are not set correctly.\nFFmpeg multi-threaded version will not work.\n\nSolution: Use single-threaded FFmpeg version.'
+            );
+        }
+
+        // Check 3: Memory
+        if (performance.memory) {
+            const limitMB = (performance.memory.jsHeapSizeLimit / 1024 / 1024).toFixed(0);
+            const usedMB = (performance.memory.usedJSHeapSize / 1024 / 1024).toFixed(0);
+            if (limitMB > 1024) {
+                addResult('Memory', 'pass', 
+                    `Sufficient memory available`,
+                    `Limit: ${limitMB}MB\nUsed: ${usedMB}MB`
+                );
+            } else {
+                addResult('Memory', 'fail', 
+                    `Low memory limit`,
+                    `Limit: ${limitMB}MB (should be > 1024MB)\nUsed: ${usedMB}MB`
+                );
+            }
+        } else {
+            addResult('Memory', 'info', 'Memory info not available (Firefox)');
+        }
+
+        // Check 4: COOP/COEP Headers
+        fetch(window.location.href)
+            .then(response => {
+                const coop = response.headers.get('cross-origin-opener-policy');
+                const coep = response.headers.get('cross-origin-embedder-policy');
+                
+                if (coop === 'same-origin' && coep === 'require-corp') {
+                    addResult('HTTP Headers', 'pass', 
+                        'COOP and COEP headers are set correctly',
+                        `COOP: ${coop}\nCOEP: ${coep}`
+                    );
+                } else {
+                    addResult('HTTP Headers', 'fail',
+                        'COOP/COEP headers are missing or incorrect',
+                        `COOP: ${coop || 'NOT SET'}\nCOEP: ${coep || 'NOT SET'}\n\nRequired:\nCOOP: same-origin\nCOEP: require-corp`
+                    );
+                }
+            })
+            .catch(err => {
+                addResult('HTTP Headers', 'fail', 'Failed to check headers', err.toString());
+            });
+
+        // Check 5: Browser
+        const ua = navigator.userAgent;
+        let browser = 'Unknown';
+        if (ua.includes('Chrome/')) browser = 'Chrome ' + ua.match(/Chrome\/(\d+)/)[1];
+        else if (ua.includes('Firefox/')) browser = 'Firefox ' + ua.match(/Firefox\/(\d+)/)[1];
+        else if (ua.includes('Safari/')) browser = 'Safari';
+        else if (ua.includes('Edge/')) browser = 'Edge ' + ua.match(/Edge\/(\d+)/)[1];
+        
+        addResult('Browser', 'info', browser, navigator.userAgent);
+
+        // Summary and Recommendation
+        setTimeout(() => {
+            const div = document.createElement('div');
+            div.className = 'check info';
+            div.innerHTML = `
+                <h2>📋 Summary</h2>
+                <p><strong>Recommendation:</strong></p>
+                ${typeof SharedArrayBuffer === 'undefined' ? `
+                    <p style="color: #856404; background: #fff3cd; padding: 10px; border-radius: 4px;">
+                        ⚠️ <strong>SharedArrayBuffer is not available.</strong><br><br>
+                        <strong>Solution 1 (Recommended):</strong> Use single-threaded FFmpeg<br>
+                        Change @ffmpeg/core to @ffmpeg/core-st (single-threaded)<br><br>
+                        <strong>Solution 2:</strong> Fix HTTP headers<br>
+                        Ensure vite.config.ts middleware is working correctly
+                    </p>
+                ` : `
+                    <p style="color: #155724; background: #d4edda; padding: 10px; border-radius: 4px;">
+                        ✅ Your environment supports multi-threaded FFmpeg!
+                    </p>
+                `}
+            `;
+            resultsDiv.appendChild(div);
+        }, 1000);
+    </script>
+</body>
+</html>
