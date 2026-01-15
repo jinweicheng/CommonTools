@@ -10,6 +10,7 @@ import SignaturePage from './pages/SignaturePage'
 import PasswordManagerPage from './pages/PasswordManagerPage'
 import CompressionPage from './pages/CompressionPage'
 import HEICToJPGPage from './pages/HEICToJPGPage'
+import LivePhotoPage from './pages/LivePhotoPage'
 import LoginPage from './pages/LoginPage'
 import SupportPage from './pages/SupportPage'
 import SupportPolicyPage from './pages/SupportPolicyPage'
@@ -48,6 +49,9 @@ function App() {
               
               {/* HEIC转JPG */}
               <Route path="/heic-to-jpg" element={<HEICToJPGPage />} />
+              
+              {/* Live Photo转换 */}
+              <Route path="/live-photo" element={<LivePhotoPage />} />
               
               {/* Support & Policy Pages */}
               <Route path="/support" element={<SupportPage />} />

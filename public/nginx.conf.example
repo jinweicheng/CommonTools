@@ -31,7 +31,7 @@ server {
     }
     
     # 处理不带 /tools/ 前缀的路径（重定向到 /tools/ 或直接服务 index.html）
-    location ~ ^/(conversion|watermark|signature|compression|heic-to-jpg|password-manager|support|support-policy|privacy-policy|terms-of-service|login)/?$ {
+    location ~ ^/(conversion|watermark|signature|compression|heic-to-jpg|live-photo|password-manager|support|support-policy|privacy-policy|terms-of-service|login)/?$ {
         # 301 永久重定向到带 /tools/ 前缀的URL（推荐，SEO友好）
         rewrite ^/(.*)$ /tools/$1 permanent;
         

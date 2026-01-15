@@ -44,7 +44,7 @@ server {
     # 处理不带 /tools/ 前缀的路径（301重定向）
     # 支持：/conversion, /watermark, /signature 等
     # ========================================
-    location ~ ^/(conversion|watermark|signature|compression|heic-to-jpg|password-manager|support|support-policy|privacy-policy|terms-of-service|login)/?$ {
+    location ~ ^/(conversion|watermark|signature|compression|heic-to-jpg|live-photo|password-manager|support|support-policy|privacy-policy|terms-of-service|login)/?$ {
         return 301 /tools$request_uri;
     }
 

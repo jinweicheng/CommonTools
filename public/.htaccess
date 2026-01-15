@@ -12,7 +12,7 @@
     # 处理不带 /tools/ 前缀的路径（重定向到带前缀的URL）
     # ========================================
     # 匹配不带 /tools/ 前缀的路由路径
-    RewriteCond %{REQUEST_URI} ^/(conversion|watermark|signature|compression|heic-to-jpg|password-manager|support|support-policy|privacy-policy|terms-of-service|login)/?$ [NC]
+    RewriteCond %{REQUEST_URI} ^/(conversion|watermark|signature|compression|heic-to-jpg|live-photo|password-manager|support|support-policy|privacy-policy|terms-of-service|login)/?$ [NC]
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteRule ^(.*)$ /tools/$1 [R=301,L]
