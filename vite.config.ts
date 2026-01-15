@@ -90,8 +90,18 @@ export default defineConfig({
   },
   server: {
     port: 3000,
-    open: true
+    open: true,
     // 注意：Vite 默认支持 SPA 路由，无需额外配置
+    // API 代理配置（开发环境）
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:8080',
+        changeOrigin: true,
+        secure: false,
+        // 如果后端API路径不需要/api前缀，可以重写路径
+        // rewrite: (path) => path.replace(/^\/api/, '')
+      }
+    }
   },
   preview: {
     port: 3000

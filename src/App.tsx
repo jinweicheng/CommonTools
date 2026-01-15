@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import { I18nProvider } from './i18n/I18nContext'
+import { StatisticsProvider } from './contexts/StatisticsProvider'
 import Layout from './components/Layout'
 import EncryptionPage from './pages/EncryptionPage'
 import ConversionPage from './pages/ConversionPage'
@@ -21,8 +22,9 @@ function App() {
     <I18nProvider>
       <AuthProvider>
         <Router basename="/tools">
-          <Layout>
-            <Routes>
+          <StatisticsProvider>
+            <Layout>
+              <Routes>
               {/* 登录页面 */}
               <Route path="/login" element={<LoginPage />} />
               
@@ -55,8 +57,9 @@ function App() {
               
               {/* 重定向未知路由到首页 */}
               <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </Layout>
+              </Routes>
+            </Layout>
+          </StatisticsProvider>
         </Router>
       </AuthProvider>
     </I18nProvider>

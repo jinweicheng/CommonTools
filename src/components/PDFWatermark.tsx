@@ -4,6 +4,7 @@ import { PDFDocument, rgb, degrees } from 'pdf-lib'
 import { saveAs } from 'file-saver'
 import * as pdfjsLib from 'pdfjs-dist'
 import { useI18n } from '../i18n/I18nContext'
+import { trackFileUpload, trackFileDownload } from '../utils/usageStatisticsService'
 import '../utils/pdfWorkerConfig'
 import './PDFWatermark.css'
 
@@ -311,6 +312,9 @@ export default function PDFWatermark() {
     setPreviewUrl(null)
     setIsPreviewReady(false)
 
+    // 统计：文件上传
+    trackFileUpload('watermark', type)
+
     // 如果是图片，显示原始图片预览
     if (type === 'image') {
       const reader = new FileReader()
@@ -388,6 +392,9 @@ export default function PDFWatermark() {
       const ext = originalFile.name.split('.').pop()?.toLowerCase() || 'pdf'
       const newName = originalFile.name.replace(`.${ext}`, `-watermarked.${ext}`)
       saveAs(processedBlob, newName)
+      
+      // 统计：文件下载
+      trackFileDownload('watermark', fileType)
     } catch (err) {
       console.error('下载失败:', err)
       setError(t('watermark.processFailed') + (err instanceof Error ? err.message : t('common.unknownError')))
