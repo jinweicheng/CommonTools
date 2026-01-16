@@ -780,7 +780,7 @@ export default function LivePhotoConverter() {
       {/* 文件上传区域 */}
       <div className="upload-area">
         <div className="upload-section">
-          <div className="upload-box">
+          {/* <div className="upload-box">
             <input
               ref={heicInputRef}
               type="file"
@@ -805,7 +805,7 @@ export default function LivePhotoConverter() {
                 <span className="file-size">{formatFileSize(livePhoto.heic.size)}</span>
               </div>
             )}
-          </div>
+          </div> */}
 
           <div className="upload-box">
             <input
@@ -852,7 +852,7 @@ export default function LivePhotoConverter() {
         <h3>{t('livePhoto.selectMode')}</h3>
         <p>{language === 'zh-CN' ? '选择您想要的输出格式' : 'Choose your desired output format'}</p>
         <div className="mode-buttons">
-          <button
+          {/* <button
             className={`mode-button ${mode === 'static' ? 'active' : ''}`}
             onClick={() => setMode('static')}
             disabled={isProcessing}
@@ -860,7 +860,7 @@ export default function LivePhotoConverter() {
             <ImageIcon />
             <span>{t('livePhoto.modeStatic')}</span>
             <small>{t('livePhoto.modeStaticDesc')}</small>
-          </button>
+          </button> */}
           
           <button
             className={`mode-button ${mode === 'gif' ? 'active' : ''}`}
