@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { Download, Play, Image as ImageIcon, Film, FileVideo, Loader2, Settings, Trash2, CheckCircle, AlertCircle } from 'lucide-react'
+import { Download, Play, Film, FileVideo, Loader2, Settings, Trash2, CheckCircle, AlertCircle } from 'lucide-react'
 import heic2any from 'heic2any'
 import { saveAs } from 'file-saver'
 import { FFmpeg } from '@ffmpeg/ffmpeg'
@@ -44,7 +44,6 @@ export default function LivePhotoConverter() {
   const [enableDedup, setEnableDedup] = useState(true)
   const [dedupThreshold, setDedupThreshold] = useState(5) // 0-100, 相似度阈值
   
-  const heicInputRef = useRef<HTMLInputElement>(null)
   const movInputRef = useRef<HTMLInputElement>(null)
   const ffmpegRef = useRef<FFmpeg | null>(null)
   const preloadAttemptedRef = useRef(false)
@@ -398,25 +397,6 @@ export default function LivePhotoConverter() {
     loadPromiseRef.current = loadPromise
     return await loadPromise
   }, [ffmpegLoaded, t, cancelFFmpegLoad])
-
-  // 处理 HEIC 文件上传
-  const handleHEICUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    const ext = file.name.toLowerCase()
-    if (!ext.endsWith('.heic') && !ext.endsWith('.heif')) {
-      setError(t('livePhoto.invalidHeicFile'))
-      return
-    }
-
-    setLivePhoto(prev => ({ ...prev, heic: file }))
-    setResult(null)
-    setError(null)
-    
-    // 统计：文件上传
-    trackFileUpload('live-photo', 'heic')
-  }, [t])
 
   // 处理 MOV 文件上传
   const handleMOVUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {

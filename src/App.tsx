@@ -14,6 +14,7 @@ import LivePhotoPage from './pages/LivePhotoPage'
 import ImageConverterPage from './pages/ImageConverterPage'
 import ModernImageConverterPage from './pages/ModernImageConverterPage'
 import ProRAWConverterPage from './pages/ProRAWConverterPage'
+import ScreenRecordingPage from './pages/ScreenRecordingPage'
 import LoginPage from './pages/LoginPage'
 import SupportPage from './pages/SupportPage'
 import SupportPolicyPage from './pages/SupportPolicyPage'
@@ -64,6 +65,9 @@ function App() {
               
               {/* ProRAW/HEIF 专业转换 */}
               <Route path="/proraw-converter" element={<ProRAWConverterPage />} />
+              
+              {/* 屏幕录像处理 */}
+              <Route path="/screen-recording" element={<ScreenRecordingPage />} />
               
               {/* Support & Policy Pages */}
               <Route path="/support" element={<SupportPage />} />

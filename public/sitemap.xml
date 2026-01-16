@@ -84,6 +84,14 @@
     <priority>0.95</priority>
   </url>
   
+  <!-- 屏幕录像处理 -->
+  <url>
+    <loc>https://commontools.top/tools/screen-recording</loc>
+    <lastmod>2026-01-16</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.95</priority>
+  </url>
+  
   <!-- 密码管理器 -->
   <url>
     <loc>https://commontools.top/tools/password-manager</loc>

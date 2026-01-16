@@ -50,6 +50,7 @@ export default {
     legacyImageConverter: 'Legacy Image',
     modernImageConverter: 'Modern Image',
     prorawConverter: 'ProRAW',
+    screenRecording: 'Screen Rec',
     passwordManager: 'Password Manager',
   },
 

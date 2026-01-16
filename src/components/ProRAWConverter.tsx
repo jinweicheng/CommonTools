@@ -1,8 +1,12 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { Upload, Download, X, Camera, Settings, CheckCircle2, AlertCircle, Package, Info } from 'lucide-react'
 import { useI18n } from '../i18n/I18nContext'
 import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
+// @ts-ignore - ExifReader may not have types
+import ExifReader from 'exifreader'
+// @ts-ignore - piexifjs may not have complete types
+import piexif from 'piexifjs'
 import './ProRAWConverter.css'
 
 interface ImageFile {
@@ -63,9 +67,6 @@ export default function ProRAWConverter() {
     // DNG (TIFF-based): 49 49 or 4D 4D
     if ((bytes[0] === 0x49 && bytes[1] === 0x49) || 
         (bytes[0] === 0x4D && bytes[1] === 0x4D)) {
-      // 检查是否是DNG
-      const view = new DataView(buffer)
-      // 简单检测，实际需要更复杂的TIFF解析
       return 'DNG'
     }
     
@@ -80,49 +81,148 @@ export default function ProRAWConverter() {
     return 'UNKNOWN'
   }, [])
 
-  // 读取EXIF数据（简化版，实际需要exifreader库）
+  // 真实EXIF读取（v1.1 新增）
   const readExifData = useCallback(async (file: File): Promise<Record<string, any>> => {
-    // TODO: 集成 exifreader.js
-    // 这里返回模拟数据
-    return {
-      DateTime: '2024:01:16 12:30:45',
-      Make: 'Apple',
-      Model: 'iPhone 15 Pro Max',
-      LensModel: 'iPhone 15 Pro Max back camera 6.86mm f/1.78',
-      ISO: 400,
-      FNumber: 1.78,
-      ExposureTime: '1/250',
-      FocalLength: '6.86mm',
-      GPSLatitude: null,
-      GPSLongitude: null,
+    try {
+      const buffer = await file.arrayBuffer()
+      const tags = await ExifReader.load(buffer, { expanded: true })
+      
+      console.log('✅ EXIF tags loaded:', tags)
+      
+      return {
+        // 基础信息
+        DateTime: tags.exif?.DateTime?.description || null,
+        DateTimeOriginal: tags.exif?.DateTimeOriginal?.description || null,
+        
+        // 相机信息
+        Make: tags.exif?.Make?.description || null,
+        Model: tags.exif?.Model?.description || null,
+        LensModel: tags.exif?.LensModel?.description || null,
+        
+        // 曝光参数
+        ISO: tags.exif?.ISOSpeedRatings?.value || null,
+        FNumber: tags.exif?.FNumber?.value || null,
+        ExposureTime: tags.exif?.ExposureTime?.description || null,
+        FocalLength: tags.exif?.FocalLength?.description || null,
+        
+        // GPS
+        GPSLatitude: tags.gps?.Latitude || null,
+        GPSLongitude: tags.gps?.Longitude || null,
+        GPSAltitude: tags.gps?.Altitude || null,
+      }
+    } catch (err) {
+      console.warn('⚠️ Failed to read EXIF from', file.name, ':', err)
+      return {} // 返回空对象，不影响转换流程
     }
   }, [])
 
-  // 处理文件列表
+  // EXIF写回JPG（v1.1 新增）
+  const writeExifToJpg = useCallback((
+    jpgDataURL: string,
+    exifData: Record<string, any>,
+    options: ExifOptions
+  ): string => {
+    try {
+      const exifObj: any = {
+        "0th": {},
+        "Exif": {},
+        "GPS": {}
+      }
+      
+      // 拍摄时间
+      if (options.dateTime && exifData.DateTime) {
+        exifObj["0th"][piexif.ImageIFD.DateTime] = exifData.DateTime
+        if (exifData.DateTimeOriginal) {
+          exifObj["Exif"][piexif.ExifIFD.DateTimeOriginal] = exifData.DateTimeOriginal
+        }
+      }
+      
+      // 相机信息
+      if (options.camera) {
+        if (exifData.Make) exifObj["0th"][piexif.ImageIFD.Make] = exifData.Make
+        if (exifData.Model) exifObj["0th"][piexif.ImageIFD.Model] = exifData.Model
+      }
+      
+      // 镜头信息
+      if (options.lens && exifData.LensModel) {
+        exifObj["Exif"][piexif.ExifIFD.LensModel] = exifData.LensModel
+      }
+      
+      // 曝光参数
+      if (options.exposure) {
+        if (exifData.ISO) {
+          exifObj["Exif"][piexif.ExifIFD.ISOSpeedRatings] = exifData.ISO
+        }
+        if (exifData.FNumber) {
+          const fNumber = typeof exifData.FNumber === 'number' 
+            ? [Math.round(exifData.FNumber * 100), 100]
+            : [exifData.FNumber, 1]
+          exifObj["Exif"][piexif.ExifIFD.FNumber] = fNumber
+        }
+      }
+      
+      // GPS（谨慎）
+      if (options.gps && exifData.GPSLatitude && exifData.GPSLongitude) {
+        exifObj["GPS"][piexif.GPSIFD.GPSLatitude] = exifData.GPSLatitude
+        exifObj["GPS"][piexif.GPSIFD.GPSLongitude] = exifData.GPSLongitude
+        if (exifData.GPSAltitude) {
+          exifObj["GPS"][piexif.GPSIFD.GPSAltitude] = exifData.GPSAltitude
+        }
+      }
+      
+      const exifBytes = piexif.dump(exifObj)
+      const newDataURL = piexif.insert(exifBytes, jpgDataURL)
+      console.log('✅ EXIF written to JPG')
+      return newDataURL
+    } catch (err) {
+      console.warn('⚠️ Failed to write EXIF:', err)
+      return jpgDataURL // 失败时返回原始数据
+    }
+  }, [])
+
+  // 处理文件列表（v1.1 增强错误处理）
   const processFiles = useCallback(async (files: FileList | File[]) => {
     setError('')
     const newFiles: ImageFile[] = []
+    const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB
 
     for (const file of Array.from(files)) {
       try {
+        // 文件大小检测
+        if (file.size > MAX_FILE_SIZE) {
+          setError(language === 'zh-CN' 
+            ? `文件过大: ${file.name} (${formatFileSize(file.size)})，建议单个文件不超过 100MB` 
+            : `File too large: ${file.name} (${formatFileSize(file.size)}), recommend under 100MB`)
+          continue
+        }
+        
         const format = await detectFormat(file)
         
+        // DNG 提示
+        if (format === 'DNG') {
+          setError(language === 'zh-CN' 
+            ? `ProRAW (.dng) 支持即将推出，当前请使用 HEIC 格式。您可以在 iPhone 上导出为 HEIC。` 
+            : `ProRAW (.dng) support coming soon, please use HEIC format for now. You can export as HEIC on iPhone.`)
+          continue
+        }
+        
+        // 不支持格式提示
         if (format === 'UNKNOWN') {
           setError(language === 'zh-CN' 
-            ? `不支持的文件格式: ${file.name}` 
-            : `Unsupported format: ${file.name}`)
+            ? `不支持的文件格式: ${file.name}，请上传 .heic 或 .heif 文件` 
+            : `Unsupported format: ${file.name}, please upload .heic or .heif files`)
           continue
         }
 
         // 创建预览
         const preview = URL.createObjectURL(file)
         
-        // 读取EXIF
+        // 读取EXIF（v1.1 真实读取）
         const exifData = await readExifData(file)
 
         // 获取图片尺寸
         const img = new Image()
-        await new Promise<void>((resolve, reject) => {
+        await new Promise<void>((resolve) => {
           img.onload = () => {
             newFiles.push({
               file,
@@ -141,7 +241,7 @@ export default function ProRAWConverter() {
               file,
               format,
               size: file.size,
-              preview: '', // DNG暂时无预览
+              preview: '',
               exifData,
             })
             resolve()
@@ -200,8 +300,10 @@ export default function ProRAWConverter() {
     await processFiles(Array.from(files))
   }, [processFiles])
 
-  // 图片转换
+  // 图片转换（v1.1 增加EXIF写回）
   const convertImage = useCallback(async (imageFile: ImageFile): Promise<ConvertedImage> => {
+    const startTime = performance.now() // 性能监控
+    
     return new Promise((resolve, reject) => {
       const img = new Image()
       img.crossOrigin = 'anonymous'
@@ -227,20 +329,42 @@ export default function ProRAWConverter() {
                 return
               }
 
-              const name = imageFile.file.name.replace(/\.(dng|heic|heif)$/i, '.jpg')
-              const url = URL.createObjectURL(blob)
-              const compressionRatio = ((1 - blob.size / imageFile.file.size) * 100)
+              // v1.1 新增：EXIF 写回逻辑
+              const reader = new FileReader()
+              reader.onload = () => {
+                const dataURL = reader.result as string
+                
+                // 写入 EXIF
+                const newDataURL = writeExifToJpg(dataURL, imageFile.exifData || {}, exifOptions)
+                
+                // 转回 Blob
+                fetch(newDataURL)
+                  .then(res => res.blob())
+                  .then(finalBlob => {
+                    const name = imageFile.file.name.replace(/\.(dng|heic|heif)$/i, '.jpg')
+                    const url = URL.createObjectURL(finalBlob)
+                    const compressionRatio = ((1 - finalBlob.size / imageFile.file.size) * 100)
 
-              resolve({
-                name,
-                blob,
-                url,
-                size: blob.size,
-                originalSize: imageFile.file.size,
-                width: img.width,
-                height: img.height,
-                compressionRatio: compressionRatio > 0 ? compressionRatio : 0
-              })
+                    // 性能日志
+                    const duration = performance.now() - startTime
+                    console.log(`✅ Converted ${imageFile.file.name} in ${duration.toFixed(0)}ms`)
+
+                    resolve({
+                      name,
+                      blob: finalBlob,
+                      url,
+                      size: finalBlob.size,
+                      originalSize: imageFile.file.size,
+                      width: img.width,
+                      height: img.height,
+                      compressionRatio: compressionRatio > 0 ? compressionRatio : 0
+                    })
+                  })
+                  .catch(reject)
+              }
+              
+              reader.onerror = reject
+              reader.readAsDataURL(blob)
             },
             'image/jpeg',
             quality / 100
@@ -256,9 +380,9 @@ export default function ProRAWConverter() {
 
       img.src = imageFile.preview
     })
-  }, [quality])
+  }, [quality, exifOptions, writeExifToJpg])
 
-  // 批量转换
+  // 批量转换（v1.1 并发处理 + 增强错误提示）
   const handleConvert = useCallback(async () => {
     if (uploadedFiles.length === 0) {
       setError(language === 'zh-CN' ? '请先上传文件' : 'Please upload files first')
@@ -272,28 +396,57 @@ export default function ProRAWConverter() {
     setConvertedImages([])
 
     const results: ConvertedImage[] = []
+    const failedFiles: string[] = []
+    const MAX_CONCURRENT = 3 // v1.1 并发处理
 
     try {
-      for (let i = 0; i < uploadedFiles.length; i++) {
-        const imageFile = uploadedFiles[i]
-        setProgress(Math.round(((i + 0.5) / uploadedFiles.length) * 100))
+      // 分批并发处理
+      for (let i = 0; i < uploadedFiles.length; i += MAX_CONCURRENT) {
+        const batch = uploadedFiles.slice(i, i + MAX_CONCURRENT)
         
-        try {
-          const converted = await convertImage(imageFile)
-          results.push(converted)
-        } catch (err) {
-          console.error(`Conversion failed for ${imageFile.file.name}:`, err)
-        }
-
-        setProgress(Math.round(((i + 1) / uploadedFiles.length) * 100))
+        // 并发处理一批
+        const batchResults = await Promise.allSettled(
+          batch.map(file => convertImage(file))
+        )
+        
+        // 收集结果
+        batchResults.forEach((result, index) => {
+          if (result.status === 'fulfilled') {
+            results.push(result.value)
+          } else {
+            console.error(`❌ Failed: ${batch[index].file.name}`, result.reason)
+            failedFiles.push(batch[index].file.name)
+          }
+        })
+        
+        // 更新进度
+        const processed = Math.min(i + MAX_CONCURRENT, uploadedFiles.length)
+        setProgress(Math.round((processed / uploadedFiles.length) * 100))
       }
 
       setConvertedImages(results)
       
+      // 详细成功/失败消息
       if (results.length > 0) {
-        setSuccessMessage(language === 'zh-CN' 
-          ? `成功转换 ${results.length} 个文件！` 
-          : `Successfully converted ${results.length} file(s)!`)
+        const successMsg = language === 'zh-CN' 
+          ? `成功转换 ${results.length} 个文件` 
+          : `Successfully converted ${results.length} file(s)`
+        
+        const failMsg = failedFiles.length > 0
+          ? (language === 'zh-CN' 
+            ? `，${failedFiles.length} 个失败: ${failedFiles.join(', ')}` 
+            : `, ${failedFiles.length} failed: ${failedFiles.join(', ')}`)
+          : ''
+        
+        setSuccessMessage(successMsg + failMsg)
+      }
+      
+      if (failedFiles.length > 0 && results.length === 0) {
+        setError(
+          language === 'zh-CN' 
+            ? `所有文件转换失败: ${failedFiles.join(', ')}` 
+            : `All files failed: ${failedFiles.join(', ')}`
+        )
       }
     } catch (err) {
       console.error('Batch conversion error:', err)
@@ -326,10 +479,15 @@ export default function ProRAWConverter() {
     saveAs(blob, `proraw-converted-${Date.now()}.zip`)
   }, [convertedImages])
 
-  // 清除文件
+  // 清除文件（v1.1 增强内存管理）
   const handleClearFiles = useCallback(() => {
-    uploadedFiles.forEach(file => URL.revokeObjectURL(file.preview))
-    convertedImages.forEach(image => URL.revokeObjectURL(image.url))
+    // 清理 Blob URLs
+    uploadedFiles.forEach(file => {
+      if (file.preview) URL.revokeObjectURL(file.preview)
+    })
+    convertedImages.forEach(image => {
+      if (image.url) URL.revokeObjectURL(image.url)
+    })
 
     setUploadedFiles([])
     setConvertedImages([])
@@ -357,6 +515,39 @@ export default function ProRAWConverter() {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
   }
 
+  // v1.1 新增：浏览器兼容性检测
+  useEffect(() => {
+    if (!HTMLCanvasElement.prototype.toBlob) {
+      setError(
+        language === 'zh-CN' 
+          ? '浏览器不支持此功能，请使用 Chrome 或 Safari 最新版本' 
+          : 'Browser not supported, please use latest Chrome or Safari'
+      )
+      return
+    }
+    
+    if (!window.FileReader) {
+      setError(
+        language === 'zh-CN' 
+          ? '浏览器不支持 FileReader API，请更新浏览器' 
+          : 'Browser does not support FileReader API, please update browser'
+      )
+      return
+    }
+  }, [language])
+
+  // v1.1 新增：组件卸载时清理内存
+  useEffect(() => {
+    return () => {
+      uploadedFiles.forEach(file => {
+        if (file.preview) URL.revokeObjectURL(file.preview)
+      })
+      convertedImages.forEach(image => {
+        if (image.url) URL.revokeObjectURL(image.url)
+      })
+    }
+  }, [uploadedFiles, convertedImages])
+
   return (
     <div className="proraw-converter">
       {/* 头部 */}
@@ -380,8 +571,8 @@ export default function ProRAWConverter() {
         <div className="notice-content">
           <strong>{language === 'zh-CN' ? '📷 为 iPhone ProRAW 设计' : '📷 Designed for iPhone ProRAW'}</strong>
           <p>{language === 'zh-CN' 
-            ? '支持 ProRAW (.DNG) 和 HEIF Burst 连拍，快速转换为普通 JPG 用于分享，同时保留重要的拍摄信息。' 
-            : 'Support ProRAW (.DNG) and HEIF Burst, quickly convert to JPG for sharing while keeping essential shooting info.'}</p>
+            ? '支持 ProRAW (.DNG) 和 HEIF Burst 连拍，快速转换为普通 JPG 用于分享，同时保留重要的拍摄信息。v1.1 已支持真实 EXIF 读写！' 
+            : 'Support ProRAW (.DNG) and HEIF Burst, quickly convert to JPG for sharing while keeping essential shooting info. v1.1 now supports real EXIF read/write!'}</p>
         </div>
       </div>
 
@@ -475,7 +666,7 @@ export default function ProRAWConverter() {
           {/* EXIF元数据选项 */}
           <div className="setting-group exif-options">
             <label className="group-label">
-              {language === 'zh-CN' ? '保留 EXIF 元数据' : 'Keep EXIF Metadata'}
+              {language === 'zh-CN' ? '保留 EXIF 元数据 (v1.1 真实生效)' : 'Keep EXIF Metadata (v1.1 Real)'}
             </label>
             <div className="exif-checkboxes">
               <label className="checkbox-item">

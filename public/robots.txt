@@ -1,6 +1,20 @@
 User-agent: *
 Allow: /
 
+# 重点页面
+Allow: /tools/screen-recording
+Allow: /tools/proraw-converter
+Allow: /tools/modern-image-converter
+Allow: /tools/live-photo
+Allow: /tools/heic-to-jpg
+Allow: /tools/legacy-image-converter
+
+# Sitemap
+Sitemap: https://commontools.top/tools/sitemap.xml
+
+# 搜索引擎优化
+Crawl-delay: 1
+
 # 禁止爬取构建产物和资源文件
 Disallow: /assets/
 Disallow: /*.js$

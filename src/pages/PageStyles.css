@@ -11,7 +11,8 @@
 
 /* 图片转换器页面 - 移除多余边距 */
 .image-converter-page,
-.proraw-converter-page {
+.proraw-converter-page,
+.screen-recording-page {
   padding: 0;
 }
 
