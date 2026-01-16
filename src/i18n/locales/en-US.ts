@@ -41,16 +41,16 @@ export default {
   // Navigation
   nav: {
     encryption: 'Encryption',
-    conversion: 'Conversion',
+    conversion: 'File Conversion',
     watermark: 'Watermark',
     signature: 'Signature',
     compression: 'Compression',
     heicToJpg: 'HEIC to JPG',
-    livePhoto: 'Live Photo',
-    legacyImageConverter: 'Legacy Image',
-    modernImageConverter: 'Modern Image',
+    livePhoto: 'MOV to MP4/GIF',
+    legacyImageConverter: 'Old Image',
+    modernImageConverter: 'Image Conversion',
     prorawConverter: 'ProRAW',
-    screenRecording: 'Screen Rec',
+    screenRecording: 'iPhone Rec',
     passwordManager: 'Password Manager',
   },
 

@@ -41,16 +41,16 @@ export default {
   // 导航
   nav: {
     encryption: '加密文件',
-    conversion: '格式转化',
+    conversion: '文件格式转化',
     watermark: '加水印',
     signature: '电子签名',
     compression: '解压/压缩',
     heicToJpg: 'HEIC转JPG',
-    livePhoto: 'Live Photo',
-    legacyImageConverter: '老旧格式转换',
-    modernImageConverter: '现代格式转换',
+    livePhoto: 'MOV视频转化',
+    legacyImageConverter: '老图片转换',
+    modernImageConverter: '图片格式转换',
     prorawConverter: 'ProRAW转换',
-    screenRecording: '屏幕录像',
+    screenRecording: 'iPhone录像',
     passwordManager: '密码管理器',
   },
 
