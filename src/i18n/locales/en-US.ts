@@ -684,8 +684,8 @@ export default {
   // Live Photo Converter
   livePhoto: {
     title: 'Live Photo Converter',
-    subtitle: 'Convert iPhone Live Photos to GIF/MP4/Static Image',
-    description: 'iPhone Live Photos consist of a HEIC static image and a MOV short video. Easily convert them to GIF, MP4, or static JPG for perfect sharing on Android/WeChat/PC.',
+    subtitle: 'Convert iPhone Live Photos to GIF/MP4',
+    description: 'iPhone Live Photos consist of a HEIC static image and a MOV short video. Easily convert them to GIF, MP4 for perfect sharing on Android/WeChat/PC.',
     tag1: 'Support HEIC + MOV',
     tag2: 'Generate GIF/MP4',
     tag3: 'Extract Static Image',

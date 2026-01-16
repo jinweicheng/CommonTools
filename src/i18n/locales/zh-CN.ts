@@ -684,8 +684,8 @@ export default {
   // Live Photo Converter
   livePhoto: {
     title: 'Live Photo 转换',
-    subtitle: '将 iPhone 实况照片转换为普通动图/视频/静态图',
-    description: 'iPhone 实况照片（Live Photo）包含 HEIC 静态图和 MOV 短视频。轻松转换为 GIF、MP4 或静态 JPG，完美分享到安卓/微信/PC。',
+    subtitle: '将 iPhone 实况照片转换为普通动图/视频',
+    description: 'iPhone 实况照片（Live Photo）包含 HEIC 静态图和 MOV 短视频。轻松转换为 GIF、MP4，完美分享到安卓/微信/PC。',
     tag1: '支持 HEIC + MOV',
     tag2: '生成 GIF/MP4',
     tag3: '提取静态图',
