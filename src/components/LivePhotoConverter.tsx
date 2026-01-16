@@ -1,10 +1,9 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
-import { Download, Play, Film, FileVideo, Loader2, Settings, Trash2, CheckCircle, AlertCircle } from 'lucide-react'
+import { useState, useRef, useCallback } from 'react'
+import { Download, Play, Image as ImageIcon, Film, FileVideo, Loader2, Settings, Trash2, CheckCircle, AlertCircle } from 'lucide-react'
 import heic2any from 'heic2any'
 import { saveAs } from 'file-saver'
 import { FFmpeg } from '@ffmpeg/ffmpeg'
-import { fetchFile } from '@ffmpeg/util'
-import { convertVideoToGIF } from '../utils/videoToGif'
+import { fetchFile, toBlobURL } from '@ffmpeg/util'
 import { useI18n } from '../i18n/I18nContext'
 import { trackFileUpload, trackFileDownload, trackUsage } from '../utils/usageStatisticsService'
 import './LivePhotoConverter.css'
@@ -23,7 +22,7 @@ interface ConversionResult {
 }
 
 export default function LivePhotoConverter() {
-  const { t, language } = useI18n()
+  const { t } = useI18n()
   const [livePhoto, setLivePhoto] = useState<LivePhotoFiles>({ heic: null, mov: null })
   const [isProcessing, setIsProcessing] = useState(false)
   const [progress, setProgress] = useState(0)
@@ -44,359 +43,74 @@ export default function LivePhotoConverter() {
   const [enableDedup, setEnableDedup] = useState(true)
   const [dedupThreshold, setDedupThreshold] = useState(5) // 0-100, 相似度阈值
   
+  const heicInputRef = useRef<HTMLInputElement>(null)
   const movInputRef = useRef<HTMLInputElement>(null)
   const ffmpegRef = useRef<FFmpeg | null>(null)
-  const preloadAttemptedRef = useRef(false)
-  const loadPromiseRef = useRef<Promise<boolean> | null>(null)
-  const loadAbortControllerRef = useRef<AbortController | null>(null)
   const [ffmpegLoaded, setFfmpegLoaded] = useState(false)
-  const [ffmpegLoading, setFfmpegLoading] = useState(false)
-  const [loadingTimeElapsed, setLoadingTimeElapsed] = useState(0)
-
-  // 带超时和进度显示的 fetch 包装器
-  const fetchWithProgress = async (
-    url: string,
-    onProgress?: (loaded: number, total: number) => void,
-    timeout: number = 180000
-  ): Promise<Response> => {
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), timeout)
-    
-    try {
-      const response = await fetch(url, { signal: controller.signal })
-      clearTimeout(timeoutId)
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-      }
-
-      const contentLength = response.headers.get('content-length')
-      const total = contentLength ? parseInt(contentLength, 10) : 0
-
-      if (!onProgress || !response.body || total === 0) {
-        return response
-      }
-
-      // 创建带进度的响应
-      const reader = response.body.getReader()
-      let loaded = 0
-      const chunks: Uint8Array[] = []
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        chunks.push(value)
-        loaded += value.length
-        onProgress(loaded, total)
-      }
-
-      // 重建响应
-      const blob = new Blob(chunks as BlobPart[])
-      return new Response(blob, {
-        status: response.status,
-        statusText: response.statusText,
-        headers: response.headers,
-      })
-    } catch (error) {
-      clearTimeout(timeoutId)
-      throw error
-    }
-  }
-
-  // 带超时和重试的 toBlobURL（带进度显示）
-  const toBlobURLWithRetry = async (
-    url: string,
-    fileName: string,
-    _retries: number = 2, // 保留参数以保持接口一致性
-    timeout: number = 60000 // 减少到 60 秒
-  ): Promise<string> => {
-    // 检测是否支持 SharedArrayBuffer（多线程）
-    const supportsSharedArrayBuffer = typeof SharedArrayBuffer !== 'undefined'
-    const ffmpegPackage = supportsSharedArrayBuffer ? 'core' : 'core-st'
-    
-    if (!supportsSharedArrayBuffer) {
-      console.warn(`⚠️ SharedArrayBuffer not available, using single-threaded FFmpeg (@ffmpeg/core-st)`)
-      console.warn(`Performance will be slightly slower but should work correctly.`)
-    } else {
-      console.log(`✓ Using multi-threaded FFmpeg (@ffmpeg/core)`)
-    }
-    
-    // 本地路径优先，CDN 作为备选
-    const baseUrl = window.location.origin
-    const pathPrefix = window.location.pathname.includes('/tools') ? '/tools' : ''
-    
-    const allUrls = [
-      // 1. 本地路径（最优先）
-      `${baseUrl}${pathPrefix}/${url}`,
-      // 2. 快速 CDN（自动选择单线程或多线程版本）
-      `https://cdn.jsdelivr.net/npm/@ffmpeg/${ffmpegPackage}@0.12.6/dist/umd/${url}`,
-      `https://unpkg.com/@ffmpeg/${ffmpegPackage}@0.12.6/dist/umd/${url}`,
-    ]
-    
-    console.log(`[${fileName}] Using FFmpeg package: @ffmpeg/${ffmpegPackage}`)
-    console.log(`[${fileName}] Local path will be: ${baseUrl}${pathPrefix}/${url}`)
-
-    let lastError: Error | null = null
-
-    console.log(`[${fileName}] Starting to load from multiple sources...`)
-    console.log(`[${fileName}] Will try: Local -> CDN1 -> CDN2`)
-
-    // 快速测试可用性（减少测试时间）
-    const speedTests = await Promise.allSettled(
-      allUrls.map(async (testUrl, index) => {
-        const startTime = Date.now()
-        try {
-          const controller = new AbortController()
-          const timeoutId = setTimeout(() => controller.abort(), 3000) // 3秒测试超时
-          const response = await fetch(testUrl, {
-            signal: controller.signal,
-            method: 'HEAD', // 只获取头部，更快
-          })
-          clearTimeout(timeoutId)
-          const speed = Date.now() - startTime
-          const source = index === 0 ? 'Local' : `CDN${index}`
-          console.log(`[${fileName}] ${source} test: ${response.ok ? '✓' : '✗'} (${speed}ms)`)
-          if (response.ok) {
-            return { url: testUrl, speed, success: true, source }
-          }
-          return { url: testUrl, speed: Infinity, success: false, source }
-        } catch (err) {
-          const source = index === 0 ? 'Local' : `CDN${index}`
-          console.log(`[${fileName}] ${source} test failed:`, err instanceof Error ? err.message : String(err))
-          return { url: testUrl, speed: Infinity, success: false, source }
-        }
-      })
-    )
-
-    // 按速度排序可用源
-    const sortedUrls = speedTests
-      .map((result, index) => ({
-        url: allUrls[index],
-        speed: result.status === 'fulfilled' && result.value.success ? result.value.speed : Infinity,
-        source: result.status === 'fulfilled' ? result.value.source : `Source${index}`,
-      }))
-      .filter(item => item.speed < Infinity)
-      .sort((a, b) => a.speed - b.speed)
-
-    // 如果没有可用源，使用原始列表
-    const finalUrlList = sortedUrls.length > 0 ? sortedUrls : allUrls.map((url, i) => ({ 
-      url, 
-      speed: Infinity, 
-      source: i === 0 ? 'Local' : `CDN${i}`
-    }))
-
-    console.log(`[${fileName}] Will use order:`, finalUrlList.map(u => u.source).join(' -> '))
-
-    for (const urlInfo of finalUrlList) {
-      const attemptStartTime = Date.now()
-      try {
-        console.log(`[${fileName}] Loading from ${urlInfo.source}...`)
-        
-        const response = await fetchWithProgress(
-          urlInfo.url,
-          (loaded, total) => {
-            const percent = total > 0 ? Math.round((loaded / total) * 100) : 0
-            const elapsed = (Date.now() - attemptStartTime) / 1000
-            const speed = loaded / elapsed / 1024 // KB/s
-            const sizeStr = `${(loaded / 1024 / 1024).toFixed(2)}MB${total > 0 ? `/${(total / 1024 / 1024).toFixed(2)}MB` : ''}`
-            
-            // 每5%输出一次进度，减少日志
-            if (percent % 5 === 0 || percent === 100) {
-              console.log(`[${fileName}] ${urlInfo.source}: ${percent}% (${sizeStr}) @ ${speed.toFixed(0)}KB/s`)
-            }
-            
-            // 更新进度条（针对当前文件）
-            if (fileName.includes('ffmpeg-core.js')) {
-              setProgress(10 + Math.round(percent * 0.2)) // 10-30%
-              setProgressMessage(`Loading FFmpeg (1/2): ${percent}%`)
-            } else if (fileName.includes('ffmpeg-core.wasm')) {
-              setProgress(30 + Math.round(percent * 0.2)) // 30-50%
-              setProgressMessage(`Loading FFmpeg (2/2): ${percent}%`)
-            }
-          },
-          timeout
-        )
-
-        const blob = await response.blob()
-        const blobURL = URL.createObjectURL(blob)
-        const elapsed = ((Date.now() - attemptStartTime) / 1000).toFixed(2)
-        console.log(`[${fileName}] ✓ Successfully loaded from ${urlInfo.source} in ${elapsed}s (${(blob.size / 1024 / 1024).toFixed(2)}MB)`)
-        return blobURL
-      } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error))
-        const elapsed = ((Date.now() - attemptStartTime) / 1000).toFixed(2)
-        console.warn(`[${fileName}] ✗ Failed from ${urlInfo.source} (${elapsed}s):`, lastError.message)
-        
-        // 继续尝试下一个源
-        if (urlInfo !== finalUrlList[finalUrlList.length - 1]) {
-          console.log(`[${fileName}] Trying next source...`)
-        }
-      }
-    }
-
-    throw new Error(`Failed to load ${fileName} from all sources (Local + CDN). Last error: ${lastError?.message || 'Unknown error'}. Please check your network connection.`)
-  }
-
-  // 取消加载
-  const cancelFFmpegLoad = useCallback(() => {
-    console.log('Cancelling FFmpeg load...')
-    if (loadAbortControllerRef.current) {
-      loadAbortControllerRef.current.abort()
-      loadAbortControllerRef.current = null
-    }
-    loadPromiseRef.current = null
-    setFfmpegLoading(false)
-    setLoadingTimeElapsed(0)
-    setProgress(0)
-    setProgressMessage('')
-  }, [])
 
   // 初始化 FFmpeg
   const loadFFmpeg = useCallback(async () => {
-    // 如果已经加载，直接返回
     if (ffmpegLoaded || ffmpegRef.current) {
       console.log('FFmpeg already loaded')
       return true
     }
 
-    // 如果正在加载，等待现有的加载 Promise（最多等待 10 秒）
-    if (loadPromiseRef.current) {
-      console.log('FFmpeg is already loading, waiting for existing load...')
-      try {
-        // 使用 Promise.race 添加超时
-        const timeoutPromise = new Promise<boolean>((_, reject) => {
-          setTimeout(() => reject(new Error('Wait timeout after 10s')), 10000)
-        })
-        const result = await Promise.race([loadPromiseRef.current, timeoutPromise])
-        console.log('Waited for FFmpeg load, result:', result)
-        return result
-      } catch (err) {
-        console.error('Error while waiting for FFmpeg load:', err)
-        // 如果等待超时或失败，取消加载并重试
-        cancelFFmpegLoad()
-      }
+    try {
+      console.log('Starting FFmpeg load...')
+      setProgressMessage(t('livePhoto.loadingFFmpeg'))
+      setProgress(0)
+      
+      const ffmpeg = new FFmpeg()
+      
+      // 加载 FFmpeg WASM
+      const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd'
+      console.log('Loading FFmpeg from:', baseURL)
+      
+      await ffmpeg.load({
+        coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+        wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+      })
+
+      console.log('FFmpeg loaded successfully')
+
+      ffmpeg.on('log', ({ message }) => {
+        console.log('[FFmpeg Log]:', message)
+      })
+
+      ffmpeg.on('progress', ({ progress: p, time }) => {
+        const percentage = Math.round(p * 100)
+        console.log(`[FFmpeg Progress]: ${percentage}% (${time}ms)`)
+        setProgress(percentage)
+      })
+
+      ffmpegRef.current = ffmpeg
+      setFfmpegLoaded(true)
+      return true
+    } catch (err) {
+      console.error('Failed to load FFmpeg:', err)
+      setError(t('livePhoto.ffmpegLoadFailed') + ': ' + (err instanceof Error ? err.message : String(err)))
+      return false
+    }
+  }, [ffmpegLoaded, t])
+
+  // 处理 HEIC 文件上传
+  const handleHEICUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const ext = file.name.toLowerCase()
+    if (!ext.endsWith('.heic') && !ext.endsWith('.heif')) {
+      setError(t('livePhoto.invalidHeicFile'))
+      return
     }
 
-    // 创建新的加载 Promise
-    const abortController = new AbortController()
-    loadAbortControllerRef.current = abortController
+    setLivePhoto(prev => ({ ...prev, heic: file }))
+    setResult(null)
+    setError(null)
     
-    const loadStartTime = Date.now()
-    const loadPromise = (async () => {
-      // 更新加载时间计时器
-      const timer = setInterval(() => {
-        setLoadingTimeElapsed(Math.floor((Date.now() - loadStartTime) / 1000))
-      }, 1000)
-
-      try {
-        console.log('Starting FFmpeg load...')
-        setFfmpegLoading(true)
-        setLoadingTimeElapsed(0)
-        setProgressMessage(t('livePhoto.loadingFFmpeg'))
-        setProgress(5)
-        
-        const ffmpeg = new FFmpeg()
-        
-        // 加载 FFmpeg WASM - 使用优化的加载方法
-        console.log('Loading FFmpeg core files...')
-        setProgress(10)
-        setProgressMessage(t('livePhoto.loadingFFmpeg') + ' (1/2: JavaScript core)')
-        
-        const coreURL = await toBlobURLWithRetry('ffmpeg-core.js', 'ffmpeg-core.js')
-        setProgress(30)
-        setProgressMessage(t('livePhoto.loadingFFmpeg') + ' (2/2: WASM core)')
-        
-        const wasmURL = await toBlobURLWithRetry('ffmpeg-core.wasm', 'ffmpeg-core.wasm')
-        setProgress(50)
-        setProgressMessage(t('livePhoto.loadingFFmpeg') + ' (initializing...)')
-        
-        console.log('Initializing FFmpeg...')
-        console.log('Core URL:', coreURL)
-        console.log('WASM URL:', wasmURL)
-        
-        // 添加初始化超时和进度监控（最多 60 秒）
-        let initProgress = 0
-        const progressInterval = setInterval(() => {
-          initProgress += 1
-          if (initProgress <= 30) {
-            console.log(`FFmpeg initialization: ${initProgress}s elapsed...`)
-            setProgress(50 + initProgress) // 50-80%
-            setProgressMessage(t('livePhoto.loadingFFmpeg') + ` (initializing... ${initProgress}s)`)
-          }
-        }, 1000)
-        
-        const initTimeout = new Promise<never>((_, reject) => {
-          setTimeout(() => {
-            clearInterval(progressInterval)
-            reject(new Error('FFmpeg initialization timeout after 60s. This might be due to a slow network or browser limitation.'))
-          }, 60000)
-        })
-        
-        try {
-          const initPromise = ffmpeg.load({
-            coreURL,
-            wasmURL,
-          })
-          
-          await Promise.race([initPromise, initTimeout])
-          clearInterval(progressInterval)
-          
-          console.log('FFmpeg loaded successfully!')
-          setProgress(80)
-          setProgressMessage(t('livePhoto.loadingFFmpeg') + ' (ready)')
-        } catch (err) {
-          clearInterval(progressInterval)
-          throw err
-        }
-
-        ffmpeg.on('log', ({ message }) => {
-          console.log('[FFmpeg Log]:', message)
-        })
-
-        ffmpeg.on('progress', ({ progress: p, time }) => {
-          const percentage = Math.round(p * 100)
-          console.log(`[FFmpeg Progress]: ${percentage}% (${time}ms)`)
-          // 转换进度映射到 80-100% 范围
-          setProgress(80 + Math.round(p * 20))
-        })
-
-        ffmpegRef.current = ffmpeg
-        setFfmpegLoaded(true)
-        setProgress(100)
-        setProgressMessage('')
-        setLoadingTimeElapsed(0)
-        loadPromiseRef.current = null
-        loadAbortControllerRef.current = null
-        clearInterval(timer)
-        return true
-      } catch (err) {
-        clearInterval(timer)
-        
-        // 检查是否被用户取消
-        if (abortController.signal.aborted) {
-          console.log('FFmpeg load was cancelled by user')
-          loadPromiseRef.current = null
-          return false
-        }
-        
-        console.error('Failed to load FFmpeg:', err)
-        const errorMsg = err instanceof Error ? err.message : String(err)
-        setError(t('livePhoto.ffmpegLoadFailed') + ': ' + errorMsg)
-        loadPromiseRef.current = null
-        loadAbortControllerRef.current = null
-        return false
-      } finally {
-        setFfmpegLoading(false)
-        setLoadingTimeElapsed(0)
-        clearInterval(timer)
-      }
-    })()
-
-    // 保存 Promise 供其他调用者等待
-    loadPromiseRef.current = loadPromise
-    return await loadPromise
-  }, [ffmpegLoaded, t, cancelFFmpegLoad])
+    // 统计：文件上传
+    trackFileUpload('live-photo', 'heic')
+  }, [t])
 
   // 处理 MOV 文件上传
   const handleMOVUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -441,50 +155,7 @@ export default function LivePhotoConverter() {
     }
   }, [livePhoto.heic, t])
 
-  // 转换为 GIF（使用浏览器原生 API + gif.js，不依赖 FFmpeg）
-  const convertToGIFNative = useCallback(async (): Promise<ConversionResult> => {
-    console.log('=== Starting GIF conversion (Native) ===')
-    if (!livePhoto.mov) {
-      console.error('No MOV file provided')
-      throw new Error(t('livePhoto.noMovFile'))
-    }
-
-    console.log('MOV file:', livePhoto.mov.name, 'Size:', livePhoto.mov.size)
-    console.log('Using browser native API + gif.js (no FFmpeg required)')
-
-    setProgressMessage(t('livePhoto.convertingGif'))
-    setProgress(10)
-
-    try {
-      const gifBlob = await convertVideoToGIF(livePhoto.mov, {
-        width: gifWidth,
-        fps: gifFps,
-        quality: gifQuality,
-        onProgress: (progress) => {
-          setProgress(10 + Math.round(progress * 0.8)) // 10-90%
-          if (progress < 50) {
-            setProgressMessage(`Extracting frames: ${progress}%`)
-          } else {
-            setProgressMessage(`Encoding GIF: ${progress - 50}%`)
-          }
-        }
-      })
-
-      setProgress(100)
-      console.log('=== GIF conversion completed successfully (Native) ===')
-      
-      return {
-        type: 'gif',
-        blob: gifBlob,
-        preview: URL.createObjectURL(gifBlob)
-      }
-    } catch (err) {
-      console.error('Native GIF conversion failed:', err)
-      throw new Error(`GIF conversion failed: ${err instanceof Error ? err.message : String(err)}`)
-    }
-  }, [livePhoto.mov, gifWidth, gifFps, gifQuality, t])
-
-  // 转换为 GIF（FFmpeg 方式，作为备选）
+  // 转换为 GIF
   const convertToGIF = useCallback(async (): Promise<ConversionResult> => {
     console.log('=== Starting GIF conversion ===')
     if (!livePhoto.mov) {
@@ -494,22 +165,11 @@ export default function LivePhotoConverter() {
 
     console.log('MOV file:', livePhoto.mov.name, 'Size:', livePhoto.mov.size)
 
-    // 尝试使用原生方式（推荐）
-    console.log('Trying native GIF conversion first...')
-    try {
-      return await convertToGIFNative()
-    } catch (nativeErr) {
-      console.warn('Native GIF conversion failed, falling back to FFmpeg:', nativeErr)
-    }
-
-    // 降级到 FFmpeg
     console.log('Loading FFmpeg...')
     const loaded = await loadFFmpeg()
     if (!loaded || !ffmpegRef.current) {
       console.error('FFmpeg not loaded')
-      // 最终降级：再次尝试原生方式
-      console.log('FFmpeg failed, retrying native conversion...')
-      return await convertToGIFNative()
+      throw new Error(t('livePhoto.ffmpegLoadFailed'))
     }
 
     const ffmpeg = ffmpegRef.current
@@ -581,80 +241,98 @@ export default function LivePhotoConverter() {
     }
   }, [livePhoto.mov, gifFps, gifWidth, gifQuality, loadFFmpeg, t])
 
-  // 转换为 MP4（简化版 - 快速容器转换）
+  // 转换为 MP4
   const convertToMP4 = useCallback(async (): Promise<ConversionResult> => {
-    console.log('=== Starting MP4 conversion (Quick Container Conversion) ===')
+    console.log('=== Starting MP4 conversion ===')
     if (!livePhoto.mov) {
+      console.error('No MOV file provided')
       throw new Error(t('livePhoto.noMovFile'))
     }
 
-    const fileSizeMB = livePhoto.mov.size / 1024 / 1024
-    console.log('MOV file:', livePhoto.mov.name, 'Size:', fileSizeMB.toFixed(2), 'MB')
+    console.log('MOV file:', livePhoto.mov.name, 'Size:', livePhoto.mov.size)
 
-    // 文件大小检查（100MB 限制）
-    if (fileSizeMB > 100) {
-      console.warn('⚠️ Large file:', fileSizeMB.toFixed(2), 'MB')
-      // 不抛出错误，只是警告
+    console.log('Loading FFmpeg...')
+    const loaded = await loadFFmpeg()
+    if (!loaded || !ffmpegRef.current) {
+      console.error('FFmpeg not loaded')
+      throw new Error(t('livePhoto.ffmpegLoadFailed'))
     }
 
-    console.log('ℹ️ Using quick container conversion')
-    console.log('ℹ️ Works for most iPhone Live Photo MOV files (H.264 encoded)')
+    const ffmpeg = ffmpegRef.current
+    console.log('FFmpeg ready')
 
-    setProgressMessage(language === 'zh-CN' ? '正在转换为 MP4...' : 'Converting to MP4...')
+    setProgressMessage(t('livePhoto.convertingMp4'))
     setProgress(20)
 
-    try {
-      // 直接读取文件数据
-      console.log('Reading MOV file data...')
-      const arrayBuffer = await livePhoto.mov.arrayBuffer()
-      
-      setProgress(60)
-      console.log('Creating MP4 blob...')
-      
-      // 创建 MP4 Blob（容器格式转换）
-      const blob = new Blob([arrayBuffer], { type: 'video/mp4' })
-      console.log('✅ MP4 created:', (blob.size / 1024 / 1024).toFixed(2), 'MB')
-      
-      setProgress(100)
-      setProgressMessage(t('livePhoto.conversionComplete'))
+    console.log('Writing MOV file to FFmpeg filesystem...')
+    // 将 MOV 文件写入 FFmpeg 文件系统
+    const fileData = await fetchFile(livePhoto.mov)
+    console.log('File data size:', fileData.byteLength)
+    await ffmpeg.writeFile('input.mov', fileData)
+    console.log('File written successfully')
 
-      console.log('=== MP4 conversion completed successfully ===')
-      console.log(`✅ Quick conversion: MOV (${fileSizeMB.toFixed(2)}MB) → MP4 (${(blob.size / 1024 / 1024).toFixed(2)}MB)`)
+    setProgress(40)
 
-      return {
-        type: 'mp4' as ConversionMode,
-        blob,
-        preview: URL.createObjectURL(blob)
-      }
-    } catch (err) {
-      console.error('❌ MP4 conversion failed:', err)
-      throw new Error(
-        (language === 'zh-CN' ? 'MP4 转换失败：' : 'MP4 conversion failed: ') +
-        (err instanceof Error ? err.message : String(err))
-      )
+    console.log(`MP4 conversion params: quality=${mp4Quality}, dedup=${enableDedup}, threshold=${dedupThreshold}`)
+
+    // 转换为 MP4（使用 H.264 编码，兼容性最好）
+    const ffmpegArgs = [
+      '-i', 'input.mov',
+      '-c:v', 'libx264',
+      '-crf', mp4Quality.toString(),
+      '-preset', 'medium',
+      '-movflags', '+faststart',
+      '-pix_fmt', 'yuv420p'
+    ]
+
+    if (enableDedup) {
+      // 添加帧去重过滤器
+      ffmpegArgs.push('-vf', `mpdecimate=hi=64*${dedupThreshold}:lo=64*${dedupThreshold}:frac=0.33`)
+      console.log('Frame deduplication enabled')
     }
-  }, [livePhoto.mov, language, t])
 
+    ffmpegArgs.push('output.mp4')
 
-  // 预加载 FFmpeg（组件挂载时）
-  useEffect(() => {
-    // 延迟加载，避免阻塞初始渲染
-    if (preloadAttemptedRef.current) return
-    
-    const timer = setTimeout(() => {
-      if (!ffmpegLoaded && !ffmpegLoading && !preloadAttemptedRef.current) {
-        preloadAttemptedRef.current = true
-        console.log('Preloading FFmpeg in background...')
-        loadFFmpeg().catch(err => {
-          console.warn('FFmpeg preload failed (will retry on demand):', err)
-          // 预加载失败不影响，用户点击转换时会重试
-          preloadAttemptedRef.current = false // 允许重试
-        })
-      }
-    }, 1000) // 延迟 1 秒，让页面先渲染
+    console.log('FFmpeg command:', ffmpegArgs.join(' '))
+    console.log('Executing FFmpeg command...')
 
-    return () => clearTimeout(timer)
-  }, [ffmpegLoaded, ffmpegLoading, loadFFmpeg])
+    try {
+      await ffmpeg.exec(ffmpegArgs)
+      console.log('FFmpeg exec completed')
+    } catch (execError) {
+      console.error('FFmpeg exec failed:', execError)
+      throw execError
+    }
+
+    setProgress(90)
+    setProgressMessage(t('livePhoto.finalizing'))
+
+    console.log('Reading output MP4...')
+    // 读取生成的 MP4
+    const data = await ffmpeg.readFile('output.mp4')
+    console.log('MP4 data size:', (data as Uint8Array).byteLength)
+    const uint8Array = new Uint8Array(data as Uint8Array)
+    const blob = new Blob([uint8Array], { type: 'video/mp4' })
+    console.log('MP4 blob created, size:', blob.size)
+
+    // 清理
+    console.log('Cleaning up files...')
+    try {
+      await ffmpeg.deleteFile('input.mov')
+      await ffmpeg.deleteFile('output.mp4')
+      console.log('Cleanup completed')
+    } catch (err) {
+      console.warn('Failed to clean up FFmpeg files:', err)
+    }
+
+    setProgress(100)
+    console.log('=== MP4 conversion completed successfully ===')
+    return {
+      type: 'mp4',
+      blob,
+      preview: URL.createObjectURL(blob)
+    }
+  }, [livePhoto.mov, mp4Quality, enableDedup, dedupThreshold, loadFFmpeg, t])
 
   // 执行转换
   const handleConvert = useCallback(async () => {
@@ -760,7 +438,7 @@ export default function LivePhotoConverter() {
       {/* 文件上传区域 */}
       <div className="upload-area">
         <div className="upload-section">
-          {/* <div className="upload-box">
+          <div className="upload-box">
             <input
               ref={heicInputRef}
               type="file"
@@ -774,18 +452,17 @@ export default function LivePhotoConverter() {
               onClick={() => heicInputRef.current?.click()}
               disabled={isProcessing}
             >
-              <ImageIcon />
+              <ImageIcon size={24} />
               <span>{t('livePhoto.uploadHeic')}</span>
-              <small>{language === 'zh-CN' ? '支持 .heic 格式' : 'Supports .heic format'}</small>
             </button>
             {livePhoto.heic && (
               <div className="file-info">
-                <CheckCircle className="check-icon" />
+                <CheckCircle size={16} className="check-icon" />
                 <span className="file-name">{livePhoto.heic.name}</span>
                 <span className="file-size">{formatFileSize(livePhoto.heic.size)}</span>
               </div>
             )}
-          </div> */}
+          </div>
 
           <div className="upload-box">
             <input
@@ -801,13 +478,12 @@ export default function LivePhotoConverter() {
               onClick={() => movInputRef.current?.click()}
               disabled={isProcessing}
             >
-              <Film />
+              <Film size={24} />
               <span>{t('livePhoto.uploadMov')}</span>
-              <small>{language === 'zh-CN' ? '支持 .mov, .mp4 格式' : 'Supports .mov, .mp4 format'}</small>
             </button>
             {livePhoto.mov && (
               <div className="file-info">
-                <CheckCircle className="check-icon" />
+                <CheckCircle size={16} className="check-icon" />
                 <span className="file-name">{livePhoto.mov.name}</span>
                 <span className="file-size">{formatFileSize(livePhoto.mov.size)}</span>
               </div>
@@ -821,8 +497,8 @@ export default function LivePhotoConverter() {
             onClick={handleClearFiles}
             disabled={isProcessing}
           >
-            <Trash2 />
-            <span>{t('livePhoto.clearFiles')}</span>
+            <Trash2 size={18} />
+            {t('livePhoto.clearFiles')}
           </button>
         )}
       </div>
@@ -830,24 +506,23 @@ export default function LivePhotoConverter() {
       {/* 转换模式选择 */}
       <div className="mode-selector">
         <h3>{t('livePhoto.selectMode')}</h3>
-        <p>{language === 'zh-CN' ? '选择您想要的输出格式' : 'Choose your desired output format'}</p>
         <div className="mode-buttons">
-          {/* <button
+          <button
             className={`mode-button ${mode === 'static' ? 'active' : ''}`}
             onClick={() => setMode('static')}
             disabled={isProcessing}
           >
-            <ImageIcon />
+            <ImageIcon size={20} />
             <span>{t('livePhoto.modeStatic')}</span>
             <small>{t('livePhoto.modeStaticDesc')}</small>
-          </button> */}
+          </button>
           
           <button
             className={`mode-button ${mode === 'gif' ? 'active' : ''}`}
             onClick={() => setMode('gif')}
             disabled={isProcessing}
           >
-            <Play />
+            <Play size={20} />
             <span>{t('livePhoto.modeGif')}</span>
             <small>{t('livePhoto.modeGifDesc')}</small>
           </button>
@@ -857,7 +532,7 @@ export default function LivePhotoConverter() {
             onClick={() => setMode('mp4')}
             disabled={isProcessing}
           >
-            <FileVideo />
+            <FileVideo size={20} />
             <span>{t('livePhoto.modeMp4')}</span>
             <small>{t('livePhoto.modeMp4Desc')}</small>
           </button>
@@ -1005,35 +680,7 @@ export default function LivePhotoConverter() {
           <div className="progress-bar-container">
             <div className="progress-bar" style={{ width: `${progress}%` }} />
           </div>
-          <div className="progress-message">
-            {progressMessage} {progress}%
-            {ffmpegLoading && loadingTimeElapsed > 0 && (
-              <span style={{ marginLeft: '10px', opacity: 0.7 }}>
-                ({loadingTimeElapsed}s)
-              </span>
-            )}
-          </div>
-          {ffmpegLoading && loadingTimeElapsed > 15 && (
-            <div style={{ marginTop: '10px', fontSize: '14px', color: '#666' }}>
-              <p>⏳ Loading is taking longer than expected...</p>
-              <p>Tip: You can download FFmpeg files locally for faster loading. Check console for details.</p>
-              <button
-                onClick={cancelFFmpegLoad}
-                style={{
-                  marginTop: '8px',
-                  padding: '8px 16px',
-                  background: '#ff4444',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '14px'
-                }}
-              >
-                Cancel & Retry
-              </button>
-            </div>
-          )}
+          <div className="progress-message">{progressMessage} {progress}%</div>
         </div>
       )}
 

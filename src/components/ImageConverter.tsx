@@ -524,6 +524,213 @@ export default function ImageConverter() {
     return createImageBitmap(canvas)
   }, [])
 
+  // TIFF 解码器（支持未压缩和 PackBits 压缩的 TIFF）
+  const decodeTIFF = useCallback(async (file: File): Promise<ImageBitmap> => {
+    const arrayBuffer = await file.arrayBuffer()
+    const view = new DataView(arrayBuffer)
+    
+    // 读取字节序标记（Byte Order Mark）
+    const byteOrder = view.getUint16(0, false)
+    const isLittleEndian = byteOrder === 0x4949 // 'II'
+    
+    if (byteOrder !== 0x4949 && byteOrder !== 0x4D4D) { // 'II' or 'MM'
+      throw new Error('Invalid TIFF file: missing byte order mark')
+    }
+    
+    // 验证 TIFF 标识（42）
+    const tiffMagic = view.getUint16(2, isLittleEndian)
+    if (tiffMagic !== 42) {
+      throw new Error('Invalid TIFF file: missing magic number 42')
+    }
+    
+    // 读取第一个 IFD（Image File Directory）的偏移
+    let ifdOffset = view.getUint32(4, isLittleEndian)
+    
+    console.log(`[TIFF] Byte order: ${isLittleEndian ? 'Little Endian' : 'Big Endian'}, IFD offset: ${ifdOffset}`)
+    
+    // 解析 IFD 条目
+    const tags: Record<number, any> = {}
+    const numEntries = view.getUint16(ifdOffset, isLittleEndian)
+    ifdOffset += 2
+    
+    for (let i = 0; i < numEntries; i++) {
+      const tag = view.getUint16(ifdOffset, isLittleEndian)
+      const type = view.getUint16(ifdOffset + 2, isLittleEndian)
+      const count = view.getUint32(ifdOffset + 4, isLittleEndian)
+      const valueOffset = ifdOffset + 8
+      
+      // 读取值（如果值大小 <= 4 字节，存储在偏移字段中）
+      let value: any
+      const typeSize = [0, 1, 1, 2, 4, 8, 1, 1, 2, 4, 8, 4, 8][type] || 1
+      const totalSize = count * typeSize
+      
+      if (totalSize <= 4) {
+        // 值存储在偏移字段中
+        if (type === 3) { // SHORT
+          value = count === 1 
+            ? view.getUint16(valueOffset, isLittleEndian)
+            : Array.from({ length: count }, (_, j) => view.getUint16(valueOffset + j * 2, isLittleEndian))
+        } else if (type === 4) { // LONG
+          value = view.getUint32(valueOffset, isLittleEndian)
+        } else if (type === 1) { // BYTE
+          value = count === 1
+            ? view.getUint8(valueOffset)
+            : Array.from({ length: count }, (_, j) => view.getUint8(valueOffset + j))
+        } else {
+          value = view.getUint32(valueOffset, isLittleEndian)
+        }
+      } else {
+        // 值存储在其他位置
+        const offset = view.getUint32(valueOffset, isLittleEndian)
+        if (type === 3) { // SHORT
+          value = count === 1
+            ? view.getUint16(offset, isLittleEndian)
+            : Array.from({ length: count }, (_, j) => view.getUint16(offset + j * 2, isLittleEndian))
+        } else if (type === 4) { // LONG
+          value = count === 1
+            ? view.getUint32(offset, isLittleEndian)
+            : Array.from({ length: count }, (_, j) => view.getUint32(offset + j * 4, isLittleEndian))
+        } else if (type === 1) { // BYTE
+          value = Array.from({ length: count }, (_, j) => view.getUint8(offset + j))
+        } else {
+          value = offset
+        }
+      }
+      
+      tags[tag] = value
+      ifdOffset += 12
+    }
+    
+    console.log('[TIFF] Tags:', tags)
+    
+    // 提取关键信息
+    const width = tags[256] // ImageWidth
+    const height = tags[257] // ImageLength
+    const bitsPerSample = tags[258] || 8 // BitsPerSample
+    const compression = tags[259] || 1 // Compression (1 = 无压缩, 32773 = PackBits)
+    // const photometric = tags[262] || 1 // PhotometricInterpretation (暂未使用)
+    const stripOffsets = Array.isArray(tags[273]) ? tags[273] : [tags[273]] // StripOffsets
+    const samplesPerPixel = tags[277] || 1 // SamplesPerPixel
+    // const rowsPerStrip = tags[278] || height // RowsPerStrip (暂未使用)
+    const stripByteCounts = Array.isArray(tags[279]) ? tags[279] : [tags[279]] // StripByteCounts
+    
+    console.log(`[TIFF] Dimensions: ${width}x${height}, BitsPerSample: ${bitsPerSample}, Compression: ${compression}, SamplesPerPixel: ${samplesPerPixel}`)
+    
+    if (!width || !height || width <= 0 || height <= 0 || width > 10000 || height > 10000) {
+      throw new Error(`Invalid TIFF file: invalid dimensions (${width}x${height})`)
+    }
+    
+    // 创建图像数据
+    const imageData = new Uint8ClampedArray(width * height * 4)
+    
+    // 解码图像数据
+    if (compression === 1) {
+      // 无压缩
+      let imageOffset = 0
+      for (let stripIndex = 0; stripIndex < stripOffsets.length; stripIndex++) {
+        const stripOffset = stripOffsets[stripIndex]
+        const stripByteCount = stripByteCounts[stripIndex]
+        const stripData = new Uint8Array(arrayBuffer, stripOffset, stripByteCount)
+        
+        // 根据 photometric 和 samplesPerPixel 解码
+        if (samplesPerPixel === 3 || samplesPerPixel === 4) {
+          // RGB 或 RGBA
+          for (let i = 0; i < stripData.length; i += samplesPerPixel) {
+            if (imageOffset >= imageData.length) break
+            imageData[imageOffset] = stripData[i] // R
+            imageData[imageOffset + 1] = stripData[i + 1] // G
+            imageData[imageOffset + 2] = stripData[i + 2] // B
+            imageData[imageOffset + 3] = samplesPerPixel === 4 ? stripData[i + 3] : 255 // A
+            imageOffset += 4
+          }
+        } else if (samplesPerPixel === 1) {
+          // 灰度或调色板
+          for (let i = 0; i < stripData.length; i++) {
+            if (imageOffset >= imageData.length) break
+            const value = stripData[i]
+            imageData[imageOffset] = value
+            imageData[imageOffset + 1] = value
+            imageData[imageOffset + 2] = value
+            imageData[imageOffset + 3] = 255
+            imageOffset += 4
+          }
+        }
+      }
+    } else if (compression === 32773) {
+      // PackBits 压缩（RLE）
+      let imageOffset = 0
+      for (let stripIndex = 0; stripIndex < stripOffsets.length; stripIndex++) {
+        const stripOffset = stripOffsets[stripIndex]
+        const stripByteCount = stripByteCounts[stripIndex]
+        const compressedData = new Uint8Array(arrayBuffer, stripOffset, stripByteCount)
+        
+        // PackBits 解码
+        let srcOffset = 0
+        const decodedStrip: number[] = []
+        
+        while (srcOffset < compressedData.length) {
+          const n = compressedData[srcOffset++]
+          
+          if (n < 128) {
+            // 复制接下来的 n+1 个字节
+            const count = n + 1
+            for (let i = 0; i < count && srcOffset < compressedData.length; i++) {
+              decodedStrip.push(compressedData[srcOffset++])
+            }
+          } else if (n > 128) {
+            // 重复接下来的字节 257-n 次
+            const count = 257 - n
+            if (srcOffset < compressedData.length) {
+              const value = compressedData[srcOffset++]
+              for (let i = 0; i < count; i++) {
+                decodedStrip.push(value)
+              }
+            }
+          }
+          // n === 128 是 no-op
+        }
+        
+        // 将解码后的数据转换为 RGBA
+        if (samplesPerPixel === 3 || samplesPerPixel === 4) {
+          // RGB 或 RGBA
+          for (let i = 0; i < decodedStrip.length; i += samplesPerPixel) {
+            if (imageOffset >= imageData.length) break
+            imageData[imageOffset] = decodedStrip[i] // R
+            imageData[imageOffset + 1] = decodedStrip[i + 1] // G
+            imageData[imageOffset + 2] = decodedStrip[i + 2] // B
+            imageData[imageOffset + 3] = samplesPerPixel === 4 ? decodedStrip[i + 3] : 255 // A
+            imageOffset += 4
+          }
+        } else if (samplesPerPixel === 1) {
+          // 灰度
+          for (let i = 0; i < decodedStrip.length; i++) {
+            if (imageOffset >= imageData.length) break
+            const value = decodedStrip[i]
+            imageData[imageOffset] = value
+            imageData[imageOffset + 1] = value
+            imageData[imageOffset + 2] = value
+            imageData[imageOffset + 3] = 255
+            imageOffset += 4
+          }
+        }
+      }
+    } else {
+      throw new Error(`Unsupported TIFF compression type: ${compression}. Supported: 1 (None), 32773 (PackBits)`)
+    }
+    
+    // 创建 ImageBitmap
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    const ctx = canvas.getContext('2d')
+    if (!ctx) throw new Error('Failed to get canvas context')
+    
+    const imageDataObj = new ImageData(imageData, width, height)
+    ctx.putImageData(imageDataObj, 0, 0)
+    
+    return createImageBitmap(canvas)
+  }, [])
+
   // 图片转换核心功能
   const convertImage = useCallback(async (imageFile: ImageFile): Promise<ConvertedImage> => {
     const { file, format } = imageFile
@@ -555,18 +762,22 @@ export default function ImageConverter() {
         }
       } else if (format === 'TIFF') {
         try {
-          // 尝试 createImageBitmap（Chrome/Edge 可能支持）
+          // 先尝试浏览器原生支持
           const blob = new Blob([await file.arrayBuffer()], { type: 'image/tiff' })
-          imageBitmap = await createImageBitmap(blob)
-          console.log('[TIFF] Using createImageBitmap')
+          try {
+            imageBitmap = await createImageBitmap(blob)
+            console.log('[TIFF] Using native createImageBitmap')
+          } catch {
+            // 如果浏览器不支持，使用自定义解码器
+            console.log('[TIFF] Using custom decoder')
+            imageBitmap = await decodeTIFF(file)
+          }
         } catch (err) {
           console.error('TIFF decode error:', err)
-          // Chrome/Edge 的 createImageBitmap 应该支持 TIFF
-          // 如果不支持，可能是文件格式问题
           throw new Error(
             language === 'zh-CN' 
-              ? `TIFF 解码失败: ${file.name}。请确保使用 Chrome 或 Edge 浏览器，或文件格式可能不受支持。` 
-              : `TIFF decode failed: ${file.name}. Please use Chrome or Edge browser, or the file format may not be supported.`
+              ? `TIFF 解码失败: ${file.name}。请确保文件是有效的 TIFF 格式。` 
+              : `TIFF decode failed: ${file.name}. Please ensure the file is a valid TIFF format.`
           )
         }
       } else if (format === 'TGA') {
@@ -673,7 +884,7 @@ export default function ImageConverter() {
     } catch (err) {
       throw err
     }
-  }, [outputFormat, quality, decodePCX, decodeTGA, language])
+  }, [outputFormat, quality, decodePCX, decodeTGA, decodeTIFF, language])
 
   // 批量转换
   const handleConvert = useCallback(async () => {
