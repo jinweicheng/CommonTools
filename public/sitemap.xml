@@ -76,6 +76,14 @@
     <priority>0.95</priority>
   </url>
   
+  <!-- ProRAW/HEIF 专业转换 -->
+  <url>
+    <loc>https://commontools.top/tools/proraw-converter</loc>
+    <lastmod>2026-01-16</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.95</priority>
+  </url>
+  
   <!-- 密码管理器 -->
   <url>
     <loc>https://commontools.top/tools/password-manager</loc>

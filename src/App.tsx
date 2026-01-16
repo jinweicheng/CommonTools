@@ -13,6 +13,7 @@ import HEICToJPGPage from './pages/HEICToJPGPage'
 import LivePhotoPage from './pages/LivePhotoPage'
 import ImageConverterPage from './pages/ImageConverterPage'
 import ModernImageConverterPage from './pages/ModernImageConverterPage'
+import ProRAWConverterPage from './pages/ProRAWConverterPage'
 import LoginPage from './pages/LoginPage'
 import SupportPage from './pages/SupportPage'
 import SupportPolicyPage from './pages/SupportPolicyPage'
@@ -60,6 +61,9 @@ function App() {
               
               {/* 现代图片格式转换 */}
               <Route path="/modern-image-converter" element={<ModernImageConverterPage />} />
+              
+              {/* ProRAW/HEIF 专业转换 */}
+              <Route path="/proraw-converter" element={<ProRAWConverterPage />} />
               
               {/* Support & Policy Pages */}
               <Route path="/support" element={<SupportPage />} />

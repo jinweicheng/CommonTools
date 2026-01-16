@@ -10,7 +10,8 @@
 }
 
 /* 图片转换器页面 - 移除多余边距 */
-.image-converter-page {
+.image-converter-page,
+.proraw-converter-page {
   padding: 0;
 }
 

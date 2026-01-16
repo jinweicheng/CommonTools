@@ -49,6 +49,7 @@ export default {
     livePhoto: 'Live Photo',
     legacyImageConverter: 'Legacy Image',
     modernImageConverter: 'Modern Image',
+    prorawConverter: 'ProRAW',
     passwordManager: 'Password Manager',
   },
 
