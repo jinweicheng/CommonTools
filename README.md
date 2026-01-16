@@ -4,9 +4,15 @@ Commonly used tools for daily life and office work（生活、办公的经常使
 
 ## 🔧 项目简介
 
-一个功能强大的 **本地加密工具集**，完全在浏览器中运行，无需上传文件到服务器，保护您的隐私。
+一个功能强大的 **本地工具集**，完全在浏览器中运行，无需上传文件到服务器，保护您的隐私安全。
 
-基于 React 18、TypeScript 和现代 Web 技术构建，提供专业级的文件处理和密码管理能力。
+基于 React 18、TypeScript 和现代 Web 技术构建，提供专业级的文件处理、图片转换、视频处理和密码管理能力。
+
+**核心特色：**
+- 🔒 100% 本地处理，文件不上传服务器
+- ⚡ 基于 WebAssembly 的高性能处理
+- 🎨 专业级的 UI/UX 设计
+- 🔐 军事级加密保护
 
 ---
 
@@ -99,7 +105,6 @@ Commonly used tools for daily life and office work（生活、办公的经常使
 - 解压成功
 <img src="./images/unzip_password_success.png" alt="解压成功">
 
-
 - ZIP 格式压缩（**真正的 AES-256 加密** ✅）
 - ZIP 格式解压（支持加密 ZIP）
 - 多文件打包
@@ -107,6 +112,64 @@ Commonly used tools for daily life and office work（生活、办公的经常使
 - **标准 AES-256/192/128 加密**（与 WinRAR、7-Zip 兼容）
 - 文件预览和选择性解压
 - 100% 本地处理
+
+### 📷 图片转换工具
+
+#### HEIC 转 JPG
+- **iPhone 照片转换**：将 HEIC 格式转换为通用的 JPG 格式
+- **批量处理**：支持一次转换多张照片
+- **质量控制**：可调整输出质量和大小
+- **100% 本地处理**：使用 heic2any 库，文件不上传
+
+#### 老旧图片格式转换
+- **支持格式**：BMP、TGA、PCX、TIFF（多页）
+- **输出格式**：JPG、WebP
+- **Canvas API**：浏览器原生处理，无需额外库
+- **多页 TIFF**：支持拆分和批量导出
+- **保留 DPI**：保持原始分辨率信息
+
+#### 现代图片格式转换
+- **支持格式**：AVIF、WebP ↔ PNG、JPG
+- **并排对比**：实时查看转换前后效果
+- **质量滑块**：精确控制输出质量
+- **批量导出**：一键打包下载所有转换结果
+- **Squoosh 风格 UI**：专业的对比界面
+
+#### ProRAW 转换器
+- **iPhone ProRAW**：专业摄影 RAW 格式支持
+- **HEIF/HEIC 转换**：批量转换为 JPG
+- **EXIF 保留**：可选择保留拍摄信息
+- **元数据管理**：保留日期、相机、镜头信息
+- **GPS 保护**：默认关闭地理位置信息
+
+### 🎥 视频处理工具
+
+#### Live Photo 转换（MOV → GIF/MP4）
+- **iPhone 实况照片**：将 Live Photo 转换为动图或视频
+- **MOV 转 GIF**：生成高质量动画 GIF
+- **MOV 转 MP4**：转换为兼容的 MP4 格式
+- **智能优化**：调色板优化、帧去重、大小压缩
+- **FFmpeg.wasm**：基于 WebAssembly 的本地处理
+
+#### iPhone 屏幕录像处理
+- **智能裁剪**：去除顶部状态栏（红点、时间戳）和底部 Home bar
+- **高效压缩**：H.264 编码，平均压缩 70%+ 体积
+- **模糊/遮挡**：保护隐私信息（通知、消息预览）
+- **批量处理**：一次处理多个视频文件
+- **专业工具**：专为 iPhone 录屏优化
+
+---
+
+## 📚 详细功能文档
+
+每个功能的详细使用说明：
+
+- [HEIC 转 JPG 使用指南](./HEIC_TO_JPG_GUIDE.md) - iPhone 照片格式转换
+- [Live Photo 转换指南](./LIVE_PHOTO_GUIDE.md) - 实况照片转 GIF/MP4
+- [老旧图片格式转换](./LEGACY_IMAGE_CONVERTER.md) - BMP/TGA/PCX/TIFF 转换
+- [现代图片格式转换](./MODERN_IMAGE_CONVERTER_GUIDE.md) - AVIF/WebP 转换
+- [ProRAW 转换器](./PRORAW_QUICK_START.md) - 专业 RAW 格式处理
+- [iPhone 屏幕录像处理](./SCREEN_RECORDING_GUIDE.md) - 录屏裁剪、压缩、去水印
 
 ---
 
@@ -137,6 +200,17 @@ Commonly used tools for daily life and office work（生活、办公的经常使
 - **@zip.js/zip.js** - ZIP 压缩和解压（支持 AES-256 加密）
 - **JSZip** - ZIP 文件预览
 - **file-saver** - 文件下载
+
+### 图片处理
+- **heic2any** - HEIC 格式转换
+- **Canvas API** - 图片处理（编码、解码、裁剪）
+- **exifreader** - EXIF 元数据读取
+- **piexifjs** - EXIF 元数据写入
+
+### 视频处理
+- **@ffmpeg/ffmpeg** - FFmpeg WebAssembly（视频处理）
+- **@ffmpeg/util** - FFmpeg 工具函数
+- **gif.js** - GIF 动画生成
 
 ### 其他工具
 - **date-fns** - 日期处理
@@ -338,10 +412,6 @@ npm run preview
 
 ---
 
-## 📚 文档
-
-详细的技术文档和使用说明：
-- [PDF 加密/解密功能说明](./PDF_LOCK_README.md)
 
 ---
 
