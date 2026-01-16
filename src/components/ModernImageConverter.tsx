@@ -47,6 +47,7 @@ export default function ModernImageConverter() {
   const comparisonCanvasRef = useRef<HTMLCanvasElement>(null)
   const sliderRef = useRef<HTMLDivElement>(null)
   const [isDragging, setIsDragging] = useState(false)
+  const [avifSupported, setAvifSupported] = useState<boolean | null>(null)
 
   // 文件格式检测
   const detectFormat = useCallback(async (file: File): Promise<string> => {
@@ -78,21 +79,131 @@ export default function ModernImageConverter() {
     return 'UNKNOWN'
   }, [])
 
-  // 检查浏览器支持
+  // 初始化时检测 AVIF 支持（异步，避免阻塞）
+  useEffect(() => {
+    const detectAvifSupport = () => {
+      const ua = navigator.userAgent
+      
+      // 方法 1：检查 Chrome 版本（Chrome 123+ 支持 AVIF 编码）
+      const chromeMatch = ua.match(/Chrome\/(\d+)/)
+      if (chromeMatch && !ua.includes('Edg/')) {
+        const version = parseInt(chromeMatch[1], 10)
+        if (version >= 123) {
+          console.log(`[AVIF] Chrome ${version} detected, AVIF encoding supported`)
+          setAvifSupported(true)
+          return
+        }
+      }
+      
+      // 方法 2：检查 Edge 版本
+      const edgeMatch = ua.match(/Edg\/(\d+)/)
+      if (edgeMatch) {
+        const version = parseInt(edgeMatch[1], 10)
+        if (version >= 123) {
+          console.log(`[AVIF] Edge ${version} detected, AVIF encoding supported`)
+          setAvifSupported(true)
+          return
+        }
+      }
+      
+      // 方法 3：实际检测（异步）
+      const testCanvas = document.createElement('canvas')
+      testCanvas.width = 1
+      testCanvas.height = 1
+      const testCtx = testCanvas.getContext('2d')
+      if (!testCtx) {
+        setAvifSupported(false)
+        return
+      }
+      
+      testCtx.fillRect(0, 0, 1, 1)
+      
+      // 使用 toBlob 检测（与实际编码使用的 API 相同）
+      let toBlobCompleted = false
+      testCanvas.toBlob((blob) => {
+        toBlobCompleted = true
+        const supported = blob !== null && blob.type === 'image/avif'
+        console.log(`[AVIF] toBlob test result: ${supported}, blob type: ${blob?.type}`)
+        setAvifSupported(supported)
+      }, 'image/avif', 0.9)
+      
+      // 超时保护（200ms 后如果还没结果，尝试同步检测）
+      const timeoutId = setTimeout(() => {
+        // 如果 toBlob 还没完成，使用同步检测作为备用
+        setAvifSupported((current) => {
+          if (current !== null || toBlobCompleted) return current ?? false // 已有结果，不覆盖
+          
+          try {
+            const dataURL = testCanvas.toDataURL('image/avif')
+            const supported = dataURL.startsWith('data:image/avif') || dataURL.includes('image/avif')
+            console.log(`[AVIF] toDataURL fallback result: ${supported}`)
+            return supported
+          } catch {
+            console.warn('[AVIF] All detection methods failed')
+            return false
+          }
+        })
+      }, 200)
+      
+      return () => {
+        clearTimeout(timeoutId)
+      }
+    }
+    
+    detectAvifSupport()
+  }, []) // 只在组件挂载时运行一次
+
+  // 检查浏览器支持（检测编码能力）
   const checkBrowserSupport = useCallback((format: string): boolean => {
+    // AVIF 支持检测
+    if (format === 'AVIF') {
+      // 如果已检测，使用检测结果
+      if (avifSupported !== null) {
+        return avifSupported
+      }
+      
+      // 如果还在检测中，使用 User Agent 快速检测
+      const ua = navigator.userAgent
+      const chromeMatch = ua.match(/Chrome\/(\d+)/)
+      if (chromeMatch && !ua.includes('Edg/')) {
+        const version = parseInt(chromeMatch[1], 10)
+        if (version >= 123) {
+          return true
+        }
+      }
+      
+      const edgeMatch = ua.match(/Edg\/(\d+)/)
+      if (edgeMatch) {
+        const version = parseInt(edgeMatch[1], 10)
+        if (version >= 123) {
+          return true
+        }
+      }
+      
+      // 默认返回 false（保守策略）
+      return false
+    }
+    
+    // 其他格式使用原有逻辑
     const canvas = document.createElement('canvas')
     canvas.width = 1
     canvas.height = 1
     
     const mimeTypes = {
-      'AVIF': 'image/avif',
       'WebP': 'image/webp',
       'PNG': 'image/png',
       'JPG': 'image/jpeg'
     }
     
     const mimeType = mimeTypes[format as keyof typeof mimeTypes]
-    return canvas.toDataURL(mimeType).indexOf(mimeType) > -1
+    if (!mimeType) return true
+    
+    try {
+      const dataURL = canvas.toDataURL(mimeType)
+      return dataURL.indexOf(mimeType) > -1
+    } catch {
+      return false
+    }
   }, [])
 
   // 处理文件列表
@@ -290,11 +401,17 @@ export default function ModernImageConverter() {
     }
 
     // 检查浏览器支持
-    if (outputFormat === 'avif' && !checkBrowserSupport('AVIF')) {
-      setError(language === 'zh-CN' 
-        ? '您的浏览器不支持 AVIF 格式，请使用 Chrome 90+ 或 Edge 90+' 
-        : 'Your browser does not support AVIF format. Please use Chrome 90+ or Edge 90+')
-      return
+    if (outputFormat === 'avif') {
+      const isSupported = checkBrowserSupport('AVIF')
+      if (!isSupported) {
+        const ua = navigator.userAgent
+        console.warn('[AVIF] Browser support check failed. UA:', ua)
+        console.warn('[AVIF] Cached support value:', avifSupported)
+        setError(language === 'zh-CN' 
+          ? '您的浏览器不支持 AVIF 格式，请使用 Chrome 123+ 或 Edge 123+' 
+          : 'Your browser does not support AVIF format. Please use Chrome 123+ or Edge 123+')
+        return
+      }
     }
 
     setIsConverting(true)
