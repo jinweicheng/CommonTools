@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react'
-import { Upload, Download, X, Video, CheckCircle2, AlertCircle, Settings, Scissors, Package, Layers, FileVideo, Zap } from 'lucide-react'
+import { Upload, Download, X, Video, CheckCircle2, AlertCircle, Info, Scissors, Package } from 'lucide-react'
 import { useI18n } from '../i18n/I18nContext'
 import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
@@ -30,10 +30,7 @@ interface CropSettings {
   right: number
 }
 
-type OutputFormat = 'webm' | 'mp4'
-type QualityPreset = 'high' | 'medium' | 'low'
-
-export default function ScreenRecordingProcessor() {
+export default function ScreenRecordingProcessorNative() {
   const { language } = useI18n()
   const [uploadedFiles, setUploadedFiles] = useState<VideoFile[]>([])
   const [processedVideos, setProcessedVideos] = useState<ProcessedVideo[]>([])
@@ -53,21 +50,8 @@ export default function ScreenRecordingProcessor() {
     right: 0
   })
 
-  // 输出格式
-  const [outputFormat, setOutputFormat] = useState<OutputFormat>('webm')
-  
   // 质量设置
-  const [qualityPreset, setQualityPreset] = useState<QualityPreset>('medium')
-
-  // 质量参数映射
-  const getQualityBitrate = useCallback(() => {
-    const bitrateMap = {
-      high: 8000000,   // 8 Mbps
-      medium: 4000000, // 4 Mbps
-      low: 2000000     // 2 Mbps
-    }
-    return bitrateMap[qualityPreset]
-  }, [qualityPreset])
+  const [quality, setQuality] = useState<'high' | 'medium' | 'low'>('medium')
 
   // 使用Canvas API处理视频
   const processVideoNative = useCallback(async (videoFile: VideoFile): Promise<ProcessedVideo> => {
@@ -94,8 +78,13 @@ export default function ScreenRecordingProcessor() {
         canvas.height = croppedHeight
         const ctx = canvas.getContext('2d')!
         
-        // 获取质量参数
-        const bitrate = getQualityBitrate()
+        // 设置质量参数
+        const bitrateMap = {
+          high: 8000000,   // 8 Mbps
+          medium: 4000000, // 4 Mbps
+          low: 2000000     // 2 Mbps
+        }
+        const bitrate = bitrateMap[quality]
         
         // 创建MediaRecorder
         const stream = canvas.captureStream(30) // 30 FPS
@@ -109,13 +98,8 @@ export default function ScreenRecordingProcessor() {
           }
         }
         
-        // 根据格式选择编码器
-        const mimeType = outputFormat === 'webm' 
-          ? 'video/webm;codecs=vp9'
-          : 'video/webm;codecs=vp8' // MP4需要后端转换，这里先用webm
-        
         const recorder = new MediaRecorder(stream, {
-          mimeType,
+          mimeType: 'video/webm;codecs=vp9',
           videoBitsPerSecond: bitrate
         })
         
@@ -127,13 +111,11 @@ export default function ScreenRecordingProcessor() {
         }
         
         recorder.onstop = () => {
-          const blob = new Blob(chunks, { type: `video/${outputFormat}` })
+          const blob = new Blob(chunks, { type: 'video/webm' })
           const url = URL.createObjectURL(blob)
           
-          const extension = outputFormat === 'webm' ? 'webm' : 'webm' // 暂时都用webm
-          
           resolve({
-            name: videoFile.file.name.replace(/\.[^/.]+$/, `_processed.${extension}`),
+            name: videoFile.file.name.replace(/\.[^/.]+$/, '_processed.webm'),
             blob,
             url,
             size: blob.size,
@@ -179,7 +161,7 @@ export default function ScreenRecordingProcessor() {
         reject(err)
       }
     })
-  }, [cropSettings, outputFormat, getQualityBitrate])
+  }, [cropSettings, quality])
 
   // 分析视频信息
   const analyzeVideo = useCallback(async (file: File): Promise<{ duration?: number; width?: number; height?: number }> => {
@@ -372,7 +354,7 @@ export default function ScreenRecordingProcessor() {
   return (
     <div className="screen-recording-processor">
       {/* Header */}
-      <div className="converter-header">
+      <div className="processor-header">
         <div className="header-content">
           <h1 className="tool-title">
             <Video />
@@ -380,14 +362,74 @@ export default function ScreenRecordingProcessor() {
           </h1>
           <p className="tool-description">
             {language === 'zh-CN'
-              ? '专为 iPhone 屏幕录像优化：裁剪状态栏、压缩体积、调整质量。使用浏览器原生API，完全本地处理，保护隐私安全。'
-              : 'Optimized for iPhone screen recordings: crop status bar, compress size, adjust quality. Uses native browser APIs, 100% local processing, privacy-friendly.'}
+              ? '裁剪状态栏、压缩体积，使用浏览器原生API，立即可用，无需等待。'
+              : 'Crop status bar, compress size. Uses native browser APIs, instant loading, zero wait time.'}
           </p>
         </div>
       </div>
 
-      {/* Upload Section */}
-      <div className="upload-section">
+      {/* Tips */}
+      <div className="pro-notice">
+        <Info />
+        <div className="notice-content">
+          <strong>{language === 'zh-CN' ? '✨ 全新原生引擎' : '✨ Native Browser Engine'}</strong>
+          <p>{language === 'zh-CN'
+            ? '使用浏览器原生API处理视频，无需下载任何外部库，立即开始使用！所有处理在本地完成，视频不上传服务器。'
+            : 'Uses native browser APIs for video processing. No external libraries needed, start using immediately! All processing done locally, videos never uploaded.'}
+          </p>
+        </div>
+      </div>
+
+      {/* Settings */}
+      <div className="settings-section">
+        <h3><Scissors /> {language === 'zh-CN' ? '裁剪设置' : 'Crop Settings'}</h3>
+        <div className="settings-grid">
+          <div className="setting-item">
+            <label>{language === 'zh-CN' ? '顶部裁剪' : 'Top'}: {cropSettings.top}px</label>
+            <input
+              type="range"
+              min="0"
+              max="300"
+              value={cropSettings.top}
+              onChange={(e) => setCropSettings(prev => ({ ...prev, top: Number(e.target.value) }))}
+            />
+          </div>
+          <div className="setting-item">
+            <label>{language === 'zh-CN' ? '底部裁剪' : 'Bottom'}: {cropSettings.bottom}px</label>
+            <input
+              type="range"
+              min="0"
+              max="300"
+              value={cropSettings.bottom}
+              onChange={(e) => setCropSettings(prev => ({ ...prev, bottom: Number(e.target.value) }))}
+            />
+          </div>
+          <div className="setting-item">
+            <label>{language === 'zh-CN' ? '质量' : 'Quality'}</label>
+            <select value={quality} onChange={(e) => setQuality(e.target.value as any)}>
+              <option value="high">{language === 'zh-CN' ? '高 (8 Mbps)' : 'High (8 Mbps)'}</option>
+              <option value="medium">{language === 'zh-CN' ? '中 (4 Mbps)' : 'Medium (4 Mbps)'}</option>
+              <option value="low">{language === 'zh-CN' ? '低 (2 Mbps)' : 'Low (2 Mbps)'}</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Upload Area */}
+      <div
+        className={`upload-area ${isDragging ? 'dragging' : ''}`}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        onClick={() => fileInputRef.current?.click()}
+      >
+        <Upload size={48} />
+        <p className="upload-title">
+          {language === 'zh-CN' ? '点击或拖拽视频文件到此处' : 'Click or drag video files here'}
+        </p>
+        <p className="upload-subtitle">
+          {language === 'zh-CN' ? '支持 MP4, MOV, WEBM 等格式，最大 500MB' : 'Supports MP4, MOV, WEBM, max 500MB'}
+        </p>
         <input
           ref={fileInputRef}
           type="file"
@@ -395,189 +437,60 @@ export default function ScreenRecordingProcessor() {
           multiple
           onChange={handleFileSelect}
           style={{ display: 'none' }}
-          disabled={isProcessing}
         />
-        
-        <div
-          className={`upload-button ${isDragging ? 'dragging' : ''}`}
-          onClick={() => fileInputRef.current?.click()}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-        >
-          <Upload size={48} />
-          <span>{language === 'zh-CN' ? '上传视频文件' : 'Upload Videos'}</span>
-          <small>{language === 'zh-CN' ? '支持 MP4, MOV, WEBM 等格式，最大 500MB' : 'Supports MP4, MOV, WEBM, max 500MB'}</small>
-        </div>
+      </div>
 
-        {uploadedFiles.length > 0 && (
-          <div className="file-list">
+      {/* Uploaded Files */}
+      {uploadedFiles.length > 0 && (
+        <div className="files-section">
+          <h3>{language === 'zh-CN' ? '已上传的视频' : 'Uploaded Videos'}</h3>
+          <div className="files-list">
             {uploadedFiles.map((file, index) => (
               <div key={index} className="file-item">
-                <div className="file-preview">
-                  <video src={file.preview} />
-                </div>
+                <video src={file.preview} style={{ width: 100, height: 'auto', borderRadius: 4 }} />
                 <div className="file-info">
-                  <span className="file-name">{file.file.name}</span>
-                  <span className="file-meta">
+                  <div className="file-name">{file.file.name}</div>
+                  <div className="file-meta">
                     {file.width}×{file.height} • {formatDuration(file.duration)} • {formatFileSize(file.size)}
-                  </span>
+                  </div>
                 </div>
-                <button
-                  className="remove-button"
-                  onClick={() => handleRemoveFile(index)}
-                  disabled={isProcessing}
-                >
+                <button className="remove-button" onClick={() => handleRemoveFile(index)}>
                   <X />
                 </button>
               </div>
             ))}
           </div>
-        )}
-      </div>
 
-      {/* Settings Section */}
-      {uploadedFiles.length > 0 && (
-        <div className="settings-section">
-          <h3><Settings /> {language === 'zh-CN' ? '处理设置' : 'Processing Settings'}</h3>
-          
-          {/* Output Format */}
-          <div className="setting-group">
-            <label>{language === 'zh-CN' ? '输出格式' : 'Output Format'}</label>
-            <div className="format-buttons">
-              <button
-                className={`format-button ${outputFormat === 'webm' ? 'active' : ''}`}
-                onClick={() => setOutputFormat('webm')}
-                disabled={isProcessing}
-              >
-                <FileVideo />
-                <span>WebM</span>
-                <small>{language === 'zh-CN' ? '现代格式，体积小' : 'Modern, smaller'}</small>
-              </button>
-              <button
-                className={`format-button ${outputFormat === 'mp4' ? 'active' : ''}`}
-                onClick={() => setOutputFormat('mp4')}
-                disabled={isProcessing}
-                title={language === 'zh-CN' ? 'MP4格式（使用WebM编码）' : 'MP4 format (using WebM codec)'}
-              >
-                <Layers />
-                <span>MP4</span>
-                <small>{language === 'zh-CN' ? '通用兼容' : 'Universal'}</small>
-              </button>
-            </div>
-          </div>
-
-          {/* Quality Preset */}
-          <div className="setting-group">
-            <label>{language === 'zh-CN' ? '质量预设' : 'Quality Preset'}</label>
-            <div className="quality-buttons">
-              <button
-                className={`quality-button ${qualityPreset === 'high' ? 'active' : ''}`}
-                onClick={() => setQualityPreset('high')}
-                disabled={isProcessing}
-              >
-                <Zap />
-                <span>{language === 'zh-CN' ? '高质量' : 'High'}</span>
-                <small>8 Mbps</small>
-              </button>
-              <button
-                className={`quality-button ${qualityPreset === 'medium' ? 'active' : ''}`}
-                onClick={() => setQualityPreset('medium')}
-                disabled={isProcessing}
-              >
-                <Zap />
-                <span>{language === 'zh-CN' ? '中质量' : 'Medium'}</span>
-                <small>4 Mbps</small>
-              </button>
-              <button
-                className={`quality-button ${qualityPreset === 'low' ? 'active' : ''}`}
-                onClick={() => setQualityPreset('low')}
-                disabled={isProcessing}
-              >
-                <Zap />
-                <span>{language === 'zh-CN' ? '低质量' : 'Low'}</span>
-                <small>2 Mbps</small>
-              </button>
-            </div>
-          </div>
-
-          {/* Crop Settings */}
-          <div className="setting-group">
-            <label><Scissors /> {language === 'zh-CN' ? '裁剪设置' : 'Crop Settings'}</label>
-            
-            <div className="crop-controls">
-              <div className="crop-control">
-                <label>{language === 'zh-CN' ? '顶部裁剪' : 'Top'}: <strong>{cropSettings.top}px</strong></label>
-                <input
-                  type="range"
-                  min="0"
-                  max="300"
-                  value={cropSettings.top}
-                  onChange={(e) => setCropSettings(prev => ({ ...prev, top: Number(e.target.value) }))}
-                  disabled={isProcessing}
-                  className="quality-slider"
-                />
-              </div>
-              
-              <div className="crop-control">
-                <label>{language === 'zh-CN' ? '底部裁剪' : 'Bottom'}: <strong>{cropSettings.bottom}px</strong></label>
-                <input
-                  type="range"
-                  min="0"
-                  max="300"
-                  value={cropSettings.bottom}
-                  onChange={(e) => setCropSettings(prev => ({ ...prev, bottom: Number(e.target.value) }))}
-                  disabled={isProcessing}
-                  className="quality-slider"
-                />
-              </div>
-
-              <div className="crop-hints">
-                <small>
-                  {language === 'zh-CN' 
-                    ? '💡 提示：iPhone 屏幕录像通常顶部 120px，底部 80px'
-                    : '💡 Tip: iPhone recordings usually have 120px top, 80px bottom'}
-                </small>
-              </div>
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="action-buttons">
-            <button
-              className="process-button"
-              onClick={handleProcess}
-              disabled={isProcessing}
-            >
-              {isProcessing ? (
-                <>
-                  <div className="spinner"></div>
-                  <span>{currentTask || (language === 'zh-CN' ? '处理中...' : 'Processing...')}</span>
-                </>
-              ) : (
-                <>
-                  <Video />
-                  <span>{language === 'zh-CN' ? '开始处理' : 'Start Processing'}</span>
-                </>
-              )}
-            </button>
-
-            {!isProcessing && uploadedFiles.length > 0 && (
-              <button className="clear-button" onClick={handleClearFiles}>
-                <X />
-                <span>{language === 'zh-CN' ? '清除所有' : 'Clear All'}</span>
-              </button>
+          <button
+            className="process-button"
+            onClick={handleProcess}
+            disabled={isProcessing}
+          >
+            {isProcessing ? (
+              <>
+                <div className="spinner"></div>
+                <span>{currentTask || (language === 'zh-CN' ? '处理中...' : 'Processing...')}</span>
+              </>
+            ) : (
+              <>
+                <Video />
+                <span>{language === 'zh-CN' ? '开始处理' : 'Start Processing'}</span>
+              </>
             )}
-          </div>
+          </button>
 
-          {/* Progress Bar */}
           {isProcessing && (
-            <div className="progress-container">
-              <div className="progress-bar">
-                <div className="progress-fill" style={{ width: `${progress}%` }}></div>
-              </div>
+            <div className="progress-bar">
+              <div className="progress-fill" style={{ width: `${progress}%` }}></div>
               <span className="progress-text">{progress}%</span>
             </div>
+          )}
+
+          {uploadedFiles.length > 0 && !isProcessing && (
+            <button className="clear-button" onClick={handleClearFiles}>
+              <X />
+              <span>{language === 'zh-CN' ? '清除所有' : 'Clear All'}</span>
+            </button>
           )}
         </div>
       )}
@@ -597,34 +510,25 @@ export default function ScreenRecordingProcessor() {
         </div>
       )}
 
-      {/* Results Section */}
+      {/* Results */}
       {processedVideos.length > 0 && (
         <div className="results-section">
           <h3>{language === 'zh-CN' ? '处理结果' : 'Processed Videos'}</h3>
-          <div className="results-grid">
+          <div className="results-list">
             {processedVideos.map((video, index) => (
-              <div key={index} className="result-card">
-                <div className="result-preview">
-                  <video src={video.url} controls />
-                </div>
+              <div key={index} className="result-item">
+                <video src={video.url} controls style={{ width: '100%', maxHeight: 300, borderRadius: 8 }} />
                 <div className="result-info">
                   <div className="result-name">{video.name}</div>
                   <div className="result-stats">
-                    <span className="stat">
-                      {language === 'zh-CN' ? '原始' : 'Original'}: <strong>{formatFileSize(video.originalSize)}</strong>
-                    </span>
-                    <span className="stat-arrow">→</span>
-                    <span className="stat">
-                      {language === 'zh-CN' ? '处理后' : 'Processed'}: <strong>{formatFileSize(video.size)}</strong>
-                    </span>
-                    <span className="stat-badge">
-                      {video.compressionRatio.toFixed(1)}%
-                    </span>
+                    {language === 'zh-CN' ? '原始' : 'Original'}: {formatFileSize(video.originalSize)} →{' '}
+                    {language === 'zh-CN' ? '压缩后' : 'Compressed'}: {formatFileSize(video.size)}{' '}
+                    ({video.compressionRatio.toFixed(1)}%)
                   </div>
                 </div>
                 <button className="download-button" onClick={() => handleDownload(video)}>
                   <Download />
-                  <span>{language === 'zh-CN' ? '下载' : 'Download'}</span>
+                  {language === 'zh-CN' ? '下载' : 'Download'}
                 </button>
               </div>
             ))}
