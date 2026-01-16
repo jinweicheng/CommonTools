@@ -50,7 +50,7 @@ export default {
     legacyImageConverter: '老图片转换',
     modernImageConverter: '图片格式转换',
     prorawConverter: 'ProRAW转换',
-    screenRecording: 'iPhone录像',
+    screenRecording: 'IPHONE录像',
     passwordManager: '密码管理器',
   },
 

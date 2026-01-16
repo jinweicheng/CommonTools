@@ -109,84 +109,571 @@ export default function ImageConverter() {
     }
   }, [detectFormat, language])
 
+  // PCX 解码器（支持 8-bit 调色板 PCX）
+  const decodePCX = useCallback(async (file: File): Promise<ImageBitmap> => {
+    const arrayBuffer = await file.arrayBuffer()
+    const bytes = new Uint8Array(arrayBuffer)
+    const view = new DataView(arrayBuffer)
+    
+    // PCX 文件头验证
+    if (bytes[0] !== 0x0A) {
+      throw new Error('Invalid PCX file: missing PCX signature (0x0A)')
+    }
+    
+    // 读取图像尺寸（小端序）
+    const xMin = view.getUint16(4, true)
+    const yMin = view.getUint16(6, true)
+    const xMax = view.getUint16(8, true)
+    const yMax = view.getUint16(10, true)
+    const width = xMax - xMin + 1
+    const height = yMax - yMin + 1
+    
+    if (width <= 0 || height <= 0 || width > 10000 || height > 10000) {
+      throw new Error(`Invalid PCX file: invalid dimensions (${width}x${height})`)
+    }
+    
+    // PCX 文件头中，偏移 66-67 在不同变体中含义不同
+    // 标准 PCX v3.0: 偏移 66 = BytesPerLine (16-bit, 低字节), 偏移 67 = BytesPerLine (高字节)
+    // 某些变体: 偏移 66 = BitsPerPixel (8-bit), 偏移 67 = NumPlanes (8-bit)
+    
+    // 尝试读取 BytesPerLine（16-bit，小端）
+    const bytesPerLineFromHeader = view.getUint16(66, true)
+    
+    // 如果 BytesPerLine 值合理（在宽度范围内），使用它
+    // 否则尝试读取 bitsPerPixel 和 numPlanes
+    let bitsPerPixel: number
+    let numPlanes: number
+    let actualBytesPerLine: number
+    
+    if (bytesPerLineFromHeader > 0 && bytesPerLineFromHeader < width * 4) {
+      // 使用文件头中的 BytesPerLine
+      actualBytesPerLine = bytesPerLineFromHeader
+      // 尝试从其他位置读取 bitsPerPixel 和 numPlanes，或根据 BytesPerLine 推断
+      bitsPerPixel = bytes[66] // 可能是 bitsPerPixel 的低字节
+      numPlanes = bytes[67] // 可能是 numPlanes 或 bitsPerPixel 的高字节
+      
+      // 如果 bitsPerPixel 不合理，根据 BytesPerLine 和 width 推断
+      if (bitsPerPixel > 32 || bitsPerPixel === 0) {
+        // 推断：BytesPerLine 通常 >= width * bitsPerPixel / 8
+        const estimatedBpp = Math.ceil((actualBytesPerLine * 8) / width)
+        if (estimatedBpp === 8 || estimatedBpp === 24) {
+          bitsPerPixel = estimatedBpp
+          numPlanes = estimatedBpp === 24 ? 3 : 1
+        } else {
+          // 默认假设 8-bit
+          bitsPerPixel = 8
+          numPlanes = 1
+        }
+      }
+    } else {
+      // 使用 bitsPerPixel 和 numPlanes，计算 BytesPerLine
+      bitsPerPixel = bytes[66]
+      numPlanes = bytes[67]
+      
+      // 验证并修正不合理的值
+      if (bitsPerPixel > 32 || bitsPerPixel === 0) {
+        console.warn(`[PCX] Invalid BitsPerPixel: ${bitsPerPixel}, assuming 8-bit`)
+        bitsPerPixel = 8
+      }
+      if (numPlanes === 0 || numPlanes > 4) {
+        console.warn(`[PCX] Invalid NumPlanes: ${numPlanes}, assuming 1`)
+        numPlanes = 1
+      }
+      
+      // 计算每行字节数（PCX 要求每行字节数为偶数）
+      const bytesPerLine = Math.ceil((width * bitsPerPixel * numPlanes) / 8)
+      actualBytesPerLine = bytesPerLine + (bytesPerLine % 2) // 确保是偶数
+    }
+    
+    console.log(`[PCX] Dimensions: ${width}x${height}, BitsPerPixel: ${bitsPerPixel}, Planes: ${numPlanes}, BytesPerLine: ${actualBytesPerLine}`)
+    
+    // 读取调色板（256 色，在文件末尾，768 字节）
+    // 某些 PCX 文件在调色板前有一个 0x0C 标识字节
+    const palette: number[][] = []
+    const fileSize = arrayBuffer.byteLength
+    
+    if (bitsPerPixel === 8 && numPlanes === 1) {
+      // 检查文件末尾是否有调色板
+      let paletteStart = fileSize - 768
+      
+      // 检查是否有 0x0C 标识（可选）
+      if (paletteStart > 0 && bytes[paletteStart - 1] === 0x0C) {
+        paletteStart = paletteStart - 1
+      }
+      
+      if (paletteStart > 128 && paletteStart + 768 <= fileSize) {
+        for (let i = 0; i < 256; i++) {
+          const offset = paletteStart + i * 3
+          if (offset + 2 < fileSize) {
+            palette.push([bytes[offset], bytes[offset + 1], bytes[offset + 2]])
+          }
+        }
+        console.log(`[PCX] Loaded palette with ${palette.length} colors`)
+      }
+    }
+    
+    // 计算预期的解码数据大小（按行、按平面）
+    const expectedDecodedSize = height * numPlanes * actualBytesPerLine
+    
+    // 解码 RLE 压缩数据（按行解码）
+    const decodedData = new Uint8Array(expectedDecodedSize)
+    let dataOffset = 128
+    let decodedPos = 0
+    
+    // RLE 解码（按行处理）
+    for (let plane = 0; plane < numPlanes; plane++) {
+      for (let row = 0; row < height; row++) {
+        let rowBytesDecoded = 0
+        
+        while (rowBytesDecoded < actualBytesPerLine && dataOffset < bytes.length - 1) {
+          const byte = bytes[dataOffset++]
+          
+          if ((byte & 0xC0) === 0xC0) {
+            // RLE 编码：前 6 位是重复次数（1-63）
+            const count = byte & 0x3F
+            if (dataOffset >= bytes.length) break
+            const value = bytes[dataOffset++]
+            
+            const endPos = Math.min(decodedPos + count, decodedPos + (actualBytesPerLine - rowBytesDecoded))
+            for (let i = decodedPos; i < endPos; i++) {
+              decodedData[i] = value
+            }
+            const actualCount = endPos - decodedPos
+            decodedPos += actualCount
+            rowBytesDecoded += actualCount
+          } else {
+            // 原始字节
+            decodedData[decodedPos++] = byte
+            rowBytesDecoded++
+          }
+        }
+      }
+    }
+    
+    // 转换为 RGBA 图像数据
+    const imageData = new Uint8ClampedArray(width * height * 4)
+    
+    if (bitsPerPixel === 8 && numPlanes === 1 && palette.length === 256) {
+      // 8-bit 调色板模式
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          // 使用 actualBytesPerLine 而不是 bytesPerLine
+          const srcIndex = y * actualBytesPerLine + x
+          if (srcIndex < decodedData.length) {
+            const paletteIndex = decodedData[srcIndex]
+            const color = palette[paletteIndex] || [0, 0, 0]
+            const dstIndex = (y * width + x) * 4
+            
+            imageData[dstIndex] = color[0]
+            imageData[dstIndex + 1] = color[1]
+            imageData[dstIndex + 2] = color[2]
+            imageData[dstIndex + 3] = 255
+          }
+        }
+      }
+    } else {
+      // 灰度模式或其他
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          // 使用 actualBytesPerLine 而不是 bytesPerLine
+          const srcIndex = y * actualBytesPerLine + x
+          if (srcIndex < decodedData.length) {
+            const value = decodedData[srcIndex]
+            const dstIndex = (y * width + x) * 4
+            
+            imageData[dstIndex] = value
+            imageData[dstIndex + 1] = value
+            imageData[dstIndex + 2] = value
+            imageData[dstIndex + 3] = 255
+          }
+        }
+      }
+    }
+    
+    // 创建 ImageData 并转换为 ImageBitmap
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    const ctx = canvas.getContext('2d')
+    if (!ctx) throw new Error('Failed to get canvas context')
+    
+    const imageDataObj = new ImageData(imageData, width, height)
+    ctx.putImageData(imageDataObj, 0, 0)
+    
+    return createImageBitmap(canvas)
+  }, [])
+
+  // TGA 解码器（支持多种 TGA 格式）
+  const decodeTGA = useCallback(async (file: File): Promise<ImageBitmap> => {
+    const arrayBuffer = await file.arrayBuffer()
+    const view = new DataView(arrayBuffer)
+    let offset = 0
+    
+    // TGA 文件头（18 字节）
+    const idLength = view.getUint8(offset); offset += 1
+    const colorMapType = view.getUint8(offset); offset += 1
+    const imageType = view.getUint8(offset); offset += 1
+    
+    // 调色板信息
+    view.getUint16(offset, true); offset += 2 // colorMapOrigin (未使用)
+    const colorMapLength = view.getUint16(offset, true); offset += 2
+    const colorMapEntrySize = view.getUint8(offset); offset += 1
+    
+    // 图像信息
+    view.getUint16(offset, true); offset += 2 // xOrigin (未使用)
+    view.getUint16(offset, true); offset += 2 // yOrigin (未使用)
+    const width = view.getUint16(offset, true); offset += 2
+    const height = view.getUint16(offset, true); offset += 2
+    const pixelDepth = view.getUint8(offset); offset += 1
+    const imageDescriptor = view.getUint8(offset); offset += 1
+    
+    console.log(`[TGA] Dimensions: ${width}x${height}, PixelDepth: ${pixelDepth}, ImageType: ${imageType}, ColorMapType: ${colorMapType}`)
+    
+    if (width <= 0 || height <= 0 || width > 10000 || height > 10000) {
+      throw new Error(`Invalid TGA file: invalid dimensions (${width}x${height})`)
+    }
+    
+    // 跳过图像 ID
+    offset += idLength
+    
+    // 读取调色板（如果有）
+    const palette: number[][] = []
+    if (colorMapType === 1 && colorMapLength > 0) {
+      for (let i = 0; i < colorMapLength; i++) {
+        if (colorMapEntrySize === 24) {
+          // 24-bit BGR
+          const b = view.getUint8(offset); offset++
+          const g = view.getUint8(offset); offset++
+          const r = view.getUint8(offset); offset++
+          palette.push([r, g, b])
+        } else if (colorMapEntrySize === 32) {
+          // 32-bit BGRA
+          const b = view.getUint8(offset); offset++
+          const g = view.getUint8(offset); offset++
+          const r = view.getUint8(offset); offset++
+          const a = view.getUint8(offset); offset++
+          palette.push([r, g, b, a])
+        } else {
+          // 其他位深，跳过
+          offset += colorMapEntrySize / 8
+        }
+      }
+      console.log(`[TGA] Loaded palette with ${palette.length} colors`)
+    }
+    
+    // 创建图像数据
+    const imageData = new Uint8ClampedArray(width * height * 4)
+    
+    // 判断是否 RLE 压缩
+    const isRLE = imageType === 9 || imageType === 10 || imageType === 11
+    
+    // 判断图像方向
+    const originMask = (imageDescriptor >> 5) & 0x03
+    const flipVertically = !(originMask & 0x02)
+    const flipHorizontally = (originMask & 0x01) === 0
+    
+    // 解码像素数据
+    if (isRLE) {
+      // RLE 压缩解码
+      let pixelIndex = 0
+      while (pixelIndex < width * height && offset < arrayBuffer.byteLength) {
+        const packetHeader = view.getUint8(offset); offset++
+        const isRLEPacket = (packetHeader & 0x80) !== 0
+        const pixelCount = (packetHeader & 0x7F) + 1
+        
+        if (isRLEPacket) {
+          // RLE 包：重复像素
+          let r = 0, g = 0, b = 0, a = 255
+          
+          if (imageType === 9 || imageType === 10) {
+            // 调色板或真彩色
+            if (colorMapType === 1 && pixelDepth === 8) {
+              // 调色板索引
+              const paletteIndex = view.getUint8(offset); offset++
+              if (paletteIndex < palette.length) {
+                const color = palette[paletteIndex]
+                r = color[0]
+                g = color[1]
+                b = color[2]
+                a = color[3] ?? 255
+              }
+            } else {
+              // 真彩色
+              b = view.getUint8(offset); offset++
+              g = view.getUint8(offset); offset++
+              r = view.getUint8(offset); offset++
+              if (pixelDepth === 32) {
+                a = view.getUint8(offset); offset++
+              }
+            }
+          }
+          
+          // 重复像素
+          for (let i = 0; i < pixelCount && pixelIndex < width * height; i++) {
+            const y = Math.floor(pixelIndex / width)
+            const x = pixelIndex % width
+            const finalY = flipVertically ? (height - 1 - y) : y
+            const finalX = flipHorizontally ? (width - 1 - x) : x
+            const idx = (finalY * width + finalX) * 4
+            
+            imageData[idx] = r
+            imageData[idx + 1] = g
+            imageData[idx + 2] = b
+            imageData[idx + 3] = a
+            pixelIndex++
+          }
+        } else {
+          // 原始包：连续像素
+          for (let i = 0; i < pixelCount && pixelIndex < width * height; i++) {
+            let r = 0, g = 0, b = 0, a = 255
+            
+            if (colorMapType === 1 && pixelDepth === 8) {
+              // 调色板索引
+              const paletteIndex = view.getUint8(offset); offset++
+              if (paletteIndex < palette.length) {
+                const color = palette[paletteIndex]
+                r = color[0]
+                g = color[1]
+                b = color[2]
+                a = color[3] ?? 255
+              }
+            } else {
+              // 真彩色
+              b = view.getUint8(offset); offset++
+              g = view.getUint8(offset); offset++
+              r = view.getUint8(offset); offset++
+              if (pixelDepth === 32) {
+                a = view.getUint8(offset); offset++
+              }
+            }
+            
+            const y = Math.floor(pixelIndex / width)
+            const x = pixelIndex % width
+            const finalY = flipVertically ? (height - 1 - y) : y
+            const finalX = flipHorizontally ? (width - 1 - x) : x
+            const idx = (finalY * width + finalX) * 4
+            
+            imageData[idx] = r
+            imageData[idx + 1] = g
+            imageData[idx + 2] = b
+            imageData[idx + 3] = a
+            pixelIndex++
+          }
+        }
+      }
+    } else {
+      // 未压缩解码
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          let r = 0, g = 0, b = 0, a = 255
+          
+          if (colorMapType === 1 && pixelDepth === 8) {
+            // 调色板索引
+            const paletteIndex = view.getUint8(offset); offset++
+            if (paletteIndex < palette.length) {
+              const color = palette[paletteIndex]
+              r = color[0]
+              g = color[1]
+              b = color[2]
+              a = color[3] ?? 255
+            }
+          } else if (pixelDepth === 24) {
+            // 24-bit BGR
+            b = view.getUint8(offset); offset++
+            g = view.getUint8(offset); offset++
+            r = view.getUint8(offset); offset++
+          } else if (pixelDepth === 32) {
+            // 32-bit BGRA
+            b = view.getUint8(offset); offset++
+            g = view.getUint8(offset); offset++
+            r = view.getUint8(offset); offset++
+            a = view.getUint8(offset); offset++
+          } else if (pixelDepth === 16) {
+            // 16-bit ARGB (5-5-5-1)
+            const pixel = view.getUint16(offset, true); offset += 2
+            r = ((pixel >> 10) & 0x1F) * 8
+            g = ((pixel >> 5) & 0x1F) * 8
+            b = (pixel & 0x1F) * 8
+            a = (pixel >> 15) ? 255 : 0
+          } else {
+            throw new Error(`Unsupported TGA pixel depth: ${pixelDepth}`)
+          }
+          
+          const finalY = flipVertically ? (height - 1 - y) : y
+          const finalX = flipHorizontally ? (width - 1 - x) : x
+          const idx = (finalY * width + finalX) * 4
+          
+          imageData[idx] = r
+          imageData[idx + 1] = g
+          imageData[idx + 2] = b
+          imageData[idx + 3] = a
+        }
+      }
+    }
+    
+    // 创建 ImageData 并转换为 ImageBitmap
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    const ctx = canvas.getContext('2d')
+    if (!ctx) throw new Error('Failed to get canvas context')
+    
+    const imageDataObj = new ImageData(imageData, width, height)
+    ctx.putImageData(imageDataObj, 0, 0)
+    
+    return createImageBitmap(canvas)
+  }, [])
+
   // 图片转换核心功能
   const convertImage = useCallback(async (imageFile: ImageFile): Promise<ConvertedImage> => {
     const { file, format } = imageFile
     
-    return new Promise((resolve, reject) => {
-      const img = new Image()
-      img.crossOrigin = 'anonymous'
+    try {
+      let imageBitmap: ImageBitmap | null = null
+      let img: HTMLImageElement | null = null
       
-      img.onload = () => {
+      // 对于 PCX 和 TIFF，使用自定义解码器或 createImageBitmap
+      if (format === 'PCX') {
         try {
-          const canvas = document.createElement('canvas')
-          canvas.width = img.width
-          canvas.height = img.height
-          
-          const ctx = canvas.getContext('2d', { alpha: true })
-          if (!ctx) {
-            throw new Error('Failed to get canvas context')
+          // 先尝试 createImageBitmap（某些浏览器可能支持）
+          const blob = new Blob([await file.arrayBuffer()], { type: 'image/x-pcx' })
+          try {
+            imageBitmap = await createImageBitmap(blob)
+            console.log('[PCX] Using createImageBitmap')
+          } catch {
+            // 如果 createImageBitmap 不支持，使用自定义解码器
+            console.log('[PCX] Using custom decoder')
+            imageBitmap = await decodePCX(file)
           }
-
-          // 处理 Alpha 通道（TGA/TIFF）
-          if (format === 'TGA' || format === 'TIFF') {
-            // 添加白色背景（如果输出为JPG）
-            if (outputFormat === 'jpg') {
-              ctx.fillStyle = '#FFFFFF'
-              ctx.fillRect(0, 0, canvas.width, canvas.height)
+        } catch (err) {
+          console.error('PCX decode error:', err)
+          throw new Error(
+            language === 'zh-CN' 
+              ? `PCX 解码失败: ${file.name}。请确保文件是有效的 PCX 格式。` 
+              : `PCX decode failed: ${file.name}. Please ensure the file is a valid PCX format.`
+          )
+        }
+      } else if (format === 'TIFF') {
+        try {
+          // 尝试 createImageBitmap（Chrome/Edge 可能支持）
+          const blob = new Blob([await file.arrayBuffer()], { type: 'image/tiff' })
+          imageBitmap = await createImageBitmap(blob)
+          console.log('[TIFF] Using createImageBitmap')
+        } catch (err) {
+          console.error('TIFF decode error:', err)
+          // Chrome/Edge 的 createImageBitmap 应该支持 TIFF
+          // 如果不支持，可能是文件格式问题
+          throw new Error(
+            language === 'zh-CN' 
+              ? `TIFF 解码失败: ${file.name}。请确保使用 Chrome 或 Edge 浏览器，或文件格式可能不受支持。` 
+              : `TIFF decode failed: ${file.name}. Please use Chrome or Edge browser, or the file format may not be supported.`
+          )
+        }
+      } else if (format === 'TGA') {
+        try {
+          // TGA 格式需要自定义解码器
+          console.log('[TGA] Using custom decoder')
+          imageBitmap = await decodeTGA(file)
+        } catch (err) {
+          console.error('TGA decode error:', err)
+          throw new Error(
+            language === 'zh-CN' 
+              ? `TGA 解码失败: ${file.name}。请确保文件是有效的 TGA 格式。` 
+              : `TGA decode failed: ${file.name}. Please ensure the file is a valid TGA format.`
+          )
+        }
+      } else {
+        // BMP 使用标准 Image 对象
+        img = await new Promise<HTMLImageElement>((resolve, reject) => {
+          const image = new Image()
+          image.crossOrigin = 'anonymous'
+          
+          image.onload = () => resolve(image)
+          image.onerror = () => reject(new Error(`Failed to load image: ${file.name}`))
+          
+          const reader = new FileReader()
+          reader.onload = (e) => {
+            if (e.target?.result) {
+              image.src = e.target.result as string
             }
           }
+          reader.onerror = () => reject(new Error(`Failed to read file: ${file.name}`))
+          reader.readAsDataURL(file)
+        })
+      }
+      
+      // 创建 Canvas 并绘制
+      const canvas = document.createElement('canvas')
+      let width: number
+      let height: number
+      
+      if (imageBitmap) {
+        width = imageBitmap.width
+        height = imageBitmap.height
+        canvas.width = width
+        canvas.height = height
+      } else if (img) {
+        width = img.width
+        height = img.height
+        canvas.width = width
+        canvas.height = height
+      } else {
+        throw new Error('No image source available')
+      }
+      
+      const ctx = canvas.getContext('2d', { alpha: true })
+      if (!ctx) {
+        throw new Error('Failed to get canvas context')
+      }
 
-          // 绘制图片
-          ctx.drawImage(img, 0, 0)
-
-          // 转换为 Blob
-          canvas.toBlob(
-            (blob) => {
-              if (!blob) {
-                reject(new Error('Failed to create blob'))
-                return
-              }
-
-              const name = file.name.replace(/\.[^.]+$/, `.${outputFormat}`)
-              const url = URL.createObjectURL(blob)
-
-              resolve({
-                name,
-                blob,
-                url,
-                size: blob.size,
-                format: outputFormat,
-                originalFormat: format,
-                width: img.width,
-                height: img.height
-              })
-            },
-            outputFormat === 'jpg' ? 'image/jpeg' : 'image/webp',
-            quality / 100
-          )
-        } catch (err) {
-          reject(err)
+      // 处理 Alpha 通道（TGA/TIFF）
+      if (format === 'TGA' || format === 'TIFF') {
+        // 添加白色背景（如果输出为JPG）
+        if (outputFormat === 'jpg') {
+          ctx.fillStyle = '#FFFFFF'
+          ctx.fillRect(0, 0, canvas.width, canvas.height)
         }
       }
 
-      img.onerror = () => {
-        reject(new Error(`Failed to load image: ${file.name}`))
+      // 绘制图片
+      if (imageBitmap) {
+        ctx.drawImage(imageBitmap, 0, 0)
+        imageBitmap.close() // 释放资源
+      } else if (img) {
+        ctx.drawImage(img, 0, 0)
       }
 
-      // 使用 FileReader 读取文件
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        if (e.target?.result) {
-          img.src = e.target.result as string
-        }
-      }
-      reader.onerror = () => {
-        reject(new Error(`Failed to read file: ${file.name}`))
-      }
-      reader.readAsDataURL(file)
-    })
-  }, [outputFormat, quality])
+      // 转换为 Blob
+      return new Promise((resolve, reject) => {
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              reject(new Error('Failed to create blob'))
+              return
+            }
+
+            const name = file.name.replace(/\.[^.]+$/, `.${outputFormat}`)
+            const url = URL.createObjectURL(blob)
+
+            resolve({
+              name,
+              blob,
+              url,
+              size: blob.size,
+              format: outputFormat,
+              originalFormat: format,
+              width,
+              height
+            })
+          },
+          outputFormat === 'jpg' ? 'image/jpeg' : 'image/webp',
+          quality / 100
+        )
+      })
+    } catch (err) {
+      throw err
+    }
+  }, [outputFormat, quality, decodePCX, decodeTGA, language])
 
   // 批量转换
   const handleConvert = useCallback(async () => {

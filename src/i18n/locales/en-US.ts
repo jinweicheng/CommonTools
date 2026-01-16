@@ -50,7 +50,7 @@ export default {
     legacyImageConverter: 'Old Image',
     modernImageConverter: 'Image Conversion',
     prorawConverter: 'ProRAW',
-    screenRecording: 'iPhone Rec',
+    screenRecording: 'IPHONE Rec',
     passwordManager: 'Password Manager',
   },
 
