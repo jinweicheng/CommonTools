@@ -12,6 +12,7 @@ import CompressionPage from './pages/CompressionPage'
 import HEICToJPGPage from './pages/HEICToJPGPage'
 import LivePhotoPage from './pages/LivePhotoPage'
 import ImageConverterPage from './pages/ImageConverterPage'
+import ModernImageConverterPage from './pages/ModernImageConverterPage'
 import LoginPage from './pages/LoginPage'
 import SupportPage from './pages/SupportPage'
 import SupportPolicyPage from './pages/SupportPolicyPage'
@@ -56,6 +57,9 @@ function App() {
               
               {/* 老旧格式图片转换 */}
               <Route path="/legacy-image-converter" element={<ImageConverterPage />} />
+              
+              {/* 现代图片格式转换 */}
+              <Route path="/modern-image-converter" element={<ModernImageConverterPage />} />
               
               {/* Support & Policy Pages */}
               <Route path="/support" element={<SupportPage />} />

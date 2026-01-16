@@ -48,6 +48,7 @@ export default {
     heicToJpg: 'HEIC转JPG',
     livePhoto: 'Live Photo',
     legacyImageConverter: '老旧格式转换',
+    modernImageConverter: '现代格式转换',
     passwordManager: '密码管理器',
   },
 

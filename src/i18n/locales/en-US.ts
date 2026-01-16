@@ -48,6 +48,7 @@ export default {
     heicToJpg: 'HEIC to JPG',
     livePhoto: 'Live Photo',
     legacyImageConverter: 'Legacy Image',
+    modernImageConverter: 'Modern Image',
     passwordManager: 'Password Manager',
   },
 
