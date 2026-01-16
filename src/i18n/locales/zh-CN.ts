@@ -47,6 +47,7 @@ export default {
     compression: '解压/压缩',
     heicToJpg: 'HEIC转JPG',
     livePhoto: 'Live Photo',
+    legacyImageConverter: '老旧格式转换',
     passwordManager: '密码管理器',
   },
 

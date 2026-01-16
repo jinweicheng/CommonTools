@@ -60,6 +60,14 @@
     <priority>0.9</priority>
   </url>
   
+  <!-- 老旧格式图片转换 -->
+  <url>
+    <loc>https://commontools.top/tools/legacy-image-converter</loc>
+    <lastmod>2026-01-16</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  
   <!-- 密码管理器 -->
   <url>
     <loc>https://commontools.top/tools/password-manager</loc>

@@ -47,6 +47,7 @@ export default {
     compression: 'Compression',
     heicToJpg: 'HEIC to JPG',
     livePhoto: 'Live Photo',
+    legacyImageConverter: 'Legacy Image',
     passwordManager: 'Password Manager',
   },
 

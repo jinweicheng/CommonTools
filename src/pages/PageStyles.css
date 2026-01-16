@@ -9,6 +9,11 @@
   animation: fadeIn 0.6s ease-out;
 }
 
+/* 图片转换器页面 - 移除多余边距 */
+.image-converter-page {
+  padding: 0;
+}
+
 /* ==================== 页面标题区域 ==================== */
 .page-header {
   text-align: center;
@@ -504,5 +509,250 @@
   
   .card-title {
     font-size: var(--font-xl);
+  }
+}
+
+/* ========================================
+   页面信息卡片区域 - 专业设计
+   ======================================== */
+
+.page-info {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 2rem;
+  margin: 3rem 0;
+  animation: fadeIn 0.6s ease-out 0.5s backwards;
+}
+
+.info-card {
+  position: relative;
+  padding: 2.5rem 2rem;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border: 2px solid #e2e8f0;
+  border-radius: 20px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+}
+
+/* 顶部装饰条 */
+.info-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 50%, #667eea 100%);
+  background-size: 200% 100%;
+  animation: gradientShift 3s ease infinite;
+}
+
+@keyframes gradientShift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+.info-card:hover {
+  border-color: #667eea;
+  transform: translateY(-6px);
+  box-shadow: 0 16px 40px rgba(102, 126, 234, 0.2);
+  background: linear-gradient(135deg, #ffffff 0%, #f0f4ff 100%);
+}
+
+.info-card h3 {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #1e293b;
+  margin: 0 0 1rem 0;
+  letter-spacing: -0.3px;
+  transition: all 0.3s ease;
+}
+
+.info-card:hover h3 {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  transform: translateX(6px);
+}
+
+.info-card p {
+  font-size: 1rem;
+  color: #64748b;
+  line-height: 1.8;
+  margin: 0;
+  font-weight: 500;
+}
+
+/* ========================================
+   FAQ 区域 - 专业设计
+   ======================================== */
+
+.faq-section {
+  margin: 3rem 0 2rem 0;
+  padding: 3rem 2.5rem;
+  background: white;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  border-radius: 20px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+  animation: fadeIn 0.6s ease-out 0.6s backwards;
+}
+
+.faq-section > h2 {
+  font-size: 2rem;
+  font-weight: 800;
+  color: #1e293b;
+  text-align: center;
+  margin: 0 0 2.5rem 0;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.5px;
+}
+
+.faq-item {
+  position: relative;
+  padding: 2rem 2.5rem;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 2px solid #e2e8f0;
+  border-radius: 16px;
+  margin-bottom: 1.5rem;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.faq-item:last-child {
+  margin-bottom: 0;
+}
+
+/* 左侧装饰条 */
+.faq-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 5px;
+  height: 0;
+  background: linear-gradient(to bottom, #667eea 0%, #764ba2 100%);
+  border-radius: 0 3px 3px 0;
+  transition: height 0.3s ease;
+}
+
+.faq-item:hover {
+  border-color: #667eea;
+  transform: translateX(8px);
+  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.15);
+  background: linear-gradient(135deg, #ffffff 0%, #f0f4ff 100%);
+}
+
+.faq-item:hover::before {
+  height: 60%;
+}
+
+.faq-item h3 {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #1e293b;
+  margin: 0 0 1rem 0;
+  letter-spacing: -0.3px;
+  transition: all 0.3s ease;
+}
+
+.faq-item:hover h3 {
+  color: #667eea;
+  transform: translateX(6px);
+}
+
+.faq-item p {
+  font-size: 1rem;
+  color: #64748b;
+  line-height: 1.8;
+  margin: 0;
+  font-weight: 500;
+}
+
+/* ========================================
+   响应式优化 - 信息卡片和FAQ
+   ======================================== */
+
+@media (max-width: 1024px) {
+  .page-info {
+    gap: 1.5rem;
+  }
+  
+  .info-card {
+    padding: 2rem 1.5rem;
+  }
+  
+  .faq-section {
+    padding: 2.5rem 2rem;
+  }
+  
+  .faq-item {
+    padding: 1.75rem 2rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .page-info {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+    margin: 2rem 0;
+  }
+  
+  .info-card {
+    padding: 1.75rem 1.5rem;
+  }
+  
+  .info-card h3 {
+    font-size: 1.375rem;
+  }
+  
+  .faq-section {
+    padding: 2rem 1.5rem;
+    margin: 2rem 0;
+  }
+  
+  .faq-section > h2 {
+    font-size: 1.75rem;
+    margin-bottom: 2rem;
+  }
+  
+  .faq-item {
+    padding: 1.5rem 1.5rem;
+    margin-bottom: 1.25rem;
+  }
+  
+  .faq-item h3 {
+    font-size: 1.125rem;
+  }
+  
+  .faq-item p {
+    font-size: 0.9375rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .info-card {
+    padding: 1.5rem 1.25rem;
+  }
+  
+  .info-card h3 {
+    font-size: 1.25rem;
+  }
+  
+  .info-card p {
+    font-size: 0.9375rem;
+  }
+  
+  .faq-section {
+    padding: 1.75rem 1.25rem;
+  }
+  
+  .faq-item {
+    padding: 1.25rem 1.25rem;
   }
 }

@@ -1,6 +1,6 @@
 import { ReactNode, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Shield, Repeat, Droplet, PenTool, Archive, Image as ImageIcon, Camera, Menu, X, Globe } from 'lucide-react'
+import { Shield, Repeat, Droplet, PenTool, Archive, Image as ImageIcon, Camera, FileImage, Menu, X, Globe } from 'lucide-react'
 import { useI18n } from '../i18n/I18nContext'
 import './Layout.css'
 
@@ -21,6 +21,7 @@ export default function Layout({ children }: LayoutProps) {
     { path: '/compression', icon: <Archive size={18} />, label: t('nav.compression') },
     { path: '/heic-to-jpg', icon: <ImageIcon size={18} />, label: t('nav.heicToJpg') },
     { path: '/live-photo', icon: <Camera size={18} />, label: t('nav.livePhoto') },
+    { path: '/legacy-image-converter', icon: <FileImage size={18} />, label: t('nav.legacyImageConverter') },
     // { path: '/password-manager', icon: <KeyRound size={18} />, label: t('nav.passwordManager') },
   ]
   

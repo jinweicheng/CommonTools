@@ -11,6 +11,7 @@ import PasswordManagerPage from './pages/PasswordManagerPage'
 import CompressionPage from './pages/CompressionPage'
 import HEICToJPGPage from './pages/HEICToJPGPage'
 import LivePhotoPage from './pages/LivePhotoPage'
+import ImageConverterPage from './pages/ImageConverterPage'
 import LoginPage from './pages/LoginPage'
 import SupportPage from './pages/SupportPage'
 import SupportPolicyPage from './pages/SupportPolicyPage'
@@ -52,6 +53,9 @@ function App() {
               
               {/* Live Photo转换 */}
               <Route path="/live-photo" element={<LivePhotoPage />} />
+              
+              {/* 老旧格式图片转换 */}
+              <Route path="/legacy-image-converter" element={<ImageConverterPage />} />
               
               {/* Support & Policy Pages */}
               <Route path="/support" element={<SupportPage />} />
