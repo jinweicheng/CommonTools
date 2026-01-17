@@ -1,22 +1,65 @@
 .pdf-signature {
-  max-width: 1600px;
-  margin: 0 auto;
+  max-width: 100%;
+  margin: 0;
   width: 100%;
 }
 
 .tool-header {
-  font-size: 2rem;
+  font-size: 1.875rem;
   margin-bottom: 2rem;
-  color: #333;
+  color: #22d3ee;
+  font-weight: 900;
+  background: linear-gradient(135deg, 
+    #22d3ee 0%, 
+    #3b82f6 35%, 
+    #10b981 65%, 
+    #22d3ee 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  background-size: 200% 100%;
+  animation: gradientShift 4s ease infinite;
+  text-shadow: 0 0 12px rgba(34, 211, 238, 0.6);
+}
+
+@keyframes gradientShift {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
 }
 
 .error-message {
-  background: #fee;
-  color: #c33;
-  padding: 1rem;
-  border-radius: 8px;
+  background: linear-gradient(180deg, 
+    rgba(15, 23, 42, 0.95) 0%, 
+    rgba(30, 41, 59, 0.95) 100%);
+  color: #fca5a5;
+  padding: 1.25rem;
+  border-radius: 16px;
   margin-bottom: 1.5rem;
-  border: 1px solid #fcc;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(239, 68, 68, 0.15) inset,
+    0 0 40px rgba(239, 68, 68, 0.1);
+  backdrop-filter: blur(20px);
+  position: relative;
+  overflow: hidden;
+}
+
+.error-message::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, 
+    rgba(239, 68, 68, 0.8) 0%, 
+    rgba(220, 38, 38, 0.8) 100%);
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.6);
 }
 
 .signature-controls {
@@ -47,35 +90,52 @@
   width: 40px;
   height: 40px;
   padding: 0;
-  background: white;
-  border: 2px solid #667eea;
-  border-radius: 8px;
+  background: rgba(34, 211, 238, 0.1);
+  border: 2px solid rgba(34, 211, 238, 0.3);
+  border-radius: 10px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #667eea;
+  color: #22d3ee;
   transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+  box-shadow: 
+    0 2px 8px rgba(0, 0, 0, 0.2),
+    0 0 12px rgba(34, 211, 238, 0.2);
 }
 
 .color-picker-button:hover {
-  background: #667eea;
-  color: white;
+  background: rgba(34, 211, 238, 0.2);
+  border-color: rgba(34, 211, 238, 0.5);
   transform: scale(1.05);
+  box-shadow: 
+    0 4px 12px rgba(0, 0, 0, 0.3),
+    0 0 16px rgba(34, 211, 238, 0.3);
 }
 
 .color-picker-button.active {
-  background: #667eea;
-  color: white;
+  background: rgba(34, 211, 238, 0.25);
+  border-color: rgba(34, 211, 238, 0.6);
+  color: #22d3ee;
   animation: pulse 1.5s ease-in-out infinite;
+  box-shadow: 
+    0 4px 16px rgba(34, 211, 238, 0.4),
+    0 0 20px rgba(34, 211, 238, 0.3);
 }
 
 @keyframes pulse {
   0%, 100% {
-    box-shadow: 0 0 0 0 rgba(102, 126, 234, 0.7);
+    box-shadow: 
+      0 4px 16px rgba(34, 211, 238, 0.4),
+      0 0 20px rgba(34, 211, 238, 0.3),
+      0 0 0 0 rgba(34, 211, 238, 0.7);
   }
   50% {
-    box-shadow: 0 0 0 10px rgba(102, 126, 234, 0);
+    box-shadow: 
+      0 4px 16px rgba(34, 211, 238, 0.4),
+      0 0 20px rgba(34, 211, 238, 0.3),
+      0 0 0 10px rgba(34, 211, 238, 0);
   }
 }
 
@@ -145,29 +205,68 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  background: #667eea;
-  color: white;
+  background: linear-gradient(135deg, 
+    rgba(34, 211, 238, 0.2) 0%, 
+    rgba(59, 130, 246, 0.2) 50%,
+    rgba(16, 185, 129, 0.2) 100%);
+  color: #22d3ee;
   padding: 0.75rem 1.5rem;
-  border: none;
-  border-radius: 8px;
+  border: 2px solid rgba(34, 211, 238, 0.4);
+  border-radius: 12px;
   cursor: pointer;
-  font-weight: 500;
+  font-weight: 700;
   transition: all 0.3s ease;
+  box-shadow: 
+    0 4px 16px rgba(34, 211, 238, 0.4),
+    0 0 20px rgba(34, 211, 238, 0.3);
+  text-shadow: 0 0 12px rgba(34, 211, 238, 0.8);
+  backdrop-filter: blur(10px);
 }
 
 .control-button:hover {
-  background: #5568d3;
-  transform: scale(1.05);
+  background: linear-gradient(135deg, 
+    rgba(34, 211, 238, 0.3) 0%, 
+    rgba(59, 130, 246, 0.3) 50%,
+    rgba(16, 185, 129, 0.3) 100%);
+  border-color: rgba(34, 211, 238, 0.6);
+  transform: translateY(-2px);
+  box-shadow: 
+    0 8px 24px rgba(34, 211, 238, 0.5),
+    0 0 30px rgba(34, 211, 238, 0.4);
+  text-shadow: 0 0 16px rgba(34, 211, 238, 1);
 }
 
 .signature-panel,
 .date-panel {
-  background: white;
-  border: 2px solid #e0e0e0;
-  border-radius: 12px;
+  background: linear-gradient(180deg, 
+    rgba(15, 23, 42, 0.98) 0%, 
+    rgba(30, 41, 59, 0.98) 100%);
+  border: 1px solid rgba(34, 211, 238, 0.2);
+  border-radius: 16px;
   padding: 1.5rem;
   margin-bottom: 2rem;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(34, 211, 238, 0.15) inset,
+    0 0 40px rgba(34, 211, 238, 0.1);
+  backdrop-filter: blur(20px);
+  position: relative;
+  overflow: visible;
+}
+
+.signature-panel::before,
+.date-panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, 
+    #22d3ee 0%, 
+    #3b82f6 50%,
+    #10b981 100%);
+  box-shadow: 0 0 12px rgba(34, 211, 238, 0.6);
 }
 
 .panel-header {
@@ -179,7 +278,9 @@
 
 .panel-header h3 {
   margin: 0;
-  color: #333;
+  color: #22d3ee;
+  font-weight: 800;
+  text-shadow: 0 0 12px rgba(34, 211, 238, 0.6);
 }
 
 .panel-close {
@@ -210,50 +311,67 @@
 }
 
 .pen-size-label {
-  font-weight: 600;
-  color: #333;
+  font-weight: 700;
+  color: #22d3ee;
   min-width: 80px;
   font-size: 0.875rem;
+  text-shadow: 0 0 8px rgba(34, 211, 238, 0.5);
 }
 
 .pen-size-slider {
   flex: 1;
-  height: 6px;
-  border-radius: 3px;
-  background: #e0e0e0;
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(34, 211, 238, 0.2);
   outline: none;
   -webkit-appearance: none;
+  box-shadow: 
+    inset 0 2px 4px rgba(0, 0, 0, 0.2),
+    0 0 12px rgba(34, 211, 238, 0.1);
 }
 
 .pen-size-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
-  background: #667eea;
+  background: #22d3ee;
   cursor: pointer;
   transition: all 0.2s ease;
+  border: 2px solid rgba(34, 211, 238, 0.5);
+  box-shadow: 
+    0 2px 8px rgba(34, 211, 238, 0.4),
+    0 0 12px rgba(34, 211, 238, 0.3);
 }
 
 .pen-size-slider::-webkit-slider-thumb:hover {
-  background: #5568d3;
-  transform: scale(1.1);
+  border-color: rgba(34, 211, 238, 0.7);
+  transform: scale(1.15);
+  box-shadow: 
+    0 4px 12px rgba(34, 211, 238, 0.5),
+    0 0 16px rgba(34, 211, 238, 0.4);
 }
 
 .pen-size-slider::-moz-range-thumb {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
-  background: #667eea;
+  background: #22d3ee;
   cursor: pointer;
-  border: none;
+  border: 2px solid rgba(34, 211, 238, 0.5);
   transition: all 0.2s ease;
+  box-shadow: 
+    0 2px 8px rgba(34, 211, 238, 0.4),
+    0 0 12px rgba(34, 211, 238, 0.3);
 }
 
 .pen-size-slider::-moz-range-thumb:hover {
-  background: #5568d3;
-  transform: scale(1.1);
+  border-color: rgba(34, 211, 238, 0.7);
+  transform: scale(1.15);
+  box-shadow: 
+    0 4px 12px rgba(34, 211, 238, 0.5),
+    0 0 16px rgba(34, 211, 238, 0.4);
 }
 
 .signature-canvas-wrapper {
@@ -323,21 +441,48 @@
 }
 
 .action-button.primary {
-  background: #667eea;
-  color: white;
+  background: linear-gradient(135deg, 
+    rgba(34, 211, 238, 0.2) 0%, 
+    rgba(59, 130, 246, 0.2) 50%,
+    rgba(16, 185, 129, 0.2) 100%);
+  color: #22d3ee;
+  border: 2px solid rgba(34, 211, 238, 0.4);
+  box-shadow: 
+    0 4px 16px rgba(34, 211, 238, 0.4),
+    0 0 20px rgba(34, 211, 238, 0.3);
+  text-shadow: 0 0 12px rgba(34, 211, 238, 0.8);
+  backdrop-filter: blur(10px);
 }
 
 .action-button.primary:hover {
-  background: #5568d3;
+  background: linear-gradient(135deg, 
+    rgba(34, 211, 238, 0.3) 0%, 
+    rgba(59, 130, 246, 0.3) 50%,
+    rgba(16, 185, 129, 0.3) 100%);
+  border-color: rgba(34, 211, 238, 0.6);
+  box-shadow: 
+    0 8px 24px rgba(34, 211, 238, 0.5),
+    0 0 30px rgba(34, 211, 238, 0.4);
+  text-shadow: 0 0 16px rgba(34, 211, 238, 1);
 }
 
 .action-button.secondary {
-  background: #e0e0e0;
-  color: #333;
+  background: rgba(34, 211, 238, 0.1);
+  color: #22d3ee;
+  border: 2px solid rgba(34, 211, 238, 0.3);
+  box-shadow: 
+    0 2px 8px rgba(0, 0, 0, 0.2),
+    0 0 12px rgba(34, 211, 238, 0.2);
+  backdrop-filter: blur(10px);
 }
 
 .action-button.secondary:hover {
-  background: #d0d0d0;
+  background: rgba(34, 211, 238, 0.2);
+  border-color: rgba(34, 211, 238, 0.5);
+  box-shadow: 
+    0 4px 12px rgba(0, 0, 0, 0.3),
+    0 0 16px rgba(34, 211, 238, 0.3);
+  text-shadow: 0 0 12px rgba(34, 211, 238, 0.8);
 }
 
 .upload-section {
@@ -348,19 +493,36 @@
 .upload-button {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  background: #667eea;
-  color: white;
-  padding: 0.75rem 1.5rem;
-  border-radius: 8px;
+  gap: 0.875rem;
+  background: linear-gradient(135deg, 
+    rgba(34, 211, 238, 0.2) 0%, 
+    rgba(59, 130, 246, 0.2) 50%,
+    rgba(16, 185, 129, 0.2) 100%);
+  color: #22d3ee;
+  padding: 1rem 2.5rem;
+  border-radius: 12px;
   cursor: pointer;
   transition: all 0.3s ease;
-  font-weight: 500;
+  font-weight: 700;
+  border: 2px solid rgba(34, 211, 238, 0.4);
+  box-shadow: 
+    0 8px 32px rgba(34, 211, 238, 0.4),
+    0 0 40px rgba(34, 211, 238, 0.3);
+  text-shadow: 0 0 12px rgba(34, 211, 238, 0.8);
+  backdrop-filter: blur(10px);
 }
 
 .upload-button:hover {
-  background: #5568d3;
-  transform: scale(1.05);
+  background: linear-gradient(135deg, 
+    rgba(34, 211, 238, 0.3) 0%, 
+    rgba(59, 130, 246, 0.3) 50%,
+    rgba(16, 185, 129, 0.3) 100%);
+  border-color: rgba(34, 211, 238, 0.6);
+  transform: translateY(-2px);
+  box-shadow: 
+    0 12px 48px rgba(34, 211, 238, 0.5),
+    0 0 60px rgba(34, 211, 238, 0.4);
+  text-shadow: 0 0 16px rgba(34, 211, 238, 1);
 }
 
 .pdf-preview-container {
@@ -394,12 +556,23 @@
   min-width: 900px;
   height: 900px;
   min-height: 900px;
-  border: 2px solid #e0e0e0;
-  border-radius: 8px;
+  border: 2px solid rgba(34, 211, 238, 0.2);
+  border-radius: 12px;
   overflow: hidden;
-  background: #f0f0f0;
+  background: rgba(15, 23, 42, 0.6);
   transition: all 0.3s ease;
   will-change: transform;
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.4),
+    0 0 40px rgba(34, 211, 238, 0.1);
+  backdrop-filter: blur(10px);
+}
+
+.pdf-preview:hover {
+  border-color: rgba(34, 211, 238, 0.4);
+  box-shadow: 
+    0 12px 48px rgba(0, 0, 0, 0.5),
+    0 0 60px rgba(34, 211, 238, 0.2);
 }
 
 @media (max-width: 1500px) {
@@ -440,8 +613,10 @@
 }
 
 .pdf-preview.color-picker-active {
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+  border-color: rgba(34, 211, 238, 0.6);
+  box-shadow: 
+    0 0 0 3px rgba(34, 211, 238, 0.2),
+    0 0 40px rgba(34, 211, 238, 0.3);
   cursor: crosshair;
 }
 
