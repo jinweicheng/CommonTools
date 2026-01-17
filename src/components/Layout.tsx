@@ -120,6 +120,9 @@ export default function Layout({ children }: LayoutProps) {
               <Link to="/support" className="footer-link">
                 {t('support.title')}
               </Link>
+              <Link to="/pricing" className="footer-link">
+                {t('pricing.title')}
+              </Link>
               <Link to="/support-policy" className="footer-link">
                 {t('supportPolicy.title')}
               </Link>
@@ -128,6 +131,9 @@ export default function Layout({ children }: LayoutProps) {
               </Link>
               <Link to="/terms-of-service" className="footer-link">
                 {t('termsOfService.title')}
+              </Link>
+              <Link to="/refund-policy" className="footer-link">
+                {t('refundPolicy.title')}
               </Link>
             </div>
             <div className="footer-copyright">

@@ -56,6 +56,16 @@ export default function TermsOfServicePage() {
         </section>
 
         <section className="policy-section">
+          <h2 className="policy-section-title">{t('termsOfService.refundPolicy')}</h2>
+          <p className="policy-text">
+            {t('termsOfService.refundPolicyText')}{' '}
+            <a href="/tools/refund-policy" className="policy-link">
+              {t('termsOfService.refundPolicyLink')}
+            </a>
+          </p>
+        </section>
+
+        <section className="policy-section">
           <h2 className="policy-section-title">{t('termsOfService.contact')}</h2>
           <p className="policy-text">{t('termsOfService.contactText')}</p>
           <a 

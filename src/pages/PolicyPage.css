@@ -11,7 +11,8 @@
 }
 
 .policy-page.privacy-policy-page .page-title,
-.policy-page.terms-of-service-page .page-title {
+.policy-page.terms-of-service-page .page-title,
+.policy-page.refund-policy-page .page-title {
   color: var(--color-gray-900) !important;
   background: none !important;
   -webkit-background-clip: unset !important;
@@ -20,7 +21,8 @@
 }
 
 .policy-page.privacy-policy-page .page-header,
-.policy-page.terms-of-service-page .page-header {
+.policy-page.terms-of-service-page .page-header,
+.policy-page.refund-policy-page .page-header {
   background: var(--color-white);
   padding: var(--spacing-2xl);
   border-radius: var(--radius-2xl);
@@ -35,7 +37,8 @@
 }
 
 .policy-page.privacy-policy-page .policy-last-updated,
-.policy-page.terms-of-service-page .policy-last-updated {
+.policy-page.terms-of-service-page .policy-last-updated,
+.policy-page.refund-policy-page .policy-last-updated {
   color: var(--color-gray-600);
 }
 
@@ -123,6 +126,18 @@
 .policy-contact-email:hover {
   background: rgba(102, 126, 234, 0.1);
   transform: translateX(4px);
+}
+
+.policy-link {
+  color: var(--color-primary);
+  text-decoration: underline;
+  font-weight: var(--font-semibold);
+  transition: all var(--transition-base);
+}
+
+.policy-link:hover {
+  color: var(--color-primary-dark);
+  text-decoration: none;
 }
 
 @media (max-width: 768px) {
