@@ -38,39 +38,41 @@ export default function EncryptionPage() {
         </div>
       </div>
 
-      <div className="encryption-layout">
-        <aside className="encryption-sidebar">
-          <div className="sidebar-header">
-            <h2 className="sidebar-title">功能模块</h2>
-          </div>
-          <nav className="encryption-tabs">
-            <button
-              className={`encryption-tab ${activeTab === 'pdf' ? 'active' : ''}`}
-              onClick={() => setActiveTab('pdf')}
-            >
+      <div className="encryption-module-selector">
+        <div className="module-selector-header">
+          <h2 className="module-selector-title">功能模块</h2>
+        </div>
+        <nav className="encryption-tabs-horizontal">
+          <button
+            className={`encryption-tab-horizontal ${activeTab === 'pdf' ? 'active' : ''}`}
+            onClick={() => setActiveTab('pdf')}
+          >
+            <div className="tab-icon-wrapper">
               <FileText size={20} />
-              <div className="tab-content">
-                <span className="tab-label">{t('encryption.pdfEncryption')}</span>
-                <span className="tab-badge">{t('encryption.twoModes')}</span>
-              </div>
-            </button>
-            <button
-              className={`encryption-tab ${activeTab === 'file' ? 'active' : ''}`}
-              onClick={() => setActiveTab('file')}
-            >
+            </div>
+            <div className="tab-content">
+              <span className="tab-label">{t('encryption.pdfEncryption')}</span>
+              <span className="tab-badge">{t('encryption.twoModes')}</span>
+            </div>
+          </button>
+          <button
+            className={`encryption-tab-horizontal ${activeTab === 'file' ? 'active' : ''}`}
+            onClick={() => setActiveTab('file')}
+          >
+            <div className="tab-icon-wrapper">
               <Shield size={20} />
-              <div className="tab-content">
-                <span className="tab-label">{t('encryption.fileEncryption')}</span>
-                <span className="tab-badge">{t('encryption.multiFormat')}</span>
-              </div>
-            </button>
-          </nav>
-        </aside>
-
-        <main className="page-content encryption-content">
-          {activeTab === 'pdf' ? <PDFEncryption /> : <FileEncryption />}
-        </main>
+            </div>
+            <div className="tab-content">
+              <span className="tab-label">{t('encryption.fileEncryption')}</span>
+              <span className="tab-badge">{t('encryption.multiFormat')}</span>
+            </div>
+          </button>
+        </nav>
       </div>
+
+      <main className="page-content encryption-content">
+        {activeTab === 'pdf' ? <PDFEncryption /> : <FileEncryption />}
+      </main>
     </div>
   )
 }

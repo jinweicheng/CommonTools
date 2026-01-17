@@ -576,13 +576,10 @@ export default function PDFEncryption() {
 
   return (
     <div className="pdf-encryption">
-      <div className="encryption-header">
-        <div className="header-icon">
-          <FileText size={32} />
-        </div>
-        <div className="header-content">
-          <h2 className="section-title">{t('encryption.pdfEncryption')}</h2>
-          <p className="section-description">
+      <div className="encryption-header-compact">
+        <div className="header-content-compact">
+          <h2 className="section-title-compact">{t('encryption.pdfEncryption')}</h2>
+          <p className="section-description-compact">
             {t('encryption.twoEncryptionModes')}
           </p>
         </div>

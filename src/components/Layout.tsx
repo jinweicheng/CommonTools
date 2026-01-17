@@ -41,47 +41,36 @@ export default function Layout({ children }: LayoutProps) {
     <div className="layout">
       <header className="header">
         <div className="header-content">
-          <Link to="/" className="logo">
-            <div className="logo-icon">
-              <Shield />
-            </div>
-            <span className="logo-text">CommonTools</span>
-          </Link>
-
-          <div className="header-actions">
-            <button 
-              className="language-toggle" 
-              onClick={toggleLanguage}
-              title={language === 'zh-CN' ? 'Switch to English' : '切换到中文'}
-            >
-              <Globe size={18} />
-              <span>{language === 'zh-CN' ? 'EN' : 'CN'}</span>
-            </button>
-            
-            <button
-              className="mobile-menu-toggle"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              aria-label="Toggle menu"
-            >
-              {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
-            </button>
-          </div>
+          <button
+            className="mobile-menu-toggle"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label="Toggle menu"
+          >
+            {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+          </button>
         </div>
       </header>
-      
-      {/* 安全提示横幅 */}
-      <div className="security-banner">
-        <div className="security-banner-content">
-          <span className="security-text">
-            <strong>🔐 {t('security.banner')}</strong> {t('security.description')}
-          </span>
-        </div>
-      </div>
       
       <div className="layout-container">
         {/* 左侧导航侧边栏 */}
         <aside className={`sidebar ${mobileMenuOpen ? 'open' : ''}`}>
           <div className="sidebar-header">
+            <Link to="/" className="sidebar-logo">
+              <div className="logo-icon">
+                <Shield />
+              </div>
+              <span className="logo-text">CommonTools</span>
+            </Link>
+            <div className="sidebar-header-actions">
+              <button 
+                className="language-toggle" 
+                onClick={toggleLanguage}
+                title={language === 'zh-CN' ? 'Switch to English' : '切换到中文'}
+              >
+                <Globe size={18} />
+                <span>{language === 'zh-CN' ? 'EN' : 'CN'}</span>
+              </button>
+            </div>
             <h2 className="sidebar-title">功能模块</h2>
           </div>
           <nav className="sidebar-nav">
@@ -108,9 +97,20 @@ export default function Layout({ children }: LayoutProps) {
         )}
 
         {/* 主内容区域 */}
-        <main className="main-content">
-          {children}
-        </main>
+        <div className="main-content-wrapper">
+          {/* 安全提示横幅 */}
+          <div className="security-banner">
+            <div className="security-banner-content">
+              <span className="security-text">
+                <strong>🔐 {t('security.banner')}</strong> {t('security.description')}
+              </span>
+            </div>
+          </div>
+          
+          <main className="main-content">
+            {children}
+          </main>
+        </div>
       </div>
       
       <footer className="footer">
