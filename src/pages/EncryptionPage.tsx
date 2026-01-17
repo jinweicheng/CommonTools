@@ -40,7 +40,7 @@ export default function EncryptionPage() {
 
       <div className="encryption-module-selector">
         <div className="module-selector-header">
-          <h2 className="module-selector-title">功能模块</h2>
+          {/* <h2 className="module-selector-title">功能模块</h2> */}
         </div>
         <nav className="encryption-tabs-horizontal">
           <button

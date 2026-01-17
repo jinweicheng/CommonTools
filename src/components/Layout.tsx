@@ -71,7 +71,7 @@ export default function Layout({ children }: LayoutProps) {
                 <span>{language === 'zh-CN' ? 'EN' : 'CN'}</span>
               </button>
             </div>
-            <h2 className="sidebar-title">功能模块</h2>
+            {/* <h2 className="sidebar-title">功能模块</h2> */}
           </div>
           <nav className="sidebar-nav">
             {navItems.map((item) => (
