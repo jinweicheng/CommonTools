@@ -1,9 +1,16 @@
 import { useI18n } from '../i18n/I18nContext'
+import zhCN from '../i18n/locales/zh-CN'
+import enUS from '../i18n/locales/en-US'
 import './PageStyles.css'
 import './PricingPage.css'
 
 export default function PricingPage() {
-  const { t } = useI18n()
+  const { t, language } = useI18n()
+  
+  // 获取当前语言的翻译对象
+  const locale = language === 'zh-CN' ? zhCN : enUS
+  const freePlanFeatures = locale.pricing.freePlan.features as string[]
+  const premiumPlanFeatures = locale.pricing.premiumPlan.features as string[]
 
   return (
     <div className="page-container pricing-page">
@@ -26,7 +33,7 @@ export default function PricingPage() {
               </div>
             </div>
             <ul className="plan-features">
-              {t('pricing.freePlan.features', { returnObjects: true }).map((feature: string, index: number) => (
+              {freePlanFeatures.map((feature: string, index: number) => (
                 <li key={index} className="plan-feature">
                   <span className="feature-icon">✓</span>
                   {feature}
@@ -44,7 +51,7 @@ export default function PricingPage() {
               </div>
             </div>
             <ul className="plan-features">
-              {t('pricing.premiumPlan.features', { returnObjects: true }).map((feature: string, index: number) => (
+              {premiumPlanFeatures.map((feature: string, index: number) => (
                 <li key={index} className="plan-feature">
                   <span className="feature-icon">✓</span>
                   {feature}

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Upload, Lock, Shield, Key, AlertCircle, CheckCircle, FileText, Globe, FileLock } from 'lucide-react'
+import { Upload, Lock, Shield, Key, AlertCircle, CheckCircle, Globe, FileLock } from 'lucide-react'
 import { PDFDocument, StandardFonts } from 'pdf-lib'
 import { saveAs } from 'file-saver'
 import { CryptoUtils } from '../utils/cryptoUtils'
