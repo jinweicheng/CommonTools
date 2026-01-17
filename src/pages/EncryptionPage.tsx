@@ -38,27 +38,38 @@ export default function EncryptionPage() {
         </div>
       </div>
 
-      <div className="encryption-tabs">
-        <button
-          className={`encryption-tab ${activeTab === 'pdf' ? 'active' : ''}`}
-          onClick={() => setActiveTab('pdf')}
-        >
-          <FileText size={20} />
-          <span>{t('encryption.pdfEncryption')}</span>
-          <span className="tab-badge">{t('encryption.twoModes')}</span>
-        </button>
-        <button
-          className={`encryption-tab ${activeTab === 'file' ? 'active' : ''}`}
-          onClick={() => setActiveTab('file')}
-        >
-          <Shield size={20} />
-          <span>{t('encryption.fileEncryption')}</span>
-          <span className="tab-badge">{t('encryption.multiFormat')}</span>
-        </button>
-      </div>
+      <div className="encryption-layout">
+        <aside className="encryption-sidebar">
+          <div className="sidebar-header">
+            <h2 className="sidebar-title">功能模块</h2>
+          </div>
+          <nav className="encryption-tabs">
+            <button
+              className={`encryption-tab ${activeTab === 'pdf' ? 'active' : ''}`}
+              onClick={() => setActiveTab('pdf')}
+            >
+              <FileText size={20} />
+              <div className="tab-content">
+                <span className="tab-label">{t('encryption.pdfEncryption')}</span>
+                <span className="tab-badge">{t('encryption.twoModes')}</span>
+              </div>
+            </button>
+            <button
+              className={`encryption-tab ${activeTab === 'file' ? 'active' : ''}`}
+              onClick={() => setActiveTab('file')}
+            >
+              <Shield size={20} />
+              <div className="tab-content">
+                <span className="tab-label">{t('encryption.fileEncryption')}</span>
+                <span className="tab-badge">{t('encryption.multiFormat')}</span>
+              </div>
+            </button>
+          </nav>
+        </aside>
 
-      <div className="page-content encryption-content">
-        {activeTab === 'pdf' ? <PDFEncryption /> : <FileEncryption />}
+        <main className="page-content encryption-content">
+          {activeTab === 'pdf' ? <PDFEncryption /> : <FileEncryption />}
+        </main>
       </div>
     </div>
   )

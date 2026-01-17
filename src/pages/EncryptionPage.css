@@ -1,29 +1,88 @@
 /* ========================================
-   加密页面样式 - 专业商用级
+   加密页面样式 - 科技安全风格
    ======================================== */
 
 .encryption-page {
-  max-width: 1600px;
+  max-width: 1400px;
   margin: 0 auto;
-  padding: 2.5rem 2rem;
-  background: linear-gradient(180deg, #fafbfc 0%, #ffffff 100%);
+  padding: 2rem 2rem;
+  background: 
+    linear-gradient(135deg, #0a0e27 0%, #1a1f3a 50%, #0f1419 100%),
+    radial-gradient(circle at 20% 50%, rgba(34, 211, 238, 0.1) 0%, transparent 50%),
+    radial-gradient(circle at 80% 50%, rgba(59, 130, 246, 0.1) 0%, transparent 50%);
+  background-size: 100% 100%, 100% 100%, 100% 100%;
+  background-attachment: fixed;
+  position: relative;
   min-height: 100vh;
 }
 
+/* 科技网格背景 */
+.encryption-page::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: 
+    linear-gradient(rgba(34, 211, 238, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34, 211, 238, 0.03) 1px, transparent 1px);
+  background-size: 50px 50px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* 扫描线效果 */
+.encryption-page::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, 
+    transparent 0%, 
+    rgba(34, 211, 238, 0.5) 50%, 
+    transparent 100%);
+  animation: scanline 8s linear infinite;
+  pointer-events: none;
+  z-index: 1000;
+}
+
+@keyframes scanline {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100vh);
+    opacity: 0;
+  }
+}
+
 /* ========================================
-   页面头部 - 精美设计
+   页面头部 - 科技风格设计（优化布局）
    ======================================== */
 
 .encryption-header {
-  margin-bottom: 3rem;
-  padding: 3rem;
-  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-  border-radius: 28px;
-  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.08),
-              0 0 0 1px rgba(226, 232, 240, 0.8) inset;
-  border: 1px solid rgba(226, 232, 240, 0.8);
+  margin-bottom: 2rem;
+  padding: 2.5rem 2.5rem 2rem;
+  background: linear-gradient(135deg, 
+    rgba(15, 23, 42, 0.95) 0%, 
+    rgba(30, 41, 59, 0.95) 100%);
+  border-radius: 16px;
+  border: 1px solid rgba(34, 211, 238, 0.2);
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(34, 211, 238, 0.1) inset,
+    0 0 40px rgba(34, 211, 238, 0.1);
   position: relative;
   overflow: hidden;
+  backdrop-filter: blur(20px);
+  z-index: 1;
 }
 
 .encryption-header::before {
@@ -32,235 +91,444 @@
   top: 0;
   left: 0;
   right: 0;
-  height: 4px;
-  background: linear-gradient(90deg, #667eea 0%, #764ba2 50%, #10b981 100%);
-  opacity: 0.8;
+  height: 2px;
+  background: linear-gradient(90deg, 
+    #22d3ee 0%, 
+    #3b82f6 25%, 
+    #10b981 50%, 
+    #3b82f6 75%, 
+    #22d3ee 100%);
+  background-size: 200% 100%;
+  animation: gradientFlow 3s ease infinite;
+  box-shadow: 0 0 8px rgba(34, 211, 238, 0.6);
+}
+
+@keyframes gradientFlow {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
 }
 
 .header-content {
-  margin-bottom: 2rem;
+  margin-bottom: 1.5rem;
   position: relative;
-  z-index: 1;
+  z-index: 2;
 }
 
 .page-title {
-  display: flex;
-  align-items: center;
-  gap: 1.25rem;
-  font-size: 2rem;
-  font-weight: 900;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #10b981 100%);
+  font-size: 2.25rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, 
+    #22d3ee 0%, 
+    #3b82f6 40%, 
+    #10b981 70%, 
+    #22d3ee 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  margin: 0 0 1.25rem 0;
-  letter-spacing: -1px;
-  line-height: 1.2;
-  padding-right: 0.5rem;
+  background-size: 200% 100%;
+  animation: gradientShift 4s ease infinite;
+  margin: 0 0 0.75rem 0;
+  letter-spacing: -0.5px;
+  line-height: 1.3;
+  position: relative;
 }
 
-.title-icon {
-  font-size: 2.0rem;
-  filter: drop-shadow(0 4px 8px rgba(102, 126, 234, 0.3));
-  animation: float 3s ease-in-out infinite;
-}
-
-@keyframes float {
+@keyframes gradientShift {
   0%, 100% {
-    transform: translateY(0);
+    background-position: 0% 50%;
   }
   50% {
-    transform: translateY(-8px);
+    background-position: 100% 50%;
   }
 }
 
 .page-subtitle {
-  font-size: 1.15rem;
-  color: #64748b;
-  line-height: 1.2;
+  font-size: 1rem;
+  color: #cbd5e1;
+  line-height: 1.6;
   margin: 0;
-  max-width: 800px;
-  font-weight: 500;
+  font-weight: 400;
 }
 
 .features-badges {
   display: flex;
-  gap: 1.25rem;
+  gap: 1rem;
   flex-wrap: wrap;
   position: relative;
-  z-index: 1;
+  z-index: 2;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid rgba(34, 211, 238, 0.15);
 }
 
 .feature-badge {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 0.625rem;
-  padding: 1rem 2rem;
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.08) 0%, rgba(118, 75, 162, 0.08) 100%);
-  border: 2px solid rgba(102, 126, 234, 0.15);
-  border-radius: 14px;
-  font-size: 1rem;
-  font-weight: 700;
-  color: #667eea;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.12),
-              0 0 0 0 rgba(102, 126, 234, 0.4);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  gap: 0.5rem;
+  padding: 0.625rem 1.25rem;
+  background: rgba(34, 211, 238, 0.08);
+  border: 1px solid rgba(34, 211, 238, 0.25);
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #22d3ee;
+  box-shadow: 
+    0 2px 8px rgba(0, 0, 0, 0.2),
+    0 0 12px rgba(34, 211, 238, 0.15);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   backdrop-filter: blur(10px);
   position: relative;
   overflow: hidden;
 }
 
-.feature-badge::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
-  transition: left 0.5s ease;
-}
-
-.feature-badge:hover::before {
-  left: 100%;
-}
-
 .feature-badge:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.2),
-              0 0 0 3px rgba(102, 126, 234, 0.1);
-  border-color: rgba(102, 126, 234, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 
+    0 4px 16px rgba(0, 0, 0, 0.3),
+    0 0 20px rgba(34, 211, 238, 0.3);
+  border-color: rgba(34, 211, 238, 0.5);
+  background: rgba(34, 211, 238, 0.12);
 }
 
 .badge-icon {
-  font-size: 1.25rem;
-  filter: drop-shadow(0 2px 4px rgba(102, 126, 234, 0.2));
+  font-size: 1rem;
+  filter: drop-shadow(0 0 4px rgba(34, 211, 238, 0.6));
+}
+
+
+/* ========================================
+   加密布局 - 侧边栏 + 内容区域
+   ======================================== */
+
+.encryption-layout {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 2rem;
+  position: relative;
+  z-index: 1;
+  align-items: start;
 }
 
 /* ========================================
-   加密选项卡 - 高级设计
+   左侧侧边栏 - 优化样式
+   ======================================== */
+
+.encryption-sidebar {
+  position: sticky;
+  top: 2rem;
+  align-self: start;
+  height: fit-content;
+}
+
+.sidebar-header {
+  margin-bottom: 1.25rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid rgba(34, 211, 238, 0.3);
+  position: relative;
+}
+
+.sidebar-header::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 60px;
+  height: 2px;
+  background: linear-gradient(90deg, 
+    #22d3ee 0%, 
+    transparent 100%);
+  box-shadow: 0 0 10px rgba(34, 211, 238, 0.6);
+}
+
+.sidebar-title {
+  font-size: 0.875rem;
+  font-weight: 800;
+  color: #22d3ee;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin: 0;
+  text-shadow: 0 0 12px rgba(34, 211, 238, 0.6);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.sidebar-title::before {
+  content: '';
+  width: 4px;
+  height: 4px;
+  background: #22d3ee;
+  border-radius: 50%;
+  box-shadow: 0 0 8px rgba(34, 211, 238, 0.8);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* ========================================
+   加密选项卡 - 垂直侧边栏设计（优化）
    ======================================== */
 
 .encryption-tabs {
   display: flex;
-  gap: 1.5rem;
-  margin-bottom: 3rem;
-  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-  padding: 1rem;
-  border-radius: 24px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06),
-              0 0 0 1px rgba(226, 232, 240, 0.8) inset;
-  border: 1px solid rgba(226, 232, 240, 0.8);
-  position: relative;
-}
-
-.encryption-tab {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.875rem;
-  padding: 1.5rem 2.5rem;
-  border: none;
-  border-radius: 20px;
-  background: transparent;
-  color: #64748b;
-  font-size: 1.1rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  flex-direction: column;
+  gap: 0.75rem;
+  background: linear-gradient(135deg, 
+    rgba(15, 23, 42, 0.98) 0%, 
+    rgba(30, 41, 59, 0.98) 100%);
+  padding: 1.25rem;
+  border-radius: 16px;
+  border: 1px solid rgba(34, 211, 238, 0.25);
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(34, 211, 238, 0.15) inset,
+    0 0 40px rgba(34, 211, 238, 0.15);
+  backdrop-filter: blur(20px);
   position: relative;
   overflow: hidden;
 }
 
+.encryption-tabs::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, 
+    transparent 0%,
+    rgba(34, 211, 238, 0.5) 50%,
+    transparent 100%);
+  opacity: 0.6;
+}
+
+.encryption-tabs::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 2px;
+  height: 100%;
+  background: linear-gradient(180deg, 
+    rgba(34, 211, 238, 0.5) 0%,
+    transparent 50%,
+    rgba(34, 211, 238, 0.5) 100%);
+  opacity: 0.4;
+}
+
+.encryption-tab {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.875rem;
+  padding: 1.125rem 1rem;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: visible;
+  border: 2px solid transparent;
+  text-align: left;
+  z-index: 1;
+}
+
+.encryption-tab svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  transition: all 0.3s ease;
+  filter: drop-shadow(0 0 6px rgba(34, 211, 238, 0.5));
+  color: #94a3b8;
+}
+
+.tab-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.tab-label {
+  font-weight: 600;
+  line-height: 1.5;
+  color: inherit;
+  transition: color 0.3s ease;
+}
+
 .encryption-tab::before {
+  content: '';
+  position: absolute;
+  left: -1px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 0;
+  background: linear-gradient(to bottom, 
+    #22d3ee 0%, 
+    #3b82f6 50%, 
+    #10b981 100%);
+  border-radius: 0 3px 3px 0;
+  transition: height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 
+    0 0 10px rgba(34, 211, 238, 0.8),
+    0 0 20px rgba(34, 211, 238, 0.4);
+  z-index: 2;
+}
+
+.encryption-tab::after {
   content: '';
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+  background: linear-gradient(135deg, 
+    rgba(34, 211, 238, 0.08) 0%, 
+    rgba(59, 130, 246, 0.08) 100%);
   opacity: 0;
   transition: opacity 0.3s ease;
+  border-radius: 12px;
 }
 
-.encryption-tab:hover::before {
+.encryption-tab:hover::after {
   opacity: 1;
 }
 
+.encryption-tab:hover::before {
+  height: 60%;
+}
+
 .encryption-tab:hover {
-  color: #475569;
-  transform: translateY(-2px);
-}
-
-.encryption-tab.active {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  box-shadow: 0 12px 32px rgba(102, 126, 234, 0.35),
-              0 0 0 3px rgba(102, 126, 234, 0.15);
-  transform: translateY(-4px);
-}
-
-.encryption-tab.active::before {
-  opacity: 0;
-}
-
-.encryption-tab.active::after {
-  content: '';
-  position: absolute;
-  bottom: -12px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 0;
-  height: 0;
-  border-left: 10px solid transparent;
-  border-right: 10px solid transparent;
-  border-top: 10px solid #667eea;
-  filter: drop-shadow(0 2px 4px rgba(102, 126, 234, 0.3));
-}
-
-.encryption-tab svg {
-  transition: transform 0.3s ease;
+  color: #22d3ee;
+  transform: translateX(6px);
+  border-color: rgba(34, 211, 238, 0.35);
+  box-shadow: 
+    0 6px 20px rgba(0, 0, 0, 0.35),
+    0 0 25px rgba(34, 211, 238, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  background: rgba(34, 211, 238, 0.05);
 }
 
 .encryption-tab:hover svg {
-  transform: scale(1.1);
+  color: #22d3ee;
+  filter: drop-shadow(0 0 10px rgba(34, 211, 238, 0.8));
+}
+
+.encryption-tab.active {
+  background: linear-gradient(135deg, 
+    rgba(34, 211, 238, 0.18) 0%, 
+    rgba(59, 130, 246, 0.18) 50%,
+    rgba(16, 185, 129, 0.18) 100%);
+  color: #22d3ee;
+  box-shadow: 
+    0 6px 24px rgba(34, 211, 238, 0.35),
+    0 0 30px rgba(34, 211, 238, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15),
+    inset -1px 0 0 rgba(34, 211, 238, 0.3);
+  transform: translateX(6px);
+  border-color: rgba(34, 211, 238, 0.5);
+  border-left-color: rgba(34, 211, 238, 0.6);
+  font-weight: 600;
 }
 
 .encryption-tab.active svg {
-  transform: scale(1.15);
-  filter: drop-shadow(0 2px 4px rgba(255, 255, 255, 0.3));
+  color: #22d3ee;
+  filter: drop-shadow(0 0 12px rgba(34, 211, 238, 0.9));
 }
+
+.encryption-tab.active .tab-label {
+  color: #22d3ee;
+  text-shadow: 0 0 8px rgba(34, 211, 238, 0.4);
+}
+
+.encryption-tab.active::before {
+  height: 85%;
+  animation: pulse 2s ease-in-out infinite;
+  box-shadow: 
+    0 0 15px rgba(34, 211, 238, 1),
+    0 0 25px rgba(34, 211, 238, 0.6);
+}
+
+.encryption-tab.active::after {
+  opacity: 1;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+@keyframes gradientFlow {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
 
 .tab-badge {
   display: inline-flex;
   align-items: center;
-  padding: 0.375rem 1rem;
-  background: rgba(255, 255, 255, 0.25);
-  border-radius: 10px;
-  font-size: 0.8rem;
-  font-weight: 800;
-  margin-left: 0.75rem;
+  padding: 0.25rem 0.75rem;
+  background: rgba(34, 211, 238, 0.12);
+  border-radius: 8px;
+  font-size: 0.6875rem;
+  font-weight: 700;
   letter-spacing: 0.5px;
   backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(34, 211, 238, 0.25);
+  color: #22d3ee;
+  box-shadow: 
+    0 2px 6px rgba(0, 0, 0, 0.25),
+    0 0 8px rgba(34, 211, 238, 0.2);
+  width: fit-content;
+  text-shadow: 0 0 6px rgba(34, 211, 238, 0.5);
+  transition: all 0.3s ease;
+}
+
+.encryption-tab:hover .tab-badge {
+  background: rgba(34, 211, 238, 0.2);
+  border-color: rgba(34, 211, 238, 0.4);
+  box-shadow: 
+    0 2px 8px rgba(0, 0, 0, 0.3),
+    0 0 12px rgba(34, 211, 238, 0.3);
 }
 
 .encryption-tab.active .tab-badge {
-  background: rgba(255, 255, 255, 0.35);
-  color: white;
-  border-color: rgba(255, 255, 255, 0.3);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  background: linear-gradient(135deg, 
+    rgba(34, 211, 238, 0.25) 0%, 
+    rgba(59, 130, 246, 0.25) 100%);
+  color: #06b6d4;
+  border-color: rgba(34, 211, 238, 0.6);
+  box-shadow: 
+    0 3px 10px rgba(0, 0, 0, 0.35),
+    0 0 15px rgba(34, 211, 238, 0.5);
+  text-shadow: 0 0 10px rgba(34, 211, 238, 0.8);
 }
 
 /* ========================================
    内容区域
    ======================================== */
 
-.encryption-content {
+.page-content.encryption-content {
   animation: fadeInUp 0.5s ease-out;
   position: relative;
+  z-index: 1;
+  min-width: 0;
 }
 
 @keyframes fadeInUp {
@@ -280,19 +548,25 @@
 
 @media (max-width: 1024px) {
   .encryption-page {
-    padding: 2rem 1.5rem;
+    padding: 1.5rem 1.5rem;
   }
 
   .encryption-header {
-    padding: 2rem;
+    padding: 2rem 2rem 1.5rem;
+    border-radius: 16px;
   }
 
   .page-title {
-    font-size: 2.5rem;
+    font-size: 2rem;
   }
 
-  .title-icon {
-    font-size: 2.5rem;
+  .encryption-layout {
+    grid-template-columns: 260px 1fr;
+    gap: 1.5rem;
+  }
+
+  .encryption-sidebar {
+    top: 1.5rem;
   }
 }
 
@@ -302,56 +576,88 @@
   }
 
   .encryption-header {
-    padding: 1.5rem;
-    border-radius: 20px;
+    padding: 1.5rem 1.5rem 1.25rem;
+    border-radius: 16px;
+  }
+
+  .header-content {
+    margin-bottom: 1rem;
   }
 
   .page-title {
-    font-size: 2rem;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.75rem;
-  }
-
-  .title-icon {
-    font-size: 2rem;
+    font-size: 1.75rem;
+    margin-bottom: 0.5rem;
   }
 
   .page-subtitle {
-    font-size: 1rem;
+    font-size: 0.9375rem;
   }
 
   .features-badges {
-    flex-direction: column;
+    margin-top: 1.25rem;
+    padding-top: 1.25rem;
     gap: 0.75rem;
+    flex-direction: column;
   }
 
   .feature-badge {
     width: 100%;
-    padding: 0.875rem 1.5rem;
-    font-size: 0.95rem;
+    padding: 0.625rem 1rem;
+    font-size: 0.875rem;
+  }
+
+  .encryption-layout {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .encryption-sidebar {
+    position: static;
+    top: auto;
   }
 
   .encryption-tabs {
-    flex-direction: column;
+    flex-direction: row;
     gap: 0.75rem;
     padding: 0.75rem;
-    border-radius: 20px;
+    border-radius: 16px;
+    overflow-x: auto;
   }
 
   .encryption-tab {
-    width: 100%;
-    padding: 1.25rem 1.75rem;
-    font-size: 1rem;
+    min-width: 180px;
+    padding: 1rem;
+    font-size: 0.9375rem;
   }
 
-  .encryption-tab.active::after {
-    display: none;
+  .tab-content {
+    gap: 0.25rem;
   }
 
   .tab-badge {
-    font-size: 0.75rem;
-    padding: 0.25rem 0.75rem;
+    font-size: 0.6875rem;
+    padding: 0.1875rem 0.5rem;
+  }
+
+  .encryption-tab::before {
+    width: 0;
+    height: 3px;
+    left: 50%;
+    top: 0;
+    transform: translateX(-50%);
+  }
+
+  .encryption-tab:hover {
+    transform: translateY(-2px);
+  }
+
+  .encryption-tab.active {
+    transform: translateY(-2px);
+  }
+
+  .encryption-tab.active::before {
+    width: 60%;
+    height: 3px;
   }
 }
 
@@ -361,18 +667,34 @@
   }
 
   .encryption-header {
-    padding: 1.25rem;
+    padding: 1.25rem 1.25rem 1rem;
   }
 
   .page-title {
-    font-size: 1.75rem;
-  }
-
-  .title-icon {
-    font-size: 1.75rem;
+    font-size: 1.5rem;
   }
 
   .page-subtitle {
-    font-size: 0.95rem;
+    font-size: 0.875rem;
+  }
+
+  .features-badges {
+    margin-top: 1rem;
+    padding-top: 1rem;
+  }
+
+  .encryption-tabs {
+    padding: 0.625rem;
+    gap: 0.5rem;
+  }
+
+  .encryption-tab {
+    min-width: 160px;
+    padding: 0.875rem;
+    font-size: 0.875rem;
+  }
+
+  .sidebar-title {
+    font-size: 0.75rem;
   }
 }

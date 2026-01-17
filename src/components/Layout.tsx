@@ -47,20 +47,6 @@ export default function Layout({ children }: LayoutProps) {
             </div>
             <span className="logo-text">CommonTools</span>
           </Link>
-          
-          <nav className={`nav ${mobileMenuOpen ? 'open' : ''}`}>
-            {navItems.map((item) => (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={`nav-link ${location.pathname === item.path ? 'active' : ''}`}
-                onClick={handleNavClick}
-              >
-                {item.icon}
-                <span>{item.label}</span>
-              </Link>
-            ))}
-          </nav>
 
           <div className="header-actions">
             <button 
@@ -72,48 +58,60 @@ export default function Layout({ children }: LayoutProps) {
               <span>{language === 'zh-CN' ? 'EN' : 'CN'}</span>
             </button>
             
-            {/* {user ? (
-              <div className="user-info">
-                <div className="user-badge">
-                  {isVip() ? <Crown size={16} /> : <User size={16} />}
-                  <span className="username">{user.username}</span>
-                  {isVip() && <span className="vip-badge">{t('common.vip')}</span>}
-                </div>
-                <button className="logout-button" onClick={handleLogout} title={t('common.logout')}>
-                  <LogOut size={18} />
-                </button>
-              </div>
-            ) : (
-              <Link to="/login" className="login-button-header">
-                <LogIn size={18} />
-                <span>{t('common.login')}</span>
-              </Link>
-            )} */}
+            <button
+              className="mobile-menu-toggle"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label="Toggle menu"
+            >
+              {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
           </div>
-          
-          <button
-            className="mobile-menu-toggle"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            aria-label="Toggle menu"
-          >
-            {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
-          </button>
         </div>
       </header>
       
       {/* 安全提示横幅 */}
       <div className="security-banner">
         <div className="security-banner-content">
-          {/* <Lock size={18} className="security-icon" /> */}
           <span className="security-text">
             <strong>🔐 {t('security.banner')}</strong> {t('security.description')}
           </span>
         </div>
       </div>
       
-      <main className="main-content">
-        {children}
-      </main>
+      <div className="layout-container">
+        {/* 左侧导航侧边栏 */}
+        <aside className={`sidebar ${mobileMenuOpen ? 'open' : ''}`}>
+          <div className="sidebar-header">
+            <h2 className="sidebar-title">功能模块</h2>
+          </div>
+          <nav className="sidebar-nav">
+            {navItems.map((item) => (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={`sidebar-nav-link ${location.pathname === item.path ? 'active' : ''}`}
+                onClick={handleNavClick}
+              >
+                <div className="nav-link-icon">{item.icon}</div>
+                <span className="nav-link-label">{item.label}</span>
+              </Link>
+            ))}
+          </nav>
+        </aside>
+
+        {/* 移动端遮罩 */}
+        {mobileMenuOpen && (
+          <div 
+            className="sidebar-overlay"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+        )}
+
+        {/* 主内容区域 */}
+        <main className="main-content">
+          {children}
+        </main>
+      </div>
       
       <footer className="footer">
         <div className="footer-container">
