@@ -378,44 +378,66 @@ export default function PDFWordConverter() {
       </div>
 
       <div className="info-box">
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-          <Info size={20} style={{ marginTop: '2px', flexShrink: 0, color: '#22d3ee' }} />
-          <div>
-            <p><strong>🚀 {t('conversion.localProcessing')}</strong></p>
-            <ul style={{ margin: '8px 0', paddingLeft: '20px', lineHeight: '1.8' }}>
-              <li><strong>{t('conversion.wordToPdf')}：</strong>
-                <ul style={{ marginTop: '5px' }}>
-                  <li>✅ {t('conversion.wordToPdfDesc1')}</li>
-                  <li>✅ {t('conversion.wordToPdfDesc2')}</li>
-                  <li>✅ {t('conversion.wordToPdfDesc3')}</li>
-                  <li>✅ {t('conversion.wordToPdfDesc4')}</li>
-                  <li>⚠️ {t('conversion.wordToPdfDesc5')}</li>
-                </ul>
-              </li>
-              <li><strong>{t('conversion.pdfToWord')}：</strong>
-                <ul style={{ marginTop: '5px' }}>
-                  <li>✅ {t('conversion.pdfToWordDesc1')}</li>
-                  <li>✅ {t('conversion.pdfToWordDesc2')}</li>
-                  <li>✅ {t('conversion.pdfToWordDesc3')}</li>
-                  <li>✅ {t('conversion.pdfToWordDesc4')}</li>
-                  <li>⚠️ {t('conversion.pdfToWordDesc5')}</li>
-                </ul>
-              </li>
-              <li><strong>💡 {t('common.advantages')}：</strong>
-                <ul style={{ marginTop: '5px' }}>
-                  <li>🔒 {t('common.localProcessing')}</li>
-                  <li>⚡ {t('common.noUpload')}</li>
-                  <li>🆓 {t('common.free')}</li>
-                  <li>🌐 {t('common.offlineSupport')}</li>
-                </ul>
-              </li>
-              <li><strong>⚠️ {t('common.limitations')}：</strong>
-                <ul style={{ marginTop: '5px' }}>
-                  <li>{t('conversion.note1')}</li>
-                  <li>{t('conversion.note2')}</li>
-                </ul>
-              </li>
-            </ul>
+        <div className="info-header">
+          <Info size={20} />
+          <span>🚀 {t('conversion.localProcessing')}</span>
+        </div>
+        <div className="info-content">
+          <div className="info-item">
+            <div className="info-icon">
+              <FileText size={20} />
+            </div>
+            <div className="info-text">
+              <strong>{t('conversion.wordToPdf')}</strong>
+              <ul>
+                <li>✅ {t('conversion.wordToPdfDesc1')}</li>
+                <li>✅ {t('conversion.wordToPdfDesc2')}</li>
+                <li>✅ {t('conversion.wordToPdfDesc3')}</li>
+                <li>✅ {t('conversion.wordToPdfDesc4')}</li>
+                <li>⚠️ {t('conversion.wordToPdfDesc5')}</li>
+              </ul>
+            </div>
+          </div>
+          <div className="info-item">
+            <div className="info-icon">
+              <FileText size={20} />
+            </div>
+            <div className="info-text">
+              <strong>{t('conversion.pdfToWord')}</strong>
+              <ul>
+                <li>✅ {t('conversion.pdfToWordDesc1')}</li>
+                <li>✅ {t('conversion.pdfToWordDesc2')}</li>
+                <li>✅ {t('conversion.pdfToWordDesc3')}</li>
+                <li>✅ {t('conversion.pdfToWordDesc4')}</li>
+                <li>⚠️ {t('conversion.pdfToWordDesc5')}</li>
+              </ul>
+            </div>
+          </div>
+          <div className="info-item">
+            <div className="info-icon">
+              <CheckCircle size={20} />
+            </div>
+            <div className="info-text">
+              <strong>💡 {t('common.advantages')}</strong>
+              <ul>
+                <li>🔒 {t('common.localProcessing')}</li>
+                <li>⚡ {t('common.noUpload')}</li>
+                <li>🆓 {t('common.free')}</li>
+                <li>🌐 {t('common.offlineSupport')}</li>
+              </ul>
+            </div>
+          </div>
+          <div className="info-item">
+            <div className="info-icon">
+              <AlertCircle size={20} />
+            </div>
+            <div className="info-text">
+              <strong>⚠️ {t('common.limitations')}</strong>
+              <ul>
+                <li>{t('conversion.note1')}</li>
+                <li>{t('conversion.note2')}</li>
+              </ul>
+            </div>
           </div>
         </div>
       </div>

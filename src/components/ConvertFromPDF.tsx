@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Upload, FileText, Image, AlertCircle, CheckCircle } from 'lucide-react'
+import { Upload, FileText, Image, AlertCircle, CheckCircle, Settings } from 'lucide-react'
 // import { PDFDocument } from 'pdf-lib' // 暂未使用
 import * as pdfjsLib from 'pdfjs-dist'
 import { saveAs } from 'file-saver'
@@ -185,22 +185,56 @@ export default function ConvertFromPDF() {
       </div>
 
       <div className="info-box">
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-          <CheckCircle size={20} style={{ marginTop: '2px', flexShrink: 0, color: '#22d3ee' }} />
-          <div>
-            <p><strong>✨ {t('convertFromPdf.tipsTitle')}</strong></p>
-            <ul style={{ margin: '8px 0', paddingLeft: '20px', lineHeight: '1.8' }}>
-              <li><strong>🖼️ {t('convertFromPdf.pdfToImage')}：</strong>{t('convertFromPdf.tipImage')}</li>
-              <li><strong>📄 {t('convertFromPdf.pdfToTxt')}：</strong>{t('convertFromPdf.tipTxt')}</li>
-              <li><strong>💡 Word：</strong>{t('convertFromPdf.tipWord')}</li>
-              <li><strong>🔧 {t('convertFromPdf.techTitle')}：</strong>
-                <ul style={{ marginTop: '5px' }}>
-                  <li>{t('convertFromPdf.techImage')}</li>
-                  <li>{t('convertFromPdf.techText')}</li>
-                  <li>{t('convertFromPdf.techLocal')}</li>
-                </ul>
-              </li>
-            </ul>
+        <div className="info-header">
+          <CheckCircle size={20} />
+          <span>✨ {t('convertFromPdf.tipsTitle')}</span>
+        </div>
+        <div className="info-content">
+          <div className="info-item">
+            <div className="info-icon">
+              <Image size={20} />
+            </div>
+            <div className="info-text">
+              <strong>🖼️ {t('convertFromPdf.pdfToImage')}</strong>
+              <ul>
+                <li>{t('convertFromPdf.tipImage')}</li>
+              </ul>
+            </div>
+          </div>
+          <div className="info-item">
+            <div className="info-icon">
+              <FileText size={20} />
+            </div>
+            <div className="info-text">
+              <strong>📄 {t('convertFromPdf.pdfToTxt')}</strong>
+              <ul>
+                <li>{t('convertFromPdf.tipTxt')}</li>
+              </ul>
+            </div>
+          </div>
+          <div className="info-item">
+            <div className="info-icon">
+              <FileText size={20} />
+            </div>
+            <div className="info-text">
+              <strong>💡 Word</strong>
+              <ul>
+                <li>{t('convertFromPdf.tipWord')}</li>
+              </ul>
+            </div>
+          </div>
+          <div className="info-item">
+            <div className="info-icon">
+              <Settings size={20} />
+            </div>
+            <div className="info-text">
+              <strong>🔧 {t('convertFromPdf.techTitle')}</strong>
+              <ul>
+                <li>{t('convertFromPdf.techImage')}</li>
+                <li>{t('convertFromPdf.techText')}</li>
+                <li>{t('convertFromPdf.techLocal')}</li>
+              </ul>
+            </div>
           </div>
         </div>
       </div>

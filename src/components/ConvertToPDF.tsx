@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Upload, FileText, Image, AlertCircle, CheckCircle } from 'lucide-react'
+import { Upload, FileText, Image, AlertCircle, CheckCircle, FileImage, Settings } from 'lucide-react'
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib'
 import { saveAs } from 'file-saver'
 import { useI18n } from '../i18n/I18nContext'
@@ -272,22 +272,56 @@ export default function ConvertToPDF() {
       </div>
 
       <div className="info-box">
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-          <CheckCircle size={20} style={{ marginTop: '2px', flexShrink: 0, color: '#22d3ee' }} />
-          <div>
-            <p><strong>✨ {t('convertToPdf.tipsTitle')}</strong></p>
-            <ul style={{ margin: '8px 0', paddingLeft: '20px', lineHeight: '1.8' }}>
-              <li><strong>🖼️ {t('convertToPdf.imageToPdf')}：</strong>{t('convertToPdf.tipImage')}</li>
-              <li><strong>📄 {t('convertToPdf.txtToPdf')}：</strong>{t('convertToPdf.tipTxt')}</li>
-              <li><strong>💡 Word：</strong>{t('convertToPdf.tipWord')}</li>
-              <li><strong>🔧 {t('convertToPdf.techTitle')}：</strong>
-                <ul style={{ marginTop: '5px' }}>
-                  <li>{t('convertToPdf.techImage')}</li>
-                  <li>{t('convertToPdf.techText')}</li>
-                  <li>{t('convertToPdf.techLocal')}</li>
-                </ul>
-              </li>
-            </ul>
+        <div className="info-header">
+          <CheckCircle size={20} />
+          <span>✨ {t('convertToPdf.tipsTitle')}</span>
+        </div>
+        <div className="info-content">
+          <div className="info-item">
+            <div className="info-icon">
+              <FileImage size={20} />
+            </div>
+            <div className="info-text">
+              <strong>🖼️ {t('convertToPdf.imageToPdf')}</strong>
+              <ul>
+                <li>{t('convertToPdf.tipImage')}</li>
+              </ul>
+            </div>
+          </div>
+          <div className="info-item">
+            <div className="info-icon">
+              <FileText size={20} />
+            </div>
+            <div className="info-text">
+              <strong>📄 {t('convertToPdf.txtToPdf')}</strong>
+              <ul>
+                <li>{t('convertToPdf.tipTxt')}</li>
+              </ul>
+            </div>
+          </div>
+          <div className="info-item">
+            <div className="info-icon">
+              <FileText size={20} />
+            </div>
+            <div className="info-text">
+              <strong>💡 Word</strong>
+              <ul>
+                <li>{t('convertToPdf.tipWord')}</li>
+              </ul>
+            </div>
+          </div>
+          <div className="info-item">
+            <div className="info-icon">
+              <Settings size={20} />
+            </div>
+            <div className="info-text">
+              <strong>🔧 {t('convertToPdf.techTitle')}</strong>
+              <ul>
+                <li>{t('convertToPdf.techImage')}</li>
+                <li>{t('convertToPdf.techText')}</li>
+                <li>{t('convertToPdf.techLocal')}</li>
+              </ul>
+            </div>
           </div>
         </div>
       </div>

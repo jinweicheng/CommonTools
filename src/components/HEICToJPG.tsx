@@ -689,14 +689,34 @@ export default function HEICToJPG() {
           <AlertCircle size={20} />
           <span>{t('heicToJpg.usageTips')}</span>
         </div>
-        <ul className="info-list">
-          <li>✅ {t('heicToJpg.batchConversion')}</li>
-          <li>✅ {t('heicToJpg.localProcessing')}</li>
-          <li>✅ {t('heicToJpg.qualityAdjustment')}</li>
-          <li>✅ {t('heicToJpg.autoPreview')}</li>
-          <li>⚠️ {t('heicToJpg.largeFileWarning')}</li>
-          <li>⚠️ {t('heicToJpg.browserRecommendation')}</li>
-        </ul>
+        <div className="info-content">
+          <div className="info-item">
+            <div className="info-icon">
+              <ImageIcon size={20} />
+            </div>
+            <div className="info-text">
+              <strong>图片转换功能</strong>
+              <ul>
+                <li>✅ {t('heicToJpg.batchConversion')}</li>
+                <li>✅ {t('heicToJpg.localProcessing')}</li>
+                <li>✅ {t('heicToJpg.qualityAdjustment')}</li>
+                <li>✅ {t('heicToJpg.autoPreview')}</li>
+              </ul>
+            </div>
+          </div>
+          <div className="info-item">
+            <div className="info-icon">
+              <AlertCircle size={20} />
+            </div>
+            <div className="info-text">
+              <strong>注意事项</strong>
+              <ul>
+                <li>⚠️ {t('heicToJpg.largeFileWarning')}</li>
+                <li>⚠️ {t('heicToJpg.browserRecommendation')}</li>
+              </ul>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )
