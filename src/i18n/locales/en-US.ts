@@ -455,6 +455,12 @@ export default {
     networkError: 'Network error, check connection and retry',
     loadPdfFailed: 'Load PDF failed: {message}',
     loadPdfFailedUnknown: 'Load PDF failed: unknown error, please check file format',
+    usageTips: 'Usage Tips',
+    tip1: 'Support handwritten signature and date panel, freely draggable and resizable',
+    tip2: 'Support multi-page PDF, can add signatures on different pages',
+    tip3: 'Support custom background color to match PDF background',
+    tip4: 'All processing is done locally in the browser, files are not uploaded to server',
+    tip5: 'Recommend using modern browsers for best experience',
   },
 
   // Compression

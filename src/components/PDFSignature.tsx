@@ -1228,7 +1228,7 @@ export default function PDFSignature() {
       <div className="info-box">
         <div className="info-header">
           <AlertCircle size={20} />
-          <span>💡 {t('signature.usageTips') || '使用提示'}</span>
+          <span>💡 {t('signature.usageTips')}</span>
         </div>
         <div className="info-content">
           <div className="info-item">
@@ -1236,11 +1236,11 @@ export default function PDFSignature() {
               <PenTool size={20} />
             </div>
             <div className="info-text">
-              <strong>签名功能</strong>
+              <strong>{t('signature.addSignature')}</strong>
               <ul>
-                <li>✅ {t('signature.tip1') || '支持手写签名和日期面板，可自由拖拽和调整大小'}</li>
-                <li>✅ {t('signature.tip2') || '支持多页面PDF，可在不同页面添加签名'}</li>
-                <li>✅ {t('signature.tip3') || '支持自定义背景颜色，可匹配PDF背景'}</li>
+                <li>✅ {t('signature.tip1')}</li>
+                <li>✅ {t('signature.tip2')}</li>
+                <li>✅ {t('signature.tip3')}</li>
               </ul>
             </div>
           </div>
@@ -1249,10 +1249,10 @@ export default function PDFSignature() {
               <CheckCircle size={20} />
             </div>
             <div className="info-text">
-              <strong>安全与隐私</strong>
+              <strong>{t('fileEncryption.securityTips')}</strong>
               <ul>
-                <li>✅ {t('signature.tip4') || '所有处理在浏览器本地完成，文件不上传服务器'}</li>
-                <li>⚠️ {t('signature.tip5') || '建议使用现代浏览器以获得最佳体验'}</li>
+                <li>✅ {t('signature.tip4')}</li>
+                <li>⚠️ {t('signature.tip5')}</li>
               </ul>
             </div>
           </div>

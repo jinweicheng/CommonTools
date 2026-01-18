@@ -455,6 +455,12 @@ export default {
     networkError: '网络错误，请检查网络连接后重试',
     loadPdfFailed: '加载PDF失败：{message}',
     loadPdfFailedUnknown: '加载PDF失败：未知错误，请检查文件格式',
+    usageTips: '使用提示',
+    tip1: '支持手写签名和日期面板，可自由拖拽和调整大小',
+    tip2: '支持多页面PDF，可在不同页面添加签名',
+    tip3: '支持自定义背景颜色，可匹配PDF背景',
+    tip4: '所有处理在浏览器本地完成，文件不上传服务器',
+    tip5: '建议使用现代浏览器以获得最佳体验',
   },
 
   // 压缩
