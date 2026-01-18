@@ -186,7 +186,7 @@ export default function ConvertFromPDF() {
 
       <div className="info-box">
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-          <CheckCircle size={20} style={{ marginTop: '2px', flexShrink: 0, color: '#10b981' }} />
+          <CheckCircle size={20} style={{ marginTop: '2px', flexShrink: 0, color: '#22d3ee' }} />
           <div>
             <p><strong>✨ {t('convertFromPdf.tipsTitle')}</strong></p>
             <ul style={{ margin: '8px 0', paddingLeft: '20px', lineHeight: '1.8' }}>

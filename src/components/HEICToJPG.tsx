@@ -689,23 +689,14 @@ export default function HEICToJPG() {
           <AlertCircle size={20} />
           <span>{t('heicToJpg.usageTips')}</span>
         </div>
-        <div className="info-content">
-          <div className="info-item">
-            <div className="info-icon">
-              <AlertCircle size={24} />
-            </div>
-            <div className="info-text">
-              <ul>
-                <li>✅ {t('heicToJpg.batchConversion')}</li>
-                <li>✅ {t('heicToJpg.localProcessing')}</li>
-                <li>✅ {t('heicToJpg.qualityAdjustment')}</li>
-                <li>✅ {t('heicToJpg.autoPreview')}</li>
-                <li>⚠️ {t('heicToJpg.largeFileWarning')}</li>
-                <li>⚠️ {t('heicToJpg.browserRecommendation')}</li>
-              </ul>
-            </div>
-          </div>
-        </div>
+        <ul className="info-list">
+          <li>✅ {t('heicToJpg.batchConversion')}</li>
+          <li>✅ {t('heicToJpg.localProcessing')}</li>
+          <li>✅ {t('heicToJpg.qualityAdjustment')}</li>
+          <li>✅ {t('heicToJpg.autoPreview')}</li>
+          <li>⚠️ {t('heicToJpg.largeFileWarning')}</li>
+          <li>⚠️ {t('heicToJpg.browserRecommendation')}</li>
+        </ul>
       </div>
     </div>
   )

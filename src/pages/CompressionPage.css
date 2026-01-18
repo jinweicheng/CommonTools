@@ -1146,7 +1146,8 @@
    信息框 - 优雅设计
    ======================================== */
 
-.info-box {
+.info-box,
+.info-panel {
   background: linear-gradient(180deg, 
     rgba(15, 23, 42, 0.98) 0%, 
     rgba(30, 41, 59, 0.98) 100%);
@@ -1163,7 +1164,8 @@
   backdrop-filter: blur(20px);
 }
 
-.info-box::before {
+.info-box::before,
+.info-panel::before {
   content: '';
   position: absolute;
   top: 0;
@@ -1180,9 +1182,11 @@
 .info-box p strong {
   font-size: 1.15rem;
   color: #22d3ee;
-  font-weight: 900;
+  font-weight: 800;
   letter-spacing: -0.2px;
   text-shadow: 0 0 12px rgba(34, 211, 238, 0.6);
+  display: block;
+  margin-bottom: 0.5rem;
 }
 
 .info-box ul {
