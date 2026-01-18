@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, DragEvent } from 'react'
 import { Upload, Lock, Shield, Key, AlertCircle, CheckCircle, Image, FileText, Code, Database } from 'lucide-react'
 import { saveAs } from 'file-saver'
 import { CryptoUtils } from '../utils/cryptoUtils'
@@ -70,6 +70,9 @@ export default function FileEncryption() {
   const [passwordError, setPasswordError] = useState('')
   const [unlockPassword, setUnlockPassword] = useState('')
   const [currentFileType, setCurrentFileType] = useState<FileType>('unknown')
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragError, setDragError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // 通用文件加密
   const lockFile = async (file: File) => {
@@ -276,45 +279,117 @@ export default function FileEncryption() {
     return mimeTypes[extension.toLowerCase()] || 'application/octet-stream'
   }
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-
+  // 处理文件（从input或拖拽）
+  const processFile = async (file: File) => {
     if (mode === 'lock') {
       const fileType = detectFileType(file)
       setCurrentFileType(fileType)
 
       if (fileType === 'unknown') {
-        setError('不支持的文件格式。支持的格式：图片、Word 文档、文本文件、代码文件、数据文件')
-        return
+        setError(t('fileEncryption.unsupportedFormat'))
+        setDragError(t('fileEncryption.unsupportedFormat'))
+        return false
       }
 
+      // 检查密码
       if (!userPassword) {
-        setError('请设置密码')
-        return
+        const errorMsg = t('fileEncryption.passwordRequiredForEncryption')
+        setError(errorMsg)
+        setDragError(errorMsg)
+        return false
       }
       
       if (!confirmPassword) {
-        setPasswordError('请再次输入密码以确认')
-        setError('请再次输入密码以确认')
-        return
+        const errorMsg = t('fileEncryption.confirmPasswordRequired')
+        setPasswordError(errorMsg)
+        setError(errorMsg)
+        setDragError(errorMsg)
+        return false
       }
       
       if (userPassword !== confirmPassword) {
-        setPasswordError('两次输入的密码不一致，请重新输入')
-        setError('两次输入的密码不一致，请重新输入')
-        return
+        const errorMsg = t('encryption.passwordMismatch')
+        setPasswordError(errorMsg)
+        setError(errorMsg)
+        setDragError(errorMsg)
+        return false
       }
       
       setPasswordError('')
+      setDragError(null)
       await lockFile(file)
+      return true
     } else {
       if (!file.name.endsWith('.locked')) {
-        setError('请选择 .locked 加密文件')
-        return
+        const errorMsg = t('fileEncryption.selectLockedFile')
+        setError(errorMsg)
+        setDragError(errorMsg)
+        return false
       }
+
+      if (!unlockPassword) {
+        const errorMsg = t('fileEncryption.passwordRequiredForDecryption')
+        setError(errorMsg)
+        setDragError(errorMsg)
+        return false
+      }
+
+      setDragError(null)
       await unlockFile(file)
+      return true
     }
+  }
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    await processFile(file)
+    // 重置input，允许重复选择同一文件
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
+  // 拖拽处理
+  const handleDragEnter = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(true)
+    setDragError(null)
+  }
+
+  const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+    setDragError(null)
+  }
+
+  const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+  }
+
+  const handleDrop = async (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+
+    const files = e.dataTransfer.files
+    if (files.length === 0) {
+      setDragError(null)
+      return
+    }
+
+    if (files.length > 1) {
+      const errorMsg = t('fileEncryption.singleFileOnly')
+      setError(errorMsg)
+      setDragError(errorMsg)
+      return
+    }
+
+    const file = files[0]
+    await processFile(file)
   }
 
   return (
@@ -468,18 +543,45 @@ export default function FileEncryption() {
             </div>
           </div>
 
-          <div className="upload-section">
-            <label className="upload-button">
-              <input
-                type="file"
-                accept=".jpg,.jpeg,.png,.gif,.bmp,.webp,.doc,.docx,.txt,.html,.htm,.js,.jsx,.ts,.tsx,.css,.scss,.sass,.less,.java,.py,.swift,.c,.cpp,.h,.hpp,.go,.rs,.php,.rb,.json,.xml,.yaml,.yml,.md,.sh,.bat,.ps1,.sql,.db,.sqlite,.sqlite3,.mdb,.accdb"
-                onChange={handleFileUpload}
-                disabled={loading || !userPassword || !confirmPassword || userPassword !== confirmPassword}
-                style={{ display: 'none' }}
-              />
-              <Upload size={20} />
-              {loading ? t('fileEncryption.processing') : t('fileEncryption.selectFileAndEncrypt')}
-            </label>
+          <div 
+            className={`upload-section ${isDragging ? 'drag-active' : ''} ${dragError ? 'drag-error' : ''}`}
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+          >
+            <div className="upload-zone">
+              <label className="upload-button">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".jpg,.jpeg,.png,.gif,.bmp,.webp,.doc,.docx,.txt,.html,.htm,.js,.jsx,.ts,.tsx,.css,.scss,.sass,.less,.java,.py,.swift,.c,.cpp,.h,.hpp,.go,.rs,.php,.rb,.json,.xml,.yaml,.yml,.md,.sh,.bat,.ps1,.sql,.db,.sqlite,.sqlite3,.mdb,.accdb"
+                  onChange={handleFileUpload}
+                  disabled={loading}
+                  style={{ display: 'none' }}
+                />
+                <Upload size={20} />
+                {loading ? t('fileEncryption.processing') : t('fileEncryption.selectFileAndEncrypt')}
+              </label>
+              
+              <div className="drag-hint">
+                <span>{t('fileEncryption.dragDropHint')}</span>
+              </div>
+
+              {!userPassword && (
+                <div className="password-required-hint">
+                  <AlertCircle size={18} />
+                  <span>{t('fileEncryption.passwordRequiredBeforeUpload')}</span>
+                </div>
+              )}
+
+              {dragError && (
+                <div className="drag-error-message">
+                  <AlertCircle size={18} />
+                  <span>{dragError}</span>
+                </div>
+              )}
+            </div>
             
             {currentFileType !== 'unknown' && (
               <div className="file-type-indicator">
@@ -513,18 +615,45 @@ export default function FileEncryption() {
             </p>
           </div>
 
-          <div className="upload-section">
-            <label className="upload-button">
-              <input
-                type="file"
-                accept=".locked"
-                onChange={handleFileUpload}
-                disabled={loading || !unlockPassword}
-                style={{ display: 'none' }}
-              />
-              <Upload size={20} />
-              {loading ? t('fileEncryption.processing') : t('fileEncryption.selectEncryptedFileAndDecrypt')}
-            </label>
+          <div 
+            className={`upload-section ${isDragging ? 'drag-active' : ''} ${dragError ? 'drag-error' : ''}`}
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+          >
+            <div className="upload-zone">
+              <label className="upload-button">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".locked"
+                  onChange={handleFileUpload}
+                  disabled={loading}
+                  style={{ display: 'none' }}
+                />
+                <Upload size={20} />
+                {loading ? t('fileEncryption.processing') : t('fileEncryption.selectEncryptedFileAndDecrypt')}
+              </label>
+              
+              <div className="drag-hint">
+                <span>{t('fileEncryption.dragDropHint')}</span>
+              </div>
+
+              {!unlockPassword && (
+                <div className="password-required-hint">
+                  <AlertCircle size={18} />
+                  <span>{t('fileEncryption.passwordRequiredBeforeUpload')}</span>
+                </div>
+              )}
+
+              {dragError && (
+                <div className="drag-error-message">
+                  <AlertCircle size={18} />
+                  <span>{dragError}</span>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

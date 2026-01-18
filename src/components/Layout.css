@@ -39,7 +39,7 @@
   max-width: 1500px;
   margin: 0 auto;
   padding: 0.75rem var(--spacing-2xl);
-  display: flex;
+  /* display: flex; */
   justify-content: flex-end;
   align-items: center;
   min-height: 60px;

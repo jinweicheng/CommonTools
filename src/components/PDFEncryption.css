@@ -51,11 +51,12 @@
 }
 
 .section-description-compact {
-  font-size: 1rem;
-  color: #64748b;
+  font-size: 1.125rem;
+  color: #e2e8f0;
   line-height: 1.7;
   margin: 0;
   font-weight: 500;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 /* ========================================
@@ -172,19 +173,20 @@
   align-items: center;
   justify-content: center;
   gap: 0.875rem;
-  padding: 0.875rem 1.5rem;
+  padding: 1rem 1.5rem;
   border: none;
   border-radius: 12px;
   background: transparent;
-  color: #94a3b8;
-  font-size: 0.9375rem;
-  font-weight: 500;
+  color: #cbd5e1;
+  font-size: 1rem;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   overflow: visible;
   border: 2px solid transparent;
   z-index: 1;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 .tab-button::before {
@@ -244,19 +246,20 @@
 
 .tab-button.active {
   background: linear-gradient(135deg, 
-    rgba(34, 211, 238, 0.18) 0%, 
-    rgba(59, 130, 246, 0.18) 50%,
-    rgba(16, 185, 129, 0.18) 100%);
+    rgba(34, 211, 238, 0.25) 0%, 
+    rgba(59, 130, 246, 0.25) 50%,
+    rgba(16, 185, 129, 0.25) 100%);
   color: #22d3ee;
   box-shadow: 
-    0 4px 16px rgba(34, 211, 238, 0.35),
-    0 0 24px rgba(34, 211, 238, 0.25),
+    0 6px 24px rgba(34, 211, 238, 0.4),
+    0 0 32px rgba(34, 211, 238, 0.3),
     inset 0 1px 0 rgba(255, 255, 255, 0.15),
     inset -1px 0 0 rgba(34, 211, 238, 0.3);
   transform: translateX(4px);
-  border-color: rgba(34, 211, 238, 0.5);
-  border-left-color: rgba(34, 211, 238, 0.6);
-  font-weight: 600;
+  border-color: rgba(34, 211, 238, 0.6);
+  border-left-color: rgba(34, 211, 238, 0.7);
+  font-weight: 700;
+  text-shadow: 0 0 12px rgba(34, 211, 238, 0.8), 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 .tab-button.active::before {
@@ -274,7 +277,7 @@
 .tab-button svg {
   transition: all 0.3s ease;
   filter: drop-shadow(0 0 5px rgba(34, 211, 238, 0.5));
-  color: #94a3b8;
+  color: #cbd5e1;
   flex-shrink: 0;
 }
 
@@ -504,11 +507,12 @@
 }
 
 .mode-description {
-  font-size: 0.95rem;
-  color: #cbd5e1;
+  font-size: 1rem;
+  color: #e2e8f0;
   line-height: 1.7;
   margin: 0 0 1.25rem 0;
   font-weight: 500;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 .mode-features {
@@ -626,15 +630,15 @@
 .password-input {
   width: 100%;
   padding: 1.25rem 1.5rem;
-  border: 2px solid rgba(34, 211, 238, 0.2);
+  border: 2px solid rgba(34, 211, 238, 0.3);
   border-radius: 16px;
   font-size: 1.05rem;
-  color: #cbd5e1;
-  background: rgba(15, 23, 42, 0.6);
+  color: #f1f5f9;
+  background: rgba(15, 23, 42, 0.8);
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: 
-    0 4px 12px rgba(0, 0, 0, 0.3),
-    0 0 0 1px rgba(34, 211, 238, 0.1) inset;
+    0 4px 16px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(34, 211, 238, 0.2) inset;
   font-weight: 500;
   backdrop-filter: blur(10px);
 }
@@ -642,6 +646,7 @@
 .password-input::placeholder {
   color: #94a3b8;
   font-weight: 400;
+  opacity: 0.8;
 }
 
 .password-input:focus {
@@ -713,10 +718,11 @@
 
 .input-hint {
   margin-top: 1rem;
-  font-size: 0.9rem;
-  color: #64748b;
-  line-height: 1.6;
+  font-size: 0.95rem;
+  color: #cbd5e1;
+  line-height: 1.7;
   font-weight: 500;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 /* ========================================
@@ -725,6 +731,68 @@
 
 .upload-section {
   margin-bottom: 2.5rem;
+  position: relative;
+}
+
+.upload-section.drag-active {
+  border-color: rgba(34, 211, 238, 0.6);
+}
+
+.upload-section.drag-error {
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+.upload-zone {
+  position: relative;
+  border: 3px dashed rgba(34, 211, 238, 0.3);
+  border-radius: 20px;
+  padding: 3rem 2rem;
+  text-align: center;
+  background: linear-gradient(180deg, 
+    rgba(15, 23, 42, 0.95) 0%, 
+    rgba(30, 41, 59, 0.95) 100%);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(34, 211, 238, 0.15) inset,
+    0 0 40px rgba(34, 211, 238, 0.1);
+  backdrop-filter: blur(20px);
+  overflow: visible;
+}
+
+.upload-section.drag-active .upload-zone {
+  border-color: rgba(34, 211, 238, 0.5);
+  background: rgba(34, 211, 238, 0.1);
+  transform: scale(1.02);
+  box-shadow: 
+    0 16px 56px rgba(34, 211, 238, 0.3),
+    0 0 0 2px rgba(34, 211, 238, 0.4) inset,
+    0 0 80px rgba(34, 211, 238, 0.3);
+}
+
+.upload-section.drag-error .upload-zone {
+  border-color: rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.05);
+}
+
+.upload-zone::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, 
+    #22d3ee 0%, 
+    #3b82f6 50%,
+    #10b981 100%);
+  box-shadow: 0 0 12px rgba(34, 211, 238, 0.6);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.upload-section.drag-active .upload-zone::before {
+  opacity: 1;
 }
 
 .upload-button {
@@ -746,7 +814,6 @@
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: 
     0 8px 32px rgba(34, 211, 238, 0.4),
-    0 0 0 0 rgba(34, 211, 238, 0.5),
     0 0 40px rgba(34, 211, 238, 0.3);
   width: 100%;
   position: relative;
@@ -764,7 +831,7 @@
   width: 0;
   height: 0;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(34, 211, 238, 0.2);
   transform: translate(-50%, -50%);
   transition: width 0.6s, height 0.6s;
 }
@@ -775,15 +842,14 @@
 }
 
 .upload-button:hover:not(:disabled) {
-  transform: translateY(-4px);
   background: linear-gradient(135deg, 
     rgba(34, 211, 238, 0.3) 0%, 
     rgba(59, 130, 246, 0.3) 50%,
     rgba(16, 185, 129, 0.3) 100%);
   border-color: rgba(34, 211, 238, 0.6);
+  transform: translateY(-4px);
   box-shadow: 
     0 12px 48px rgba(34, 211, 238, 0.5),
-    0 0 0 4px rgba(34, 211, 238, 0.2),
     0 0 60px rgba(34, 211, 238, 0.4);
   text-shadow: 0 0 16px rgba(34, 211, 238, 1);
 }
@@ -796,15 +862,90 @@
   opacity: 0.6;
   cursor: not-allowed;
   transform: none;
-  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.2);
+  box-shadow: 
+    0 4px 16px rgba(34, 211, 238, 0.2),
+    0 0 20px rgba(34, 211, 238, 0.1);
 }
 
 .upload-button svg {
   transition: transform 0.3s ease;
+  filter: drop-shadow(0 0 8px rgba(34, 211, 238, 0.5));
 }
 
 .upload-button:hover:not(:disabled) svg {
   transform: scale(1.1);
+  filter: drop-shadow(0 0 12px rgba(34, 211, 238, 0.7));
+}
+
+.drag-hint {
+  margin-top: 1rem;
+  font-size: 0.9rem;
+  color: #cbd5e1;
+  font-weight: 500;
+}
+
+.password-required-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+  padding: 0.875rem 1.25rem;
+  background: linear-gradient(180deg, 
+    rgba(15, 23, 42, 0.98) 0%, 
+    rgba(30, 41, 59, 0.98) 100%);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 12px;
+  color: #fbbf24;
+  font-size: 0.95rem;
+  font-weight: 600;
+  box-shadow: 
+    0 4px 16px rgba(0, 0, 0, 0.3),
+    0 0 20px rgba(245, 158, 11, 0.2);
+  backdrop-filter: blur(10px);
+  text-shadow: 0 0 8px rgba(245, 158, 11, 0.5);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.password-required-hint svg {
+  flex-shrink: 0;
+  filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.5));
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+.drag-error-message {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+  padding: 0.875rem 1.25rem;
+  background: linear-gradient(180deg, 
+    rgba(15, 23, 42, 0.98) 0%, 
+    rgba(30, 41, 59, 0.98) 100%);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 12px;
+  color: #fca5a5;
+  font-size: 0.95rem;
+  font-weight: 600;
+  box-shadow: 
+    0 4px 16px rgba(0, 0, 0, 0.3),
+    0 0 20px rgba(239, 68, 68, 0.2);
+  backdrop-filter: blur(10px);
+  text-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+}
+
+.drag-error-message svg {
+  flex-shrink: 0;
+  filter: drop-shadow(0 0 8px rgba(239, 68, 68, 0.5));
 }
 
 /* ========================================
@@ -966,9 +1107,10 @@
 .info-text ul {
   margin: 0;
   padding-left: 1.75rem;
-  color: #cbd5e1;
+  color: #e2e8f0;
   line-height: 2;
   font-weight: 500;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 .info-text li {

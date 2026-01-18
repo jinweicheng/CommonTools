@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, DragEvent } from 'react'
 import { Upload, Lock, Shield, Key, AlertCircle, CheckCircle, Globe, FileLock } from 'lucide-react'
 import { PDFDocument, StandardFonts } from 'pdf-lib'
 import { saveAs } from 'file-saver'
@@ -20,6 +20,9 @@ export default function PDFEncryption() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [passwordError, setPasswordError] = useState('')
   const [unlockPassword, setUnlockPassword] = useState('')
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragError, setDragError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // 将 emoji 转换为图片（避免 WinAnsi 编码错误）
   const emojiToImage = async (emoji: string, size: number): Promise<string> => {
@@ -534,44 +537,127 @@ export default function PDFEncryption() {
     }
   }
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-
+  // 处理文件（从input或拖拽）
+  const processFile = async (file: File) => {
     if (mode === 'lock') {
+      // 检查密码
       if (!userPassword) {
-        setError(t('encryption.setPassword'))
-        return
+        const errorMsg = t('encryption.passwordRequiredForEncryption')
+        setError(errorMsg)
+        setDragError(errorMsg)
+        return false
       }
       
       if (!confirmPassword) {
-        setPasswordError(t('compression.confirmPassword'))
-        setError(t('compression.confirmPassword'))
-        return
+        const errorMsg = t('encryption.confirmPasswordRequired')
+        setPasswordError(errorMsg)
+        setError(errorMsg)
+        setDragError(errorMsg)
+        return false
       }
       
       if (userPassword !== confirmPassword) {
-        setPasswordError(t('encryption.passwordMismatch'))
-        setError(t('encryption.passwordMismatch'))
-        return
+        const errorMsg = t('encryption.passwordMismatch')
+        setPasswordError(errorMsg)
+        setError(errorMsg)
+        setDragError(errorMsg)
+        return false
       }
       
       setPasswordError('')
+      setDragError(null)
       
       if (encryptionMode === 'html') {
         await lockPDFHTML(file)
       } else {
         await lockPDFEncrypted(file)
       }
+      return true
     } else {
+      if (!unlockPassword) {
+        const errorMsg = t('encryption.passwordRequiredForDecryption')
+        setError(errorMsg)
+        setDragError(errorMsg)
+        return false
+      }
+
       if (file.name.endsWith('.html')) {
-        setError(t('encryption.htmlFileHint'))
+        const errorMsg = t('encryption.htmlFileHint')
+        setError(errorMsg)
+        setDragError(errorMsg)
+        return false
       } else if (file.name.includes('-encrypted.pdf')) {
+        setDragError(null)
         await unlockPDF(file)
+        return true
       } else {
-        setError(t('encryption.unrecognizedFile'))
+        const errorMsg = t('encryption.unrecognizedFile')
+        setError(errorMsg)
+        setDragError(errorMsg)
+        return false
       }
     }
+  }
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    await processFile(file)
+    // 重置input，允许重复选择同一文件
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
+  // 拖拽处理
+  const handleDragEnter = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(true)
+    setDragError(null)
+  }
+
+  const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+    setDragError(null)
+  }
+
+  const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+  }
+
+  const handleDrop = async (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+
+    const files = e.dataTransfer.files
+    if (files.length === 0) {
+      setDragError(null)
+      return
+    }
+
+    if (files.length > 1) {
+      const errorMsg = t('encryption.singleFileOnly')
+      setError(errorMsg)
+      setDragError(errorMsg)
+      return
+    }
+
+    const file = files[0]
+    
+    // 检查文件类型
+    if (mode === 'lock' && !file.name.toLowerCase().endsWith('.pdf')) {
+      const errorMsg = t('encryption.pdfFileRequired')
+      setError(errorMsg)
+      setDragError(errorMsg)
+      return
+    }
+    
+    await processFile(file)
   }
 
   return (
@@ -730,18 +816,52 @@ export default function PDFEncryption() {
             </div>
           </div>
 
-          <div className="upload-section">
-            <label className="upload-button">
-              <input
-                type="file"
-                accept=".pdf"
-                onChange={handleFileUpload}
-                disabled={loading || !userPassword || !confirmPassword || userPassword !== confirmPassword}
-                style={{ display: 'none' }}
-              />
-              <Upload size={20} />
-              {loading ? t('common.loading') : t('encryption.selectFile') + ' ' + t('encryption.lock')}
-            </label>
+          <div 
+            className={`upload-section ${isDragging ? 'drag-active' : ''} ${dragError ? 'drag-error' : ''}`}
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+          >
+            <div className="upload-zone">
+              <label className="upload-button">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf"
+                  onChange={handleFileUpload}
+                  disabled={loading}
+                  style={{ display: 'none' }}
+                />
+                <Upload size={20} />
+                {loading ? t('common.loading') : t('encryption.selectFile') + ' ' + t('encryption.lock')}
+              </label>
+              
+              <div className="drag-hint">
+                <span>{t('encryption.dragDropHint')}</span>
+              </div>
+
+              {!userPassword && (
+                <div className="password-required-hint">
+                  <AlertCircle size={18} />
+                  <span>{t('encryption.passwordRequiredBeforeUpload')}</span>
+                </div>
+              )}
+
+              {!confirmPassword && userPassword && (
+                <div className="password-required-hint">
+                  <AlertCircle size={18} />
+                  <span>{t('encryption.confirmPasswordRequired')}</span>
+                </div>
+              )}
+
+              {dragError && (
+                <div className="drag-error-message">
+                  <AlertCircle size={18} />
+                  <span>{dragError}</span>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       ) : (
@@ -763,18 +883,45 @@ export default function PDFEncryption() {
             </p>
           </div>
 
-          <div className="upload-section">
-            <label className="upload-button">
-              <input
-                type="file"
-                accept=".pdf"
-                onChange={handleFileUpload}
-                disabled={loading || !unlockPassword}
-                style={{ display: 'none' }}
-              />
-              <Upload size={20} />
-              {loading ? t('common.loading') : t('encryption.selectEncryptedFile') + ' ' + t('encryption.unlock')}
-            </label>
+          <div 
+            className={`upload-section ${isDragging ? 'drag-active' : ''} ${dragError ? 'drag-error' : ''}`}
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+          >
+            <div className="upload-zone">
+              <label className="upload-button">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.html"
+                  onChange={handleFileUpload}
+                  disabled={loading}
+                  style={{ display: 'none' }}
+                />
+                <Upload size={20} />
+                {loading ? t('common.loading') : t('encryption.selectEncryptedFile') + ' ' + t('encryption.unlock')}
+              </label>
+              
+              <div className="drag-hint">
+                <span>{t('encryption.dragDropHint')}</span>
+              </div>
+
+              {!unlockPassword && (
+                <div className="password-required-hint">
+                  <AlertCircle size={18} />
+                  <span>{t('encryption.passwordRequiredBeforeUpload')}</span>
+                </div>
+              )}
+
+              {dragError && (
+                <div className="drag-error-message">
+                  <AlertCircle size={18} />
+                  <span>{dragError}</span>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
