@@ -1061,24 +1061,9 @@
 
 .info-box,
 .info-panel {
-  /* background: linear-gradient(180deg, 
-    rgba(15, 23, 42, 0.98) 0%, 
-    rgba(30, 41, 59, 0.98) 100%);
-  border: 1px solid rgba(34, 211, 238, 0.2);
-  border-radius: 20px;
-  padding: 2.5rem;
-  margin-top: 3rem;
-  box-shadow: 
-    0 8px 32px rgba(0, 0, 0, 0.4),
-    0 0 0 1px rgba(34, 211, 238, 0.15) inset,
-    0 0 40px rgba(34, 211, 238, 0.1);
-  position: relative;
-  overflow: hidden;
-  backdrop-filter: blur(20px); */
-
   background: linear-gradient(180deg, 
     rgba(15, 23, 42, 0.98) 0%, 
-    rgba(30, 41, 59, 0.98) 100%);
+    rgba(30, 41, 59, 0.98) 100%) !important;
   border: 1px solid rgba(34, 211, 238, 0.2);
   border-radius: 20px;
   padding: 2.5rem;
@@ -1212,7 +1197,7 @@
 .info-text strong {
   display: block;
   font-size: 1.15rem;
-  color: #22d3ee;
+  color: #22d3ee !important;
   margin-bottom: 1rem;
   font-weight: 800;
   letter-spacing: -0.2px;
