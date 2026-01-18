@@ -239,26 +239,17 @@ export default function PDFSignature() {
 
     // 使用pdf.js加载并渲染PDF
     try {
-      // 确保 PDF.js worker 已配置（带重试）
+      // 确保 PDF.js worker 已配置
       if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
         const { configurePDFWorker } = await import('../utils/pdfWorkerConfig')
-        let configured = await configurePDFWorker()
+        await configurePDFWorker()
         
-        // 如果配置失败，重试最多 2 次
-        if (!configured) {
-          for (let i = 0; i < 2; i++) {
-            await new Promise(resolve => setTimeout(resolve, 500))
-            configured = await configurePDFWorker()
-            if (configured) break
-          }
-        }
-        
-        // 如果仍然失败，使用本地 worker 作为最后尝试
-        if (!configured && !pdfjsLib.GlobalWorkerOptions.workerSrc) {
-          const basePath = import.meta.env.BASE_URL || '/tools/'
-          const cleanBasePath = basePath.endsWith('/') ? basePath.slice(0, -1) : basePath
-          pdfjsLib.GlobalWorkerOptions.workerSrc = `${cleanBasePath}/pdf.worker.min.mjs`
-          console.log('⚠️ PDF.js Worker: Using fallback local worker -', pdfjsLib.GlobalWorkerOptions.workerSrc)
+        // 如果仍然没有配置，使用本地路径作为最终回退
+        if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+          pdfjsLib.GlobalWorkerOptions.workerSrc = import.meta.env.DEV 
+            ? '/pdf.worker.min.mjs' 
+            : `${(import.meta.env.BASE_URL || '/tools/').replace(/\/$/, '')}/pdf.worker.min.mjs`
+          console.log('⚠️ PDF.js Worker: Using fallback path -', pdfjsLib.GlobalWorkerOptions.workerSrc)
         }
       }
 
@@ -283,6 +274,19 @@ export default function PDFSignature() {
       
       while (retries > 0) {
         try {
+          // 确保 worker 已配置
+          if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+            const { configurePDFWorker } = await import('../utils/pdfWorkerConfig')
+            await configurePDFWorker()
+            // 如果仍然没有配置，使用本地路径作为最终回退
+            if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+              pdfjsLib.GlobalWorkerOptions.workerSrc = import.meta.env.DEV 
+                ? '/pdf.worker.min.mjs' 
+                : `${(import.meta.env.BASE_URL || '/tools/').replace(/\/$/, '')}/pdf.worker.min.mjs`
+              console.log('⚠️ PDF.js Worker: Using fallback path -', pdfjsLib.GlobalWorkerOptions.workerSrc)
+            }
+          }
+          
           const loadingTask = pdfjsLib.getDocument({ 
             data: arrayBuffer,
             verbosity: 0, // 减少日志输出
@@ -364,7 +368,7 @@ export default function PDFSignature() {
           showRetryButton = true
           
           // 提供解决方案提示
-          console.warn('💡 ' + t('common.solution') + '：')
+          console.warn('💡 解决方案：')
           console.warn('1. ' + t('signature.solution1'))
           console.warn('2. ' + t('signature.solution2'))
           console.warn('3. ' + t('signature.solution3'))
