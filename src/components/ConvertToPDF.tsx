@@ -272,22 +272,50 @@ export default function ConvertToPDF() {
       </div>
 
       <div className="info-box">
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-          <CheckCircle size={20} style={{ marginTop: '2px', flexShrink: 0, color: '#10b981' }} />
-          <div>
-            <p><strong>✨ {t('convertToPdf.tipsTitle')}</strong></p>
-            <ul style={{ margin: '8px 0', paddingLeft: '20px', lineHeight: '1.8' }}>
-              <li><strong>🖼️ {t('convertToPdf.imageToPdf')}：</strong>{t('convertToPdf.tipImage')}</li>
-              <li><strong>📄 {t('convertToPdf.txtToPdf')}：</strong>{t('convertToPdf.tipTxt')}</li>
-              <li><strong>💡 Word：</strong>{t('convertToPdf.tipWord')}</li>
-              <li><strong>🔧 {t('convertToPdf.techTitle')}：</strong>
-                <ul style={{ marginTop: '5px' }}>
-                  <li>{t('convertToPdf.techImage')}</li>
-                  <li>{t('convertToPdf.techText')}</li>
-                  <li>{t('convertToPdf.techLocal')}</li>
-                </ul>
-              </li>
-            </ul>
+        <div className="info-header">
+          <CheckCircle size={20} />
+          <span>✨ {t('convertToPdf.tipsTitle')}</span>
+        </div>
+        <div className="info-content">
+          <div className="info-item">
+            <div className="info-icon">
+              <CheckCircle size={24} />
+            </div>
+            <div className="info-text">
+              <strong>🖼️ {t('convertToPdf.imageToPdf')}：</strong>
+              <p>{t('convertToPdf.tipImage')}</p>
+            </div>
+          </div>
+          <div className="info-item">
+            <div className="info-icon">
+              <CheckCircle size={24} />
+            </div>
+            <div className="info-text">
+              <strong>📄 {t('convertToPdf.txtToPdf')}：</strong>
+              <p>{t('convertToPdf.tipTxt')}</p>
+            </div>
+          </div>
+          <div className="info-item">
+            <div className="info-icon">
+              <CheckCircle size={24} />
+            </div>
+            <div className="info-text">
+              <strong>💡 Word：</strong>
+              <p>{t('convertToPdf.tipWord')}</p>
+            </div>
+          </div>
+          <div className="info-item">
+            <div className="info-icon">
+              <CheckCircle size={24} />
+            </div>
+            <div className="info-text">
+              <strong>🔧 {t('convertToPdf.techTitle')}：</strong>
+              <ul>
+                <li>{t('convertToPdf.techImage')}</li>
+                <li>{t('convertToPdf.techText')}</li>
+                <li>{t('convertToPdf.techLocal')}</li>
+              </ul>
+            </div>
           </div>
         </div>
       </div>

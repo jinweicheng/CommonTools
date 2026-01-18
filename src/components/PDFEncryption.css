@@ -1013,10 +1013,11 @@
   padding: 1.5rem;
   background: rgba(34, 211, 238, 0.05);
   border-radius: 16px;
-  border: 1px solid rgba(34, 211, 238, 0.2);
+  border: 1px solid rgba(34, 211, 238, 0.15);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   overflow: visible;
+  backdrop-filter: blur(10px);
 }
 
 .info-item::before {
@@ -1065,8 +1066,10 @@
   box-shadow: 
     0 4px 12px rgba(0, 0, 0, 0.3),
     0 0 16px rgba(34, 211, 238, 0.2);
-  border: 2px solid;
+  border: 2px solid rgba(34, 211, 238, 0.3);
+  color: #22d3ee;
   transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
 }
 
 .info-icon.html {

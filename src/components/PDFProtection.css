@@ -111,17 +111,170 @@
   cursor: not-allowed;
 }
 
-.info-box {
-  background: #fff3cd;
-  border: 1px solid #ffc107;
-  border-radius: 8px;
-  padding: 1.25rem;
-  color: #856404;
+.info-box,
+.info-panel {
+  background: linear-gradient(180deg, 
+    rgba(15, 23, 42, 0.98) 0%, 
+    rgba(30, 41, 59, 0.98) 100%);
+  border: 1px solid rgba(34, 211, 238, 0.2);
+  border-radius: 20px;
+  padding: 2.5rem;
+  margin-top: 3rem;
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(34, 211, 238, 0.15) inset,
+    0 0 40px rgba(34, 211, 238, 0.1);
+  position: relative;
+  overflow: hidden;
+  backdrop-filter: blur(20px);
 }
 
+.info-box::before,
+.info-panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, 
+    #22d3ee 0%, 
+    #3b82f6 50%,
+    #10b981 100%);
+  box-shadow: 0 0 12px rgba(34, 211, 238, 0.6);
+}
+
+.info-header {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  font-weight: 900;
+  color: #22d3ee;
+  margin-bottom: 2rem;
+  font-size: 1.25rem;
+  letter-spacing: -0.3px;
+  text-shadow: 0 0 12px rgba(34, 211, 238, 0.6);
+}
+
+.info-header svg {
+  color: #22d3ee;
+  filter: drop-shadow(0 0 8px rgba(34, 211, 238, 0.6));
+}
+
+.info-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.info-item {
+  display: flex;
+  gap: 1.5rem;
+  align-items: flex-start;
+  padding: 1.5rem;
+  background: rgba(34, 211, 238, 0.05);
+  border-radius: 16px;
+  border: 1px solid rgba(34, 211, 238, 0.15);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: visible;
+  backdrop-filter: blur(10px);
+}
+
+.info-item::before {
+  content: '';
+  position: absolute;
+  left: -1px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 0;
+  background: linear-gradient(to bottom, 
+    #22d3ee 0%, 
+    #3b82f6 50%, 
+    #10b981 100%);
+  border-radius: 0 3px 3px 0;
+  transition: height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 
+    0 0 10px rgba(34, 211, 238, 0.8),
+    0 0 20px rgba(34, 211, 238, 0.4);
+  z-index: 2;
+}
+
+.info-item:hover::before {
+  height: 60%;
+}
+
+.info-item:hover {
+  background: rgba(34, 211, 238, 0.1);
+  transform: translateX(6px);
+  border-color: rgba(34, 211, 238, 0.35);
+  box-shadow: 
+    0 4px 16px rgba(0, 0, 0, 0.35),
+    0 0 20px rgba(34, 211, 238, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.info-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  flex-shrink: 0;
+  background: rgba(34, 211, 238, 0.1);
+  box-shadow: 
+    0 4px 12px rgba(0, 0, 0, 0.3),
+    0 0 16px rgba(34, 211, 238, 0.2);
+  border: 2px solid rgba(34, 211, 238, 0.3);
+  color: #22d3ee;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+}
+
+.info-item:hover .info-icon {
+  background: rgba(34, 211, 238, 0.15);
+  border-color: rgba(34, 211, 238, 0.4);
+  box-shadow: 
+    0 6px 20px rgba(0, 0, 0, 0.4),
+    0 0 24px rgba(34, 211, 238, 0.3);
+  transform: scale(1.05);
+}
+
+.info-text {
+  flex: 1;
+}
+
+.info-text strong {
+  display: block;
+  font-size: 1.15rem;
+  color: #22d3ee;
+  margin-bottom: 1rem;
+  font-weight: 800;
+  letter-spacing: -0.2px;
+  text-shadow: 0 0 12px rgba(34, 211, 238, 0.6);
+}
+
+.info-text ul {
+  margin: 0;
+  padding-left: 1.75rem;
+  color: #e2e8f0;
+  line-height: 2;
+  font-weight: 500;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.info-text li {
+  margin-bottom: 0.75rem;
+}
+
+/* 兼容旧的info-box样式 */
 .info-box p {
   margin: 0 0 0.5rem 0;
-  line-height: 1.6;
+  line-height: 1.7;
+  color: #e2e8f0;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 .info-box p:last-child {
@@ -130,10 +283,18 @@
 
 .info-box ul {
   margin: 0.5rem 0;
-  line-height: 1.6;
+  padding-left: 1.75rem;
+  line-height: 1.8;
+  color: #e2e8f0;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 .info-box li {
   margin: 0.25rem 0;
+}
+
+.info-box strong {
+  color: #22d3ee;
+  text-shadow: 0 0 12px rgba(34, 211, 238, 0.6);
 }
 

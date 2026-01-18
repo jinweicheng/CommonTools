@@ -575,42 +575,64 @@ export default function CompressionPage() {
 
         {/* 功能说明 */}
         <div className="info-box">
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-            <AlertCircle size={20} style={{ marginTop: '2px', flexShrink: 0, color: '#0066cc' }} />
-            <div>
-              <p><strong>💡 {t('compression.functionDescription')}</strong></p>
-              <ul style={{ margin: '8px 0', paddingLeft: '20px', lineHeight: '1.8' }}>
-                <li><strong>{t('compression.compressFilesDesc')}</strong>
-                  <ul style={{ marginTop: '5px' }}>
-                    <li>✅ {t('compression.multiFilePackaging')}</li>
-                    <li>✅ {t('compression.deflateAlgorithm')}</li>
-                    <li>✅ {t('compression.standardZipFormat')}</li>
-                    <li>✅ {t('compression.fullyLocalProcessing')}</li>
-                  </ul>
-                </li>
-                <li><strong>{t('compression.decompressFilesDesc')}</strong>
-                  <ul style={{ marginTop: '5px' }}>
-                    <li>✅ {t('compression.standardZipSupport')}</li>
-                    <li>✅ {t('compression.autoExtract')}</li>
-                    <li>✅ {t('compression.preserveOriginalNames')}</li>
-                    <li>⚠️ {t('compression.encryptedZipNotSupported')}</li>
-                  </ul>
-                </li>
-                <li><strong>⚠️ {t('compression.notes')}</strong>
-                  <ul style={{ marginTop: '5px' }}>
-                    <li>{t('compression.largeFileProcessing')}</li>
-                    <li>{t('compression.recommendMaxSize')}</li>
-                    <li>{t('compression.allOperationsLocal')}</li>
-                  </ul>
-                </li>
-                <li><strong>🚀 {t('compression.localServerMode')}</strong>
-                  <ul style={{ marginTop: '5px' }}>
-                    <li>{t('compression.largeFileOrEncryptedZip')}</li>
-                    <li>{t('compression.runNpmServer')}</li>
-                    <li>{t('compression.powerfulCapabilities')}</li>
-                  </ul>
-                </li>
-              </ul>
+          <div className="info-header">
+            <AlertCircle size={20} />
+            <span>💡 {t('compression.functionDescription')}</span>
+          </div>
+          <div className="info-content">
+            <div className="info-item">
+              <div className="info-icon">
+                <AlertCircle size={24} />
+              </div>
+              <div className="info-text">
+                <strong>{t('compression.compressFilesDesc')}</strong>
+                <ul>
+                  <li>✅ {t('compression.multiFilePackaging')}</li>
+                  <li>✅ {t('compression.deflateAlgorithm')}</li>
+                  <li>✅ {t('compression.standardZipFormat')}</li>
+                  <li>✅ {t('compression.fullyLocalProcessing')}</li>
+                </ul>
+              </div>
+            </div>
+            <div className="info-item">
+              <div className="info-icon">
+                <AlertCircle size={24} />
+              </div>
+              <div className="info-text">
+                <strong>{t('compression.decompressFilesDesc')}</strong>
+                <ul>
+                  <li>✅ {t('compression.standardZipSupport')}</li>
+                  <li>✅ {t('compression.autoExtract')}</li>
+                  <li>✅ {t('compression.preserveOriginalNames')}</li>
+                  <li>⚠️ {t('compression.encryptedZipNotSupported')}</li>
+                </ul>
+              </div>
+            </div>
+            <div className="info-item">
+              <div className="info-icon">
+                <AlertCircle size={24} />
+              </div>
+              <div className="info-text">
+                <strong>⚠️ {t('compression.notes')}</strong>
+                <ul>
+                  <li>{t('compression.largeFileProcessing')}</li>
+                  <li>{t('compression.recommendMaxSize')}</li>
+                  <li>{t('compression.allOperationsLocal')}</li>
+                </ul>
+              </div>
+            </div>
+            <div className="info-item">
+              <div className="info-icon">
+                <AlertCircle size={24} />
+              </div>
+              <div className="info-text">
+                <strong>🚀 {t('compression.localServerMode')}</strong>
+                <ul>
+                  <li>{t('compression.largeFileOrEncryptedZip')}</li>
+                  <li>{t('compression.runNpmServer')}</li>
+                  <li>{t('compression.powerfulCapabilities')}</li>
+                </ul>
+              </div>
             </div>
           </div>
         </div>
