@@ -566,6 +566,8 @@ export default {
     browserRecommendation: '建议使用Chrome、Edge或Safari浏览器以获得最佳体验',
     noFilesToDownload: '没有可下载的文件，请先完成转换',
     fileList: '文件列表',
+    heicToJpgFunc: '图片转换功能',
+    precautions: '注意事项',
   },
 
   // 密码管理器

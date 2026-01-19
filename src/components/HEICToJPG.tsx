@@ -695,7 +695,7 @@ export default function HEICToJPG() {
               <ImageIcon size={20} />
             </div>
             <div className="info-text">
-              <strong>图片转换功能</strong>
+              <strong>{t('heicToJpg.heicToJpgFunc')}</strong>
               <ul>
                 <li>✅ {t('heicToJpg.batchConversion')}</li>
                 <li>✅ {t('heicToJpg.localProcessing')}</li>
@@ -709,7 +709,7 @@ export default function HEICToJPG() {
               <AlertCircle size={20} />
             </div>
             <div className="info-text">
-              <strong>注意事项</strong>
+              <strong>{t('heicToJpg.precautions')}</strong>
               <ul>
                 <li>⚠️ {t('heicToJpg.largeFileWarning')}</li>
                 <li>⚠️ {t('heicToJpg.browserRecommendation')}</li>

@@ -566,6 +566,8 @@ export default {
     browserRecommendation: 'Recommend Chrome, Edge or Safari for best experience',
     noFilesToDownload: 'No files to download, please complete conversion first',
     fileList: 'File List',
+    heicToJpgFunc: 'Image conversion function',
+    precautions: 'Precautions',
   },
 
   // Password Manager

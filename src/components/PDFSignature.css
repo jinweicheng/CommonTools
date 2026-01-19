@@ -66,12 +66,20 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: #f8f9fa;
+  background: linear-gradient(180deg, 
+    rgba(15, 23, 42, 0.95) 0%, 
+    rgba(30, 41, 59, 0.95) 100%);
+  border: 1px solid rgba(34, 211, 238, 0.3);
   padding: 1.5rem;
   border-radius: 12px;
   margin-bottom: 2rem;
   flex-wrap: wrap;
   gap: 1rem;
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.4),
+    0 0 40px rgba(34, 211, 238, 0.1),
+    0 0 0 1px rgba(34, 211, 238, 0.05) inset;
+  backdrop-filter: blur(20px);
 }
 
 .control-group {
@@ -160,19 +168,31 @@
 
 .color-reset-button {
   padding: 0.5rem 1rem;
-  background: white;
-  border: 2px solid #667eea;
-  color: #667eea;
+  background: linear-gradient(180deg, 
+    rgba(15, 23, 42, 0.8) 0%, 
+    rgba(30, 41, 59, 0.8) 100%);
+  border: 2px solid rgba(34, 211, 238, 0.3);
+  color: #22d3ee;
   border-radius: 8px;
   cursor: pointer;
   font-size: 0.875rem;
   font-weight: 500;
   transition: all 0.3s ease;
+  box-shadow: 
+    0 2px 8px rgba(0, 0, 0, 0.3),
+    0 0 12px rgba(34, 211, 238, 0.15);
+  backdrop-filter: blur(10px);
+  text-shadow: 0 0 6px rgba(34, 211, 238, 0.4);
 }
 
 .color-reset-button:hover {
-  background: #667eea;
-  color: white;
+  background: linear-gradient(180deg, 
+    rgba(15, 23, 42, 0.95) 0%, 
+    rgba(30, 41, 59, 0.95) 100%);
+  border-color: rgba(34, 211, 238, 0.6);
+  box-shadow: 
+    0 4px 16px rgba(0, 0, 0, 0.4),
+    0 0 24px rgba(34, 211, 238, 0.3);
 }
 
 .control-label {
@@ -180,7 +200,8 @@
   align-items: center;
   gap: 0.5rem;
   font-weight: 600;
-  color: #333;
+  color: #22d3ee;
+  text-shadow: 0 0 6px rgba(34, 211, 238, 0.4);
 }
 
 .control-select {
@@ -287,10 +308,17 @@
   background: none;
   border: none;
   cursor: pointer;
-  color: #666;
+  color: #94a3b8;
   padding: 0.25rem;
   display: flex;
   align-items: center;
+  transition: all 0.3s ease;
+}
+
+.panel-close:hover {
+  color: #22d3ee;
+  transform: scale(1.1);
+  filter: drop-shadow(0 0 6px rgba(34, 211, 238, 0.5));
 }
 
 .panel-close:hover {
@@ -325,6 +353,7 @@
   background: rgba(34, 211, 238, 0.2);
   outline: none;
   -webkit-appearance: none;
+  appearance: none;
   box-shadow: 
     inset 0 2px 4px rgba(0, 0, 0, 0.2),
     0 0 12px rgba(34, 211, 238, 0.1);
@@ -529,25 +558,34 @@
   margin-bottom: 2rem;
   width: 100%;
   overflow-x: auto;
+  background: transparent;
+  padding: 0;
 }
 
 .preview-label {
   font-weight: 600;
-  margin-bottom: 0.5rem;
-  color: #333;
+  margin-bottom: 1rem;
+  color: #22d3ee;
   display: flex;
   align-items: center;
   gap: 1rem;
   flex-wrap: wrap;
+  font-size: 1.1rem;
+  text-shadow: 0 0 8px rgba(34, 211, 238, 0.5);
 }
 
 .color-picker-hint {
   font-size: 0.875rem;
-  color: #667eea;
+  color: #22d3ee;
   font-weight: 500;
-  padding: 0.25rem 0.75rem;
-  background: #e7f3ff;
-  border-radius: 4px;
+  padding: 0.5rem 1rem;
+  background: linear-gradient(180deg, 
+    rgba(15, 23, 42, 0.9) 0%, 
+    rgba(30, 41, 59, 0.9) 100%);
+  border: 1px solid rgba(34, 211, 238, 0.3);
+  border-radius: 8px;
+  box-shadow: 0 0 20px rgba(34, 211, 238, 0.2);
+  backdrop-filter: blur(10px);
 }
 
 .pdf-preview {
@@ -788,26 +826,43 @@
 .apply-button {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  background: #667eea;
-  color: white;
-  padding: 1rem 2rem;
-  border: none;
-  border-radius: 8px;
-  font-size: 1rem;
-  font-weight: 600;
+  gap: 0.75rem;
+  background: linear-gradient(135deg, 
+    rgba(34, 211, 238, 0.2) 0%, 
+    rgba(59, 130, 246, 0.2) 50%,
+    rgba(16, 185, 129, 0.2) 100%);
+  color: #22d3ee;
+  padding: 1.25rem 3rem;
+  border: 2px solid rgba(34, 211, 238, 0.4);
+  border-radius: 12px;
+  font-size: 1.1rem;
+  font-weight: 700;
   cursor: pointer;
   transition: all 0.3s ease;
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.4),
+    0 0 40px rgba(34, 211, 238, 0.3);
+  backdrop-filter: blur(15px);
+  text-shadow: 0 0 12px rgba(34, 211, 238, 0.6);
 }
 
 .apply-button:hover:not(:disabled) {
-  background: #5568d3;
-  transform: scale(1.05);
+  background: linear-gradient(135deg, 
+    rgba(34, 211, 238, 0.3) 0%, 
+    rgba(59, 130, 246, 0.3) 50%,
+    rgba(16, 185, 129, 0.3) 100%);
+  border-color: rgba(34, 211, 238, 0.6);
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 
+    0 12px 48px rgba(0, 0, 0, 0.5),
+    0 0 60px rgba(34, 211, 238, 0.5);
+  text-shadow: 0 0 20px rgba(34, 211, 238, 1);
 }
 
 .apply-button:disabled {
-  opacity: 0.6;
+  opacity: 0.4;
   cursor: not-allowed;
+  filter: grayscale(0.5);
 }
 
 /* ========================================
@@ -815,11 +870,34 @@
    ======================================== */
 
 .page-navigation {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(180deg, 
+    rgba(15, 23, 42, 0.95) 0%, 
+    rgba(30, 41, 59, 0.95) 100%);
+  border: 1px solid rgba(34, 211, 238, 0.3);
   border-radius: 16px;
   padding: 1.5rem;
   margin-bottom: 1.5rem;
-  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.25);
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.4),
+    0 0 40px rgba(34, 211, 238, 0.15),
+    0 0 0 1px rgba(34, 211, 238, 0.1) inset;
+  backdrop-filter: blur(20px);
+  position: relative;
+  overflow: hidden;
+}
+
+.page-navigation::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, 
+    rgba(34, 211, 238, 0.8) 0%, 
+    rgba(59, 130, 246, 0.8) 50%,
+    rgba(34, 211, 238, 0.8) 100%);
+  box-shadow: 0 0 12px rgba(34, 211, 238, 0.6);
 }
 
 /* 页面控制按钮 */
@@ -836,31 +914,42 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 1.5rem;
-  background: rgba(255, 255, 255, 0.2);
-  border: 2px solid rgba(255, 255, 255, 0.3);
+  background: linear-gradient(180deg, 
+    rgba(15, 23, 42, 0.8) 0%, 
+    rgba(30, 41, 59, 0.8) 100%);
+  border: 2px solid rgba(34, 211, 238, 0.3);
   border-radius: 12px;
-  color: white;
+  color: #22d3ee;
   font-size: 0.95rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
+  box-shadow: 
+    0 4px 12px rgba(0, 0, 0, 0.4),
+    0 0 20px rgba(34, 211, 238, 0.1);
   backdrop-filter: blur(10px);
+  text-shadow: 0 0 6px rgba(34, 211, 238, 0.4);
 }
 
 .page-nav-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.3);
-  border-color: rgba(255, 255, 255, 0.5);
+  background: linear-gradient(180deg, 
+    rgba(15, 23, 42, 0.95) 0%, 
+    rgba(30, 41, 59, 0.95) 100%);
+  border-color: rgba(34, 211, 238, 0.6);
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 
+    0 8px 20px rgba(0, 0, 0, 0.5),
+    0 0 40px rgba(34, 211, 238, 0.3);
 }
 
 .page-nav-btn:disabled {
-  opacity: 0.4;
+  opacity: 0.3;
   cursor: not-allowed;
 }
 
 .page-nav-btn svg {
   flex-shrink: 0;
+  filter: drop-shadow(0 0 4px rgba(34, 211, 238, 0.5));
 }
 
 /* 页面指示器 */
@@ -868,13 +957,20 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  background: rgba(255, 255, 255, 0.95);
+  background: linear-gradient(180deg, 
+    rgba(15, 23, 42, 0.95) 0%, 
+    rgba(30, 41, 59, 0.95) 100%);
+  border: 2px solid rgba(34, 211, 238, 0.4);
   padding: 1rem 2rem;
   border-radius: 16px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  box-shadow: 
+    0 8px 24px rgba(0, 0, 0, 0.5),
+    0 0 40px rgba(34, 211, 238, 0.2),
+    0 0 0 1px rgba(34, 211, 238, 0.1) inset;
   min-width: 200px;
   justify-content: center;
   flex-direction: column;
+  backdrop-filter: blur(15px);
 }
 
 .page-indicator > div:first-child {
@@ -886,35 +982,44 @@
 .current-page {
   font-size: 2rem;
   font-weight: 700;
-  color: #667eea;
+  color: #22d3ee;
   line-height: 1;
+  text-shadow: 0 0 12px rgba(34, 211, 238, 0.6);
 }
 
 .page-separator {
   font-size: 1.5rem;
-  color: #94a3b8;
+  color: #64748b;
   font-weight: 400;
 }
 
 .total-pages {
   font-size: 1.25rem;
-  color: #64748b;
+  color: #94a3b8;
   font-weight: 600;
+  text-shadow: 0 0 6px rgba(148, 163, 184, 0.4);
 }
 
 .page-info {
   font-size: 0.75rem;
-  color: #64748b;
+  color: #94a3b8;
   margin-top: 0.5rem;
   font-weight: 500;
+  text-shadow: 0 0 4px rgba(148, 163, 184, 0.3);
 }
 
 /* 缩略图容器 */
 .thumbnails-container {
-  background: rgba(255, 255, 255, 0.1);
+  background: linear-gradient(180deg, 
+    rgba(15, 23, 42, 0.6) 0%, 
+    rgba(30, 41, 59, 0.6) 100%);
+  border: 1px solid rgba(34, 211, 238, 0.2);
   border-radius: 12px;
   padding: 1rem;
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(15px);
+  box-shadow: 
+    0 4px 16px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(34, 211, 238, 0.05) inset;
 }
 
 .thumbnails-scroll {
@@ -949,47 +1054,73 @@
 .thumbnail-item {
   flex-shrink: 0;
   width: 100px;
-  background: white;
+  background: linear-gradient(180deg, 
+    rgba(15, 23, 42, 0.9) 0%, 
+    rgba(30, 41, 59, 0.9) 100%);
   border-radius: 8px;
   overflow: hidden;
   cursor: pointer;
   transition: all 0.3s ease;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  border: 3px solid transparent;
+  box-shadow: 
+    0 4px 12px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(34, 211, 238, 0.1) inset;
+  border: 2px solid rgba(34, 211, 238, 0.2);
   position: relative;
+  backdrop-filter: blur(10px);
 }
 
 .thumbnail-item:hover {
   transform: translateY(-4px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
-  border-color: rgba(255, 255, 255, 0.5);
+  box-shadow: 
+    0 8px 20px rgba(0, 0, 0, 0.6),
+    0 0 30px rgba(34, 211, 238, 0.3);
+  border-color: rgba(34, 211, 238, 0.5);
 }
 
 .thumbnail-item.active {
-  border-color: #fbbf24;
-  box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.3);
+  border-color: #22d3ee;
+  box-shadow: 
+    0 0 0 3px rgba(34, 211, 238, 0.4),
+    0 8px 24px rgba(0, 0, 0, 0.6),
+    0 0 40px rgba(34, 211, 238, 0.4);
   transform: scale(1.05);
 }
 
 .thumbnail-item.has-signatures::before {
   content: '';
   position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 8px;
-  height: 8px;
+  top: 6px;
+  right: 6px;
+  width: 10px;
+  height: 10px;
   background: #10b981;
   border-radius: 50%;
-  border: 2px solid white;
+  border: 2px solid rgba(15, 23, 42, 0.9);
   z-index: 10;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  box-shadow: 
+    0 2px 6px rgba(0, 0, 0, 0.4),
+    0 0 12px rgba(16, 185, 129, 0.6);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 
+      0 2px 6px rgba(0, 0, 0, 0.4),
+      0 0 12px rgba(16, 185, 129, 0.6);
+  }
+  50% {
+    box-shadow: 
+      0 2px 6px rgba(0, 0, 0, 0.4),
+      0 0 20px rgba(16, 185, 129, 0.8);
+  }
 }
 
 .thumbnail-image {
   width: 100%;
   height: 120px;
   object-fit: contain;
-  background: #f9fafb;
+  background: rgba(15, 23, 42, 0.5);
   display: block;
 }
 
@@ -999,10 +1130,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
-  color: #9ca3af;
+  background: linear-gradient(135deg, 
+    rgba(15, 23, 42, 0.8) 0%, 
+    rgba(30, 41, 59, 0.8) 100%);
+  color: #22d3ee;
   font-size: 1.5rem;
   font-weight: 600;
+  text-shadow: 0 0 8px rgba(34, 211, 238, 0.5);
 }
 
 .thumbnail-label {
@@ -1010,18 +1144,23 @@
   align-items: center;
   justify-content: space-between;
   padding: 0.5rem;
-  background: #f9fafb;
-  border-top: 1px solid #e5e7eb;
+  background: linear-gradient(180deg, 
+    rgba(15, 23, 42, 0.95) 0%, 
+    rgba(30, 41, 59, 0.95) 100%);
+  border-top: 1px solid rgba(34, 211, 238, 0.2);
 }
 
 .thumbnail-page-num {
   font-size: 0.875rem;
   font-weight: 600;
-  color: #374151;
+  color: #22d3ee;
+  text-shadow: 0 0 6px rgba(34, 211, 238, 0.4);
 }
 
 .thumbnail-signature-badge {
-  background: #10b981;
+  background: linear-gradient(135deg, 
+    #10b981 0%, 
+    #059669 100%);
   color: white;
   font-size: 0.75rem;
   font-weight: 600;
@@ -1029,6 +1168,10 @@
   border-radius: 12px;
   min-width: 20px;
   text-align: center;
+  box-shadow: 
+    0 2px 6px rgba(0, 0, 0, 0.3),
+    0 0 12px rgba(16, 185, 129, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 /* 签名统计 */
@@ -1038,12 +1181,20 @@
   justify-content: center;
   gap: 2rem;
   margin-top: 1rem;
-  padding: 0.75rem;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  color: white;
+  padding: 0.75rem 1.5rem;
+  background: linear-gradient(180deg, 
+    rgba(15, 23, 42, 0.8) 0%, 
+    rgba(30, 41, 59, 0.8) 100%);
+  border: 1px solid rgba(34, 211, 238, 0.3);
+  border-radius: 12px;
+  color: #22d3ee;
   font-size: 0.875rem;
-  font-weight: 500;
+  font-weight: 600;
+  box-shadow: 
+    0 4px 16px rgba(0, 0, 0, 0.3),
+    0 0 20px rgba(34, 211, 238, 0.1);
+  backdrop-filter: blur(10px);
+  text-shadow: 0 0 6px rgba(34, 211, 238, 0.4);
 }
 
 .signature-summary span {
