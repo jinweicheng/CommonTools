@@ -87,20 +87,26 @@ export default function PDFEncryption() {
     body { 
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Microsoft YaHei", sans-serif;
       background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
-      background-size: 200% 200%;
-      animation: gradientShift 15s ease infinite;
       min-height: 100vh;
       display: flex;
       align-items: center;
       justify-content: center;
       position: relative;
       overflow: hidden;
+      /* 启用硬件加速 */
+      transform: translateZ(0);
+      -webkit-transform: translateZ(0);
+    }
+    /* 仅在密码输入界面显示动画效果 */
+    body.locked {
+      background-size: 200% 200%;
+      animation: gradientShift 15s ease infinite;
     }
     @keyframes gradientShift {
       0%, 100% { background-position: 0% 50%; }
       50% { background-position: 100% 50%; }
     }
-    body::before {
+    body.locked::before {
       content: '';
       position: absolute;
       top: -50%;
@@ -109,6 +115,8 @@ export default function PDFEncryption() {
       height: 200%;
       background: radial-gradient(circle, rgba(34, 211, 238, 0.1) 0%, transparent 70%);
       animation: rotate 30s linear infinite;
+      will-change: transform;
+      transform: translateZ(0);
     }
     @keyframes rotate {
       0% { transform: rotate(0deg); }
@@ -149,6 +157,7 @@ export default function PDFEncryption() {
       margin-bottom: 1.5rem;
       filter: drop-shadow(0 0 20px rgba(34, 211, 238, 0.6));
       animation: pulse 3s ease-in-out infinite;
+      will-change: transform, filter;
     }
     @keyframes pulse {
       0%, 100% { transform: scale(1); filter: drop-shadow(0 0 20px rgba(34, 211, 238, 0.6)); }
@@ -266,6 +275,10 @@ export default function PDFEncryption() {
       width: 100%;
       height: 100vh;
       border: none;
+      /* 优化 iframe 滚动性能 */
+      transform: translateZ(0);
+      -webkit-transform: translateZ(0);
+      will-change: transform;
     }
     .info {
       font-size: 0.85rem;
@@ -331,6 +344,9 @@ export default function PDFEncryption() {
     const PASSWORD_HASH = '${passwordHash}';
     const PDF_DATA = '${pdfBase64}';
     
+    // 页面加载时启用动画
+    document.body.classList.add('locked');
+    
     async function hashPassword(password) {
       if (!window.crypto || !window.crypto.subtle) {
         throw new Error('${isZhCN ? 'Web Crypto API 不可用' : 'Web Crypto API is not available'}');
@@ -357,6 +373,9 @@ export default function PDFEncryption() {
       if (hash === PASSWORD_HASH) {
         errorDiv.classList.remove('show');
         document.getElementById('password-screen').style.display = 'none';
+        
+        // 移除背景动画以提升滚动性能
+        document.body.classList.remove('locked');
         
         const pdfViewer = document.getElementById('pdf-viewer');
         const pdfBlob = base64ToBlob(PDF_DATA, 'application/pdf');
