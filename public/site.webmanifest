@@ -10,13 +10,19 @@
   "orientation": "any",
   "icons": [
     {
-      "src": "/favicon-192x192.png",
+      "src": "/tools/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/tools/favicon-192x192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/favicon-512x512.png",
+      "src": "/tools/favicon-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
@@ -27,4 +33,3 @@
   "dir": "ltr",
   "prefer_related_applications": false
 }
-
