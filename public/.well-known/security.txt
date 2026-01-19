@@ -1,0 +1,28 @@
+# Security Policy for CommonTools
+# If you discover a security issue, please report it responsibly
+
+Contact: mailto:security@commontools.top
+Expires: 2027-01-19T23:59:59.000Z
+Preferred-Languages: en, zh
+Canonical: https://commontools.top/tools/.well-known/security.txt
+
+# Policy
+Policy: https://commontools.top/tools/privacy-policy
+
+# About
+# CommonTools is a privacy-first online tool platform
+# All processing happens locally in your browser
+# No files are uploaded to our servers
+
+# Scope
+# This security policy applies to:
+# - https://commontools.top/tools/*
+# - All related subdomains and services
+
+# Recognition
+# We appreciate responsible disclosure of security vulnerabilities
+# Reporters will be acknowledged (with permission) on our website
+
+# Response Time
+# We aim to respond to security reports within 48 hours
+# Critical vulnerabilities will be addressed within 7 days

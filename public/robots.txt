@@ -1,35 +1,78 @@
 User-agent: *
 Allow: /
 
-# 重点页面
+# ===== 核心功能页面（高优先级） =====
+# iPhone Screen Recording Processor - 🔥 重点功能
 Allow: /tools/screen-recording
+
+# ProRAW/HEIF Professional Converter - 🔥 重点功能
 Allow: /tools/proraw-converter
+
+# Modern Image Format Converter (AVIF/WebP) - 🔥 重点功能
 Allow: /tools/modern-image-converter
+
+# Live Photo Converter (GIF/MP4) - 🔥 重点功能
 Allow: /tools/live-photo
+
+# ===== 图片转换工具 =====
 Allow: /tools/heic-to-jpg
 Allow: /tools/legacy-image-converter
 
-# Sitemap
+# ===== 文档处理工具 =====
+Allow: /tools/
+Allow: /tools/conversion
+Allow: /tools/watermark
+Allow: /tools/signature
+Allow: /tools/compression
+
+# ===== 其他工具 =====
+Allow: /tools/password-manager
+
+# ===== 支持与政策页面 =====
+Allow: /tools/support
+Allow: /tools/support-policy
+Allow: /tools/privacy-policy
+Allow: /tools/terms-of-service
+Allow: /tools/refund-policy
+Allow: /tools/pricing
+
+# ===== 禁止爬取 =====
+# 构建产物和资源文件
+Disallow: /tools/assets/
+Disallow: /tools/*.js$
+Disallow: /tools/*.css$
+Disallow: /tools/*.map$
+Disallow: /tools/src/
+Disallow: /tools/node_modules/
+
+# 隐藏页面
+Disallow: /tools/login
+
+# ===== Sitemap 位置 =====
 Sitemap: https://commontools.top/tools/sitemap.xml
 
-# 搜索引擎优化
+# ===== 搜索引擎特定设置 =====
+# Google
+User-agent: Googlebot
+Crawl-delay: 0
+Allow: /tools/
+
+# Bing
+User-agent: Bingbot
+Crawl-delay: 0
+Allow: /tools/
+
+# Baidu (如果需要中国市场)
+User-agent: Baiduspider
 Crawl-delay: 1
+Allow: /tools/
 
-# 禁止爬取构建产物和资源文件
-Disallow: /assets/
-Disallow: /*.js$
-Disallow: /*.css$
-Disallow: /*.map$
+# Yandex
+User-agent: Yandex
+Crawl-delay: 1
+Allow: /tools/
 
-# 允许爬取主要页面
-Allow: /
-Allow: /conversion
-Allow: /watermark
-Allow: /signature
-Allow: /compression
-Allow: /heic-to-jpg
-Allow: /password-manager
-
-# Sitemap 位置（如果创建了 sitemap.xml）
-Sitemap: https://commontools.top/tools/sitemap.xml
+# ===== 爬虫优化 =====
+# 通用爬虫延迟（保护服务器）
+Crawl-delay: 0
 

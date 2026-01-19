@@ -133,23 +133,41 @@ server {
     }
 
     # ========================================
-    # PDF.js Worker MIME 类型配置
+    # PDF.js Worker MIME 类型配置（.mjs 文件）
+    # 必须在 .js 规则之前，避免被覆盖
     # ========================================
     location ~ \.mjs$ {
-        add_header Content-Type application/javascript;
-        add_header Access-Control-Allow-Origin *;
+        types { }
+        default_type application/javascript;
+        add_header Content-Type "application/javascript; charset=utf-8" always;
+        add_header Access-Control-Allow-Origin "*" always;
+        add_header Cross-Origin-Resource-Policy "cross-origin" always;
         expires 1y;
-        add_header Cache-Control "public, immutable";
+        add_header Cache-Control "public, immutable" always;
     }
     
     # ========================================
     # FFmpeg WASM 支持（SharedArrayBuffer）
     # ========================================
-    location ~* \.(wasm|js)$ {
-        add_header Cross-Origin-Opener-Policy "same-origin";
-        add_header Cross-Origin-Embedder-Policy "require-corp";
-        add_header Cross-Origin-Resource-Policy "cross-origin";
-        add_header Access-Control-Allow-Origin *;
+    location ~ \.wasm$ {
+        add_header Content-Type "application/wasm" always;
+        add_header Cross-Origin-Opener-Policy "same-origin" always;
+        add_header Cross-Origin-Embedder-Policy "require-corp" always;
+        add_header Cross-Origin-Resource-Policy "cross-origin" always;
+        add_header Access-Control-Allow-Origin "*" always;
+        expires 1y;
+        add_header Cache-Control "public, immutable" always;
+    }
+    
+    # ========================================
+    # JavaScript 文件配置
+    # ========================================
+    location ~ \.js$ {
+        add_header Content-Type "application/javascript; charset=utf-8" always;
+        add_header Access-Control-Allow-Origin "*" always;
+        add_header Cross-Origin-Resource-Policy "cross-origin" always;
+        expires 1y;
+        add_header Cache-Control "public, immutable" always;
     }
 
     # ========================================
@@ -172,6 +190,16 @@ server {
     
     # HSTS (HTTP Strict Transport Security)
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+    
+    # ========================================
+    # SEO 优化头部
+    # ========================================
+    # Link 头部 - 帮助搜索引擎发现关键资源
+    add_header Link '<https://commontools.top/tools/sitemap.xml>; rel="sitemap"; type="application/xml"' always;
+    add_header Link '<https://commontools.top/tools/>; rel="canonical"' always;
+    
+    # 提示搜索引擎网站支持的功能
+    add_header X-Robots-Tag "index, follow, max-image-preview:large, max-snippet:-1" always;
 
     # ========================================
     # Gzip 压缩
@@ -193,7 +221,23 @@ server {
         image/svg+xml;
 
     # ========================================
-    # 禁止访问隐藏文件
+    # SEO 和安全相关文件访问配置
+    # ========================================
+    # 允许访问 .well-known 目录（security.txt, 证书验证等）
+    location ^~ /.well-known/ {
+        allow all;
+        try_files $uri =404;
+    }
+    
+    # robots.txt, sitemap.xml, humans.txt 等 SEO 文件
+    location ~* ^/(robots\.txt|sitemap\.xml|humans\.txt|browserconfig\.xml)$ {
+        expires 7d;
+        add_header Cache-Control "public, must-revalidate";
+        access_log off;
+    }
+    
+    # ========================================
+    # 禁止访问其他隐藏文件
     # ========================================
     location ~ /\. {
         deny all;

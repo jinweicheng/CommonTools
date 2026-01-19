@@ -4,10 +4,10 @@
         xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9
         http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd">
   
-  <!-- 首页 -->
+  <!-- 首页 - 加密文件 -->
   <url>
     <loc>https://commontools.top/tools/</loc>
-    <lastmod>2026-01-13</lastmod>
+    <lastmod>2026-01-19</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
@@ -130,6 +130,22 @@
     <lastmod>2026-01-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
+  </url>
+  
+  <!-- 退款政策 -->
+  <url>
+    <loc>https://commontools.top/tools/refund-policy</loc>
+    <lastmod>2026-01-19</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  
+  <!-- 定价页面 -->
+  <url>
+    <loc>https://commontools.top/tools/pricing</loc>
+    <lastmod>2026-01-19</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
   </url>
   
 </urlset>

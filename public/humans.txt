@@ -1,0 +1,65 @@
+# humanstxt.org/
+# The humans responsible & technology colophon
+
+# TEAM
+    Team: CommonTools Development Team
+    Site: https://commontools.top/tools/
+    Contact: support [at] commontools.top
+    Location: International
+
+# THANKS
+    Thanks to all users who provide feedback and suggestions
+    Special thanks to the open-source community
+
+# TECHNOLOGY COLOPHON
+
+    ## Frontend
+    React 18
+    TypeScript
+    Vite
+    React Router
+    TailwindCSS (via custom CSS)
+    
+    ## Core Libraries
+    PDF.js (Mozilla) - PDF processing
+    JSZip - File compression/decompression
+    HEIC2ANY - HEIC image conversion
+    Sharp (via browser APIs) - Image processing
+    Canvas API - Image manipulation
+    MediaRecorder API - Video processing
+    Web Crypto API - File encryption
+    
+    ## Infrastructure
+    Nginx - Web server
+    GitHub - Version control
+    CDN - Content delivery
+    
+    ## Privacy & Security
+    100% Client-side processing
+    No server uploads
+    End-to-end encryption
+    Open source friendly
+    
+# FEATURES
+    ✓ iPhone Screen Recording Editor (Crop, Compress, Blur)
+    ✓ ProRAW/HEIF Converter with EXIF
+    ✓ AVIF/WebP Converter with Quality Control
+    ✓ Live Photo to GIF/MP4 Converter
+    ✓ Legacy Image Format Converter (BMP/TGA/PCX/TIFF)
+    ✓ Modern Image Format Converter (PNG/JPG/WebP/AVIF)
+    ✓ PDF Encryption/Decryption
+    ✓ File Encryption with Password
+    ✓ PDF Watermark
+    ✓ Electronic Signature
+    ✓ File Compression/Decompression
+    ✓ HEIC to JPG Converter
+    
+# VALUES
+    Privacy First - Your data never leaves your browser
+    Professional Quality - Commercial-grade tools
+    Modern Design - Beautiful, intuitive interfaces
+    Fast & Efficient - Optimized for performance
+    Free to Use - No registration required
+    
+# LAST UPDATE
+    2026-01-19
