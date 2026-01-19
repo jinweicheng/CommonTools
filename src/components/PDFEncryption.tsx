@@ -10,7 +10,7 @@ import './PDFEncryption.css'
 
 export default function PDFEncryption() {
   const { isVip } = useAuth()
-  const { t } = useI18n()
+  const { t, language } = useI18n()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -74,44 +74,101 @@ export default function PDFEncryption() {
       const hashArray = Array.from(new Uint8Array(hashBuffer))
       const passwordHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
       
+      const isZhCN = language === 'zh-CN'
+      
       const htmlContent = `<!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="${isZhCN ? 'zh-CN' : 'en-US'}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>受密码保护的 PDF 文档</title>
+  <title>🔐 ${isZhCN ? '安全加密文档 - CommonTools' : 'Secure Encrypted Document - CommonTools'}</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { 
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Microsoft YaHei", sans-serif;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+      background-size: 200% 200%;
+      animation: gradientShift 15s ease infinite;
       min-height: 100vh;
       display: flex;
       align-items: center;
       justify-content: center;
+      position: relative;
+      overflow: hidden;
+    }
+    @keyframes gradientShift {
+      0%, 100% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+    }
+    body::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle, rgba(34, 211, 238, 0.1) 0%, transparent 70%);
+      animation: rotate 30s linear infinite;
+    }
+    @keyframes rotate {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
     }
     #password-screen {
-      background: white;
+      background: linear-gradient(180deg, rgba(15, 23, 42, 0.98) 0%, rgba(30, 41, 59, 0.98) 100%);
+      backdrop-filter: blur(20px);
       padding: 3rem;
-      border-radius: 16px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-      max-width: 400px;
+      border-radius: 20px;
+      border: 1px solid rgba(34, 211, 238, 0.3);
+      box-shadow: 
+        0 20px 60px rgba(0, 0, 0, 0.6),
+        0 0 80px rgba(34, 211, 238, 0.2),
+        0 0 0 1px rgba(34, 211, 238, 0.1) inset;
+      max-width: 450px;
       width: 90%;
       text-align: center;
+      position: relative;
+      z-index: 1;
+    }
+    #password-screen::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, 
+        rgba(34, 211, 238, 0.8) 0%, 
+        rgba(59, 130, 246, 0.8) 50%,
+        rgba(16, 185, 129, 0.8) 100%);
+      box-shadow: 0 0 20px rgba(34, 211, 238, 0.8);
+      border-radius: 20px 20px 0 0;
     }
     .lock-icon {
-      font-size: 64px;
-      margin-bottom: 1rem;
+      font-size: 72px;
+      margin-bottom: 1.5rem;
+      filter: drop-shadow(0 0 20px rgba(34, 211, 238, 0.6));
+      animation: pulse 3s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); filter: drop-shadow(0 0 20px rgba(34, 211, 238, 0.6)); }
+      50% { transform: scale(1.05); filter: drop-shadow(0 0 30px rgba(34, 211, 238, 0.9)); }
     }
     h1 {
-      font-size: 1.5rem;
-      color: #333;
-      margin-bottom: 0.5rem;
+      font-size: 1.75rem;
+      color: #22d3ee;
+      margin-bottom: 1rem;
+      font-weight: 700;
+      text-shadow: 
+        0 0 20px rgba(34, 211, 238, 0.6),
+        0 0 40px rgba(34, 211, 238, 0.3);
+      letter-spacing: 0.5px;
     }
     p {
-      color: #666;
+      color: #94a3b8;
       margin-bottom: 2rem;
       line-height: 1.6;
+      font-size: 1rem;
     }
     .input-group {
       margin-bottom: 1.5rem;
@@ -119,49 +176,90 @@ export default function PDFEncryption() {
     }
     label {
       display: block;
-      margin-bottom: 0.5rem;
-      color: #555;
-      font-weight: 500;
+      margin-bottom: 0.75rem;
+      color: #22d3ee;
+      font-weight: 600;
+      font-size: 0.95rem;
+      text-shadow: 0 0 8px rgba(34, 211, 238, 0.4);
     }
     input[type="password"] {
       width: 100%;
-      padding: 0.75rem;
-      border: 2px solid #e0e0e0;
-      border-radius: 8px;
+      padding: 1rem;
+      background: rgba(15, 23, 42, 0.8);
+      border: 2px solid rgba(34, 211, 238, 0.3);
+      border-radius: 12px;
       font-size: 1rem;
-      transition: border-color 0.3s;
+      color: #e2e8f0;
+      transition: all 0.3s ease;
+      box-shadow: 
+        inset 0 2px 8px rgba(0, 0, 0, 0.3),
+        0 0 0 0 rgba(34, 211, 238, 0);
     }
     input[type="password"]:focus {
       outline: none;
-      border-color: #667eea;
+      border-color: rgba(34, 211, 238, 0.6);
+      box-shadow: 
+        inset 0 2px 8px rgba(0, 0, 0, 0.3),
+        0 0 30px rgba(34, 211, 238, 0.3);
+      background: rgba(15, 23, 42, 0.95);
+    }
+    input[type="password"]::placeholder {
+      color: #64748b;
     }
     button {
       width: 100%;
-      padding: 0.75rem;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      border: none;
-      border-radius: 8px;
-      font-size: 1rem;
-      font-weight: 600;
+      padding: 1rem;
+      background: linear-gradient(135deg, 
+        rgba(34, 211, 238, 0.2) 0%, 
+        rgba(59, 130, 246, 0.2) 50%,
+        rgba(16, 185, 129, 0.2) 100%);
+      color: #22d3ee;
+      border: 2px solid rgba(34, 211, 238, 0.5);
+      border-radius: 12px;
+      font-size: 1.1rem;
+      font-weight: 700;
       cursor: pointer;
-      transition: transform 0.2s, box-shadow 0.2s;
+      transition: all 0.3s ease;
+      text-shadow: 0 0 10px rgba(34, 211, 238, 0.6);
+      box-shadow: 
+        0 4px 20px rgba(0, 0, 0, 0.4),
+        0 0 40px rgba(34, 211, 238, 0.2);
+      backdrop-filter: blur(10px);
     }
     button:hover {
       transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+      background: linear-gradient(135deg, 
+        rgba(34, 211, 238, 0.3) 0%, 
+        rgba(59, 130, 246, 0.3) 50%,
+        rgba(16, 185, 129, 0.3) 100%);
+      border-color: rgba(34, 211, 238, 0.8);
+      box-shadow: 
+        0 8px 30px rgba(0, 0, 0, 0.5),
+        0 0 60px rgba(34, 211, 238, 0.4);
+      text-shadow: 0 0 20px rgba(34, 211, 238, 1);
     }
     button:active {
       transform: translateY(0);
     }
     .error {
-      color: #e53e3e;
+      color: #fca5a5;
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      border-radius: 8px;
+      padding: 0.75rem;
       font-size: 0.9rem;
       margin-top: 1rem;
       display: none;
+      box-shadow: 0 0 20px rgba(239, 68, 68, 0.2);
     }
     .error.show {
       display: block;
+      animation: shake 0.5s;
+    }
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-10px); }
+      75% { transform: translateX(10px); }
     }
     #pdf-viewer {
       display: none;
@@ -171,28 +269,59 @@ export default function PDFEncryption() {
     }
     .info {
       font-size: 0.85rem;
-      color: #888;
-      margin-top: 1rem;
+      color: #64748b;
+      margin-top: 1.5rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid rgba(34, 211, 238, 0.2);
+      line-height: 1.8;
+    }
+    .info strong {
+      color: #22d3ee;
+      text-shadow: 0 0 8px rgba(34, 211, 238, 0.4);
+    }
+    .website-link {
+      display: inline-block;
+      margin-top: 0.75rem;
+      color: #22d3ee;
+      text-decoration: none;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      text-shadow: 0 0 8px rgba(34, 211, 238, 0.4);
+    }
+    .website-link:hover {
+      color: #67e8f9;
+      text-shadow: 0 0 15px rgba(34, 211, 238, 0.8);
+      transform: translateY(-2px);
+    }
+    .shield-icon {
+      display: inline-block;
+      margin: 0 4px;
+      filter: drop-shadow(0 0 6px rgba(16, 185, 129, 0.6));
     }
   </style>
 </head>
 <body>
   <div id="password-screen">
-    <div class="lock-icon">🔒</div>
-    <h1>此文档受密码保护</h1>
-    <p>请输入密码以查看文档内容</p>
+    <div class="lock-icon">🔐</div>
+    <h1>${isZhCN ? '安全加密文档' : 'Secure Encrypted Document'}</h1>
+    <p>${isZhCN ? '此文档已通过企业级加密技术保护<br>请输入密码验证身份' : 'This document is protected by enterprise-grade encryption<br>Please enter password to verify your identity'}</p>
     
     <div class="input-group">
-      <label for="password">密码</label>
-      <input type="password" id="password" placeholder="请输入密码" autofocus>
+      <label for="password">🔑 ${isZhCN ? '访问密码' : 'Access Password'}</label>
+      <input type="password" id="password" placeholder="${isZhCN ? '输入密码以解锁文档' : 'Enter password to unlock document'}" autofocus>
     </div>
     
-    <button onclick="verifyPassword()">解锁并查看</button>
-    <div class="error" id="error">密码错误，请重试</div>
+    <button onclick="verifyPassword()">🚀 ${isZhCN ? '验证并解锁' : 'Verify & Unlock'}</button>
+    <div class="error" id="error">❌ ${isZhCN ? '密码错误，请重新输入' : 'Incorrect password, please try again'}</div>
     
     <div class="info">
-      此文档由 CommonTools 加密保护<br>
-      使用 SHA-256 密码验证
+      <strong>${isZhCN ? '加密保护' : 'Encryption Protection'}</strong> ${isZhCN ? '由 CommonTools 提供' : 'by CommonTools'}<br>
+      ${isZhCN ? '采用' : 'Using'} <span class="shield-icon">🛡️</span> SHA-256 ${isZhCN ? '密码验证算法' : 'password verification algorithm'}<br>
+      ${isZhCN ? '确保文档内容 100% 安全' : 'Ensuring 100% document security'}
+      <br><br>
+      <a href="https://commontools.top/tools" target="_blank" class="website-link">
+        🌐 ${isZhCN ? '访问 CommonTools 官网' : 'Visit CommonTools Official Website'}
+      </a>
     </div>
   </div>
   
@@ -204,7 +333,7 @@ export default function PDFEncryption() {
     
     async function hashPassword(password) {
       if (!window.crypto || !window.crypto.subtle) {
-        throw new Error('Web Crypto API 不可用');
+        throw new Error('${isZhCN ? 'Web Crypto API 不可用' : 'Web Crypto API is not available'}');
       }
       const encoder = new TextEncoder();
       const data = encoder.encode(password);
@@ -218,7 +347,7 @@ export default function PDFEncryption() {
       const errorDiv = document.getElementById('error');
       
       if (!password) {
-        errorDiv.textContent = '请输入密码';
+        errorDiv.textContent = '${isZhCN ? '❌ 请输入密码' : '❌ Please enter password'}';
         errorDiv.classList.add('show');
         return;
       }
@@ -236,7 +365,7 @@ export default function PDFEncryption() {
         pdfViewer.src = pdfUrl;
         pdfViewer.style.display = 'block';
       } else {
-        errorDiv.textContent = '密码错误，请重试';
+        errorDiv.textContent = '${isZhCN ? '❌ 密码错误，请重新输入' : '❌ Incorrect password, please try again'}';
         errorDiv.classList.add('show');
         document.getElementById('password').value = '';
         document.getElementById('password').focus();
