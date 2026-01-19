@@ -19,6 +19,8 @@ export default function ModernImageConverterPage() {
         <meta property="og:title" content={title} />
         <meta property="og:description" content={description} />
         <meta name="keywords" content="AVIF转换, WebP转换, PNG转JPG, 图片格式转换, 在线工具, 本地处理, 质量对比" />
+        <link rel="canonical" href="https://commontools.top/tools/modern-image-converter" />
+        <meta property="og:url" content="https://commontools.top/tools/modern-image-converter" />
       </Helmet>
 
       <div className="page-container modern-image-converter-page">

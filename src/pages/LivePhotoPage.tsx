@@ -36,7 +36,8 @@ export default function LivePhotoPage() {
         <meta property="og:title" content={pageTitle} />
         <meta property="og:description" content={pageDescription} />
         <meta property="og:type" content="website" />
-        <link rel="canonical" href={window.location.href} />
+        <link rel="canonical" href="https://commontools.top/tools/live-photo" />
+        <meta property="og:url" content="https://commontools.top/tools/live-photo" />
       </Helmet>
 
       <div className="live-photo-page">

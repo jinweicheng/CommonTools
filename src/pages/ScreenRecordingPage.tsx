@@ -19,6 +19,8 @@ export default function ScreenRecordingPage() {
         <meta property="og:title" content={title} />
         <meta property="og:description" content={description} />
         <meta name="keywords" content="iPhone,屏幕录像,录屏,去水印,压缩视频,裁剪视频,视频处理" />
+        <link rel="canonical" href="https://commontools.top/tools/screen-recording" />
+        <meta property="og:url" content="https://commontools.top/tools/screen-recording" />
       </Helmet>
 
       <div className="page-container screen-recording-page">

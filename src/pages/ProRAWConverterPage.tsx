@@ -19,6 +19,8 @@ export default function ProRAWConverterPage() {
         <meta property="og:title" content={title} />
         <meta property="og:description" content={description} />
         <meta name="keywords" content="ProRAW,DNG,HEIF,HEIC,iPhone,摄影,JPG转换,EXIF,元数据,批量处理" />
+        <link rel="canonical" href="https://commontools.top/tools/proraw-converter" />
+        <meta property="og:url" content="https://commontools.top/tools/proraw-converter" />
       </Helmet>
 
       <div className="page-container proraw-converter-page">

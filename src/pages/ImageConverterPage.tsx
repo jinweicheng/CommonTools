@@ -19,6 +19,8 @@ export default function ImageConverterPage() {
         <meta property="og:title" content={title} />
         <meta property="og:description" content={description} />
         <meta name="keywords" content="BMP转JPG, TGA转WebP, PCX转换, TIFF转换, 老旧格式, 图片转换, 在线工具" />
+        <link rel="canonical" href="https://commontools.top/tools/legacy-image-converter" />
+        <meta property="og:url" content="https://commontools.top/tools/legacy-image-converter" />
       </Helmet>
 
       <div className="page-container image-converter-page">
