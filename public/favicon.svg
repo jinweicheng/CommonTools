@@ -1,21 +1,81 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
   <defs>
-    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
-      <stop offset="50%" style="stop-color:#764ba2;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#f093fb;stop-opacity:1" />
+    <!-- 科技风格渐变 -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0f172a;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#1e293b;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0f172a;stop-opacity:1" />
     </linearGradient>
+    
+    <!-- 青色发光渐变 -->
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#22d3ee;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#3b82f6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#10b981;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- 发光效果滤镜 -->
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    
+    <!-- 强发光效果 -->
+    <filter id="strongGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
   </defs>
-  <!-- 背景圆角矩形 -->
-  <rect width="100" height="100" rx="20" fill="url(#grad)"/>
-  <!-- 盾牌图标 -->
-  <path d="M50 15 L30 25 L30 45 Q30 65 50 75 Q70 65 70 45 L70 25 Z" 
-        fill="white" 
-        stroke="white" 
-        stroke-width="2" 
-        opacity="0.9"/>
-  <!-- 内部装饰 -->
-  <circle cx="50" cy="45" r="8" fill="url(#grad)"/>
-  <path d="M45 50 L50 55 L55 50" stroke="url(#grad)" stroke-width="3" fill="none" stroke-linecap="round"/>
+  
+  <!-- 深色科技背景 -->
+  <rect width="100" height="100" rx="22" fill="url(#bgGrad)"/>
+  
+  <!-- 外发光圈 -->
+  <rect width="100" height="100" rx="22" fill="none" 
+        stroke="url(#shieldGrad)" stroke-width="1" opacity="0.3"/>
+  
+  <!-- 盾牌主体 - 青色渐变 -->
+  <path d="M50 20 L28 30 L28 48 Q28 65 50 78 Q72 65 72 48 L72 30 Z" 
+        fill="url(#shieldGrad)" 
+        opacity="0.9"
+        filter="url(#glow)"/>
+  
+  <!-- 盾牌内发光边框 -->
+  <path d="M50 23 L31 31.5 L31 48 Q31 63 50 75 Q69 63 69 48 L69 31.5 Z" 
+        fill="none"
+        stroke="#22d3ee" 
+        stroke-width="1.5" 
+        opacity="0.6"/>
+  
+  <!-- 锁图标 -->
+  <g filter="url(#strongGlow)">
+    <!-- 锁身 -->
+    <rect x="44" y="48" width="12" height="14" rx="2" 
+          fill="#0f172a" stroke="#22d3ee" stroke-width="1.5"/>
+    
+    <!-- 锁扣 -->
+    <path d="M46 48 L46 43 Q46 38 50 38 Q54 38 54 43 L54 48" 
+          fill="none" stroke="#22d3ee" stroke-width="2" stroke-linecap="round"/>
+    
+    <!-- 钥匙孔 -->
+    <circle cx="50" cy="54" r="2" fill="#22d3ee"/>
+    <rect x="49" y="55" width="2" height="4" rx="1" fill="#22d3ee"/>
+  </g>
+  
+  <!-- 科技点缀 - 角落光点 -->
+  <circle cx="15" cy="15" r="1.5" fill="#22d3ee" opacity="0.6"/>
+  <circle cx="85" cy="15" r="1.5" fill="#3b82f6" opacity="0.6"/>
+  <circle cx="15" cy="85" r="1.5" fill="#10b981" opacity="0.6"/>
+  <circle cx="85" cy="85" r="1.5" fill="#22d3ee" opacity="0.6"/>
+  
+  <!-- 顶部装饰线 -->
+  <line x1="20" y1="12" x2="35" y2="12" stroke="#22d3ee" stroke-width="0.5" opacity="0.4"/>
+  <line x1="65" y1="12" x2="80" y2="12" stroke="#22d3ee" stroke-width="0.5" opacity="0.4"/>
 </svg>
-
