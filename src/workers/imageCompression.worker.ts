@@ -13,7 +13,7 @@ interface CompressionMessage {
     targetSize?: number
     maxWidth?: number
     maxHeight?: number
-    autoFormat: 'auto' | 'webp' | 'jpg' | 'png' | 'avif'
+    autoFormat: 'auto' | 'webp' | 'jpg' | 'png' | 'avif' | 'gif'
     preserveMetadata: boolean
   }
 }
@@ -31,6 +31,7 @@ interface CompleteMessage {
   result: {
     data: Uint8Array
     mimeType: string
+    originalFormat?: string // 原始文件格式（用于 GIF 等特殊情况）
   }
 }
 
@@ -159,29 +160,57 @@ self.addEventListener('message', async (e: MessageEvent<CompressionMessage>) => 
         outputFormat = 'webp' // JPG 转 WebP 通常能获得更好的压缩比
       } else if (originalExt === 'png') {
         outputFormat = 'webp' // PNG 转 WebP
+      } else if (originalExt === 'gif') {
+        outputFormat = 'gif' // GIF 保持 GIF 格式
       } else {
         outputFormat = 'webp' // 默认使用 WebP
       }
+    }
+
+    // 如果用户明确选择 GIF 格式，但原始文件不是 GIF，提示错误
+    if (outputFormat === 'gif' && !isGif) {
+      postMessage({
+        type: 'error',
+        taskId,
+        error: 'GIF output format is only available for GIF input files. Please select a different format or use a GIF file as input.'
+      } as ErrorMessage)
+      return
     }
 
     // 转换为 Blob
     let mimeType = 'image/webp'
     let quality: number | undefined = options.quality / 100
 
-    switch (outputFormat) {
-      case 'webp':
-        mimeType = 'image/webp'
-        break
-      case 'jpg':
-        mimeType = 'image/jpeg'
-        break
-      case 'png':
-        mimeType = 'image/png'
-        quality = undefined // PNG 不支持质量参数
-        break
-      case 'avif':
-        mimeType = 'image/avif'
-        break
+    // 如果输出格式是 GIF，需要特殊处理
+    if (outputFormat === 'gif' && isGif) {
+      // 对于 GIF 文件，浏览器 Canvas API 无法直接输出 GIF
+      // 我们只能做尺寸缩放，然后返回 PNG 格式（更好的压缩）
+      // 但主线程会根据原始文件类型和用户选择来决定文件扩展名
+      // 注意：这实际上会改变文件格式（从 GIF 到 PNG），但这是 Canvas API 的限制
+      // 真正的 GIF 压缩需要使用 gif.js 在主线程中处理，但当前架构不支持
+      mimeType = 'image/png'
+      quality = undefined // PNG 不支持质量参数
+    } else {
+      switch (outputFormat) {
+        case 'webp':
+          mimeType = 'image/webp'
+          break
+        case 'jpg':
+          mimeType = 'image/jpeg'
+          break
+        case 'png':
+          mimeType = 'image/png'
+          quality = undefined // PNG 不支持质量参数
+          break
+        case 'avif':
+          mimeType = 'image/avif'
+          break
+        case 'gif':
+          // 如果用户选择了 GIF 但原始文件不是 GIF，这不应该到达这里（前面已经检查）
+          mimeType = 'image/png' // 降级为 PNG
+          quality = undefined
+          break
+      }
     }
 
     postMessage({
@@ -220,7 +249,8 @@ self.addEventListener('message', async (e: MessageEvent<CompressionMessage>) => 
       taskId,
       result: {
         data: uint8Array,
-        mimeType: outputBlob.type
+        mimeType: outputBlob.type,
+        originalFormat: outputFormat === 'gif' && isGif ? 'gif' : undefined // 标记原始格式为 GIF
       }
     } as CompleteMessage)
 

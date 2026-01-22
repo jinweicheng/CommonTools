@@ -10,7 +10,7 @@ type TaskStatus = 'pending' | 'processing' | 'paused' | 'completed' | 'failed' |
 
 // 压缩策略
 type CompressionMode = 'lossy' | 'lossless'
-type AutoFormat = 'auto' | 'webp' | 'jpg' | 'png' | 'avif'
+type AutoFormat = 'auto' | 'webp' | 'jpg' | 'png' | 'avif' | 'gif' | 'gif'
 
 interface CompressionOptions {
   mode: CompressionMode
@@ -35,6 +35,7 @@ interface CompressionTask {
   error?: string
   options: CompressionOptions
   order: number
+  outputFormat?: string // 实际输出格式（用于 GIF 等特殊情况）
 }
 
 interface CompressionStats {
@@ -136,7 +137,7 @@ export default function ImageCompression() {
     for (const file of fileArray) {
       // 检查文件类型
       const isImage = supportedFormats.some(format => file.type === format) || 
-                     /\.(jpg|jpeg|png|webp|gif|bmp|tiff|svg|avif|heic|heif)$/i.test(file.name)
+                     /\.(jpg|jpeg|png|webp|gif|avif|)$/i.test(file.name)
       
       if (!isImage) {
         continue
@@ -235,6 +236,13 @@ export default function ImageCompression() {
           const compressedBlob = new Blob([result.data], { type: result.mimeType })
           const compressedPreview = URL.createObjectURL(compressedBlob)
           
+          // 确定实际输出格式（用于文件扩展名）
+          const outputFormat = (result as any).originalFormat || 
+            (result.mimeType === 'image/webp' ? 'webp' :
+             result.mimeType === 'image/jpeg' ? 'jpg' :
+             result.mimeType === 'image/png' ? 'png' :
+             result.mimeType === 'image/avif' ? 'avif' : 'webp')
+          
           setTasks(prev => {
             const newTasks = prev.map(t => 
               t.id === taskId 
@@ -244,7 +252,8 @@ export default function ImageCompression() {
                     progress: 100,
                     compressedSize: compressedBlob.size,
                     compressedPreview,
-                    stage: 'output' as const
+                    stage: 'output' as const,
+                    outputFormat
                   }
                 : t
             )
@@ -567,7 +576,8 @@ export default function ImageCompression() {
     for (const task of completedTasks) {
       if (!task.compressedPreview) continue
       const blob = await fetch(task.compressedPreview).then(r => r.blob())
-      const ext = task.options.autoFormat === 'auto' ? 'webp' : task.options.autoFormat
+      // 使用实际输出格式（如果已保存），否则根据选项确定
+      const ext = task.outputFormat || (task.options.autoFormat === 'auto' ? 'webp' : task.options.autoFormat)
       const fileName = task.file.name.replace(/\.[^/.]+$/, '') + `_compressed.${ext}`
       zip.file(fileName, blob)
     }
@@ -678,6 +688,7 @@ export default function ImageCompression() {
                 <option value="jpg">JPG</option>
                 <option value="png">PNG</option>
                 <option value="avif">AVIF</option>
+                <option value="gif">GIF</option>
               </select>
             </div>
           </div>

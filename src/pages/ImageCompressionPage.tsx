@@ -10,8 +10,8 @@ export default function ImageCompressionPage() {
     ? '图片压缩 - CommonTools' 
     : 'Image Compression - CommonTools'
   const description = language === 'zh-CN'
-    ? '专业图片压缩工具：支持批量处理、多种格式（JPG/PNG/WebP/GIF/BMP/TIFF/SVG/AVIF/HEIC）、有损/无损压缩、目标大小控制、分辨率缩放、自动最佳格式。100%本地处理，保护隐私安全。'
-    : 'Professional image compression tool: batch processing, multiple formats (JPG/PNG/WebP/GIF/BMP/TIFF/SVG/AVIF/HEIC), lossy/lossless compression, target size control, resolution scaling, auto best format. 100% local processing, privacy protected.'
+    ? '专业图片压缩工具：支持批量处理、多种格式（JPG/PNG/WebP/GIF/AVIF）、有损/无损压缩、目标大小控制、分辨率缩放、自动最佳格式。100%本地处理，保护隐私安全。'
+    : 'Professional image compression tool: batch processing, multiple formats (JPG/PNG/WebP/GIF/TIFF//AVIF), lossy/lossless compression, target size control, resolution scaling, auto best format. 100% local processing, privacy protected.'
   
   return (
     <>
