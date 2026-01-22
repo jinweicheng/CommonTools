@@ -15,6 +15,8 @@ import ImageConverterPage from './pages/ImageConverterPage'
 import ModernImageConverterPage from './pages/ModernImageConverterPage'
 import ProRAWConverterPage from './pages/ProRAWConverterPage'
 import ScreenRecordingPage from './pages/ScreenRecordingPage'
+import ImageCompressionPage from './pages/ImageCompressionPage'
+import VideoCompressionPage from './pages/VideoCompressionPage'
 import LoginPage from './pages/LoginPage'
 import SupportPage from './pages/SupportPage'
 import SupportPolicyPage from './pages/SupportPolicyPage'
@@ -70,6 +72,12 @@ function App() {
               
               {/* 屏幕录像处理 */}
               <Route path="/screen-recording" element={<ScreenRecordingPage />} />
+              
+              {/* 图片压缩 */}
+              <Route path="/image-compression" element={<ImageCompressionPage />} />
+              
+              {/* 视频压缩 */}
+              <Route path="/video-compression" element={<VideoCompressionPage />} />
               
               {/* Support & Policy Pages */}
               <Route path="/support" element={<SupportPage />} />

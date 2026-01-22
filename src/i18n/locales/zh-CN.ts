@@ -41,17 +41,25 @@ export default {
   // 导航
   nav: {
     encryption: '加密文件',
-    conversion: '文件格式转化',
+    conversion: '格式转换',
     watermark: '加水印',
     signature: '电子签名',
-    compression: '解压/压缩',
-    heicToJpg: 'HEIC转JPG',
-    livePhoto: 'MOV视频转化',
-    legacyImageConverter: '老图片转换',
-    modernImageConverter: '图片格式转换',
-    prorawConverter: 'ProRAW转换',
-    screenRecording: 'IPHONE录像',
     passwordManager: '密码管理器',
+    // 分类标题
+    imageConversion: '图片转换',
+    videoConversion: '视频转换',
+    fileCompression: '文件压缩',
+    // 图片转换子菜单
+    heicToJpg: 'HEIC转JPG',
+    legacyImageConverter: '老旧格式',
+    modernImageConverter: '现代格式',
+    prorawConverter: 'ProRAW/HEIF',
+    imageCompression: '图片压缩',
+    // 视频转换子菜单
+    screenRecording: '屏幕录像',
+    videoCompression: '视频压缩',
+    // 文件压缩子菜单
+    archiveCompression: '解压/压缩',
   },
 
   // 安全横幅

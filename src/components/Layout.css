@@ -369,11 +369,151 @@
   flex: 1;
   line-height: 1.5;
   transition: all 0.3s ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .sidebar-nav-link.active .nav-link-label {
   color: #22d3ee;
   text-shadow: 0 0 8px rgba(34, 211, 238, 0.4);
+}
+
+/* ==================== 分类导航 ==================== */
+.nav-category {
+  display: flex;
+  flex-direction: column;
+  margin-top: 0.25rem;
+}
+
+.nav-category-header {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  padding: 0.875rem 1rem;
+  color: #22d3ee;
+  background: transparent;
+  border: 2px solid transparent;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  text-align: left;
+  width: 100%;
+}
+
+.nav-category-header:hover {
+  background: rgba(34, 211, 238, 0.1);
+  border-color: rgba(34, 211, 238, 0.3);
+  transform: translateX(4px);
+  box-shadow: 
+    0 2px 8px rgba(0, 0, 0, 0.2),
+    0 0 12px rgba(34, 211, 238, 0.2);
+}
+
+.nav-category-header.has-active {
+  background: linear-gradient(135deg, 
+    rgba(34, 211, 238, 0.12) 0%, 
+    rgba(59, 130, 246, 0.12) 100%);
+  border-color: rgba(34, 211, 238, 0.4);
+  box-shadow: 
+    0 2px 8px rgba(34, 211, 238, 0.2),
+    0 0 16px rgba(34, 211, 238, 0.15);
+}
+
+.nav-category-icon {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #22d3ee;
+  filter: drop-shadow(0 0 6px rgba(34, 211, 238, 0.6));
+  transition: all 0.3s ease;
+}
+
+.nav-category-header:hover .nav-category-icon {
+  filter: drop-shadow(0 0 10px rgba(34, 211, 238, 0.9));
+  transform: scale(1.1);
+}
+
+.nav-category-label {
+  flex: 1;
+  line-height: 1.5;
+  color: #22d3ee;
+  text-shadow: 0 0 8px rgba(34, 211, 238, 0.4);
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nav-category-chevron {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #22d3ee;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  opacity: 0.8;
+}
+
+.nav-category-header:hover .nav-category-chevron {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+.nav-category-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0.25rem;
+  margin-left: 0.5rem;
+  padding-left: 0.75rem;
+  border-left: 2px solid rgba(34, 211, 238, 0.2);
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    max-height: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    max-height: 1000px;
+    transform: translateY(0);
+  }
+}
+
+.nav-sub-link {
+  padding-left: 1.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin-left: 0.5rem;
+}
+
+.nav-sub-link::before {
+  left: -0.5rem;
+}
+
+.nav-sub-link:hover {
+  transform: translateX(4px);
+}
+
+.nav-sub-link.active {
+  transform: translateX(4px);
+  background: linear-gradient(135deg, 
+    rgba(34, 211, 238, 0.15) 0%, 
+    rgba(59, 130, 246, 0.15) 50%,
+    rgba(16, 185, 129, 0.15) 100%);
 }
 
 /* 滚动条样式 */

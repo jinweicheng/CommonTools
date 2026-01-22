@@ -41,17 +41,25 @@ export default {
   // Navigation
   nav: {
     encryption: 'Encryption',
-    conversion: 'File Conversion',
+    conversion: 'Conversion',
     watermark: 'Watermark',
     signature: 'Signature',
-    compression: 'Compression',
-    heicToJpg: 'HEIC to JPG',
-    livePhoto: 'MOV to MP4/GIF',
-    legacyImageConverter: 'Old Image',
-    modernImageConverter: 'Image Conversion',
-    prorawConverter: 'ProRAW',
-    screenRecording: 'IPHONE Rec',
     passwordManager: 'Password Manager',
+    // Category titles
+    imageConversion: 'Image Conversion',
+    videoConversion: 'Video Conversion',
+    fileCompression: 'File Compression',
+    // Image conversion submenu
+    heicToJpg: 'HEIC to JPG',
+    legacyImageConverter: 'Legacy Format',
+    modernImageConverter: 'Modern Format',
+    prorawConverter: 'ProRAW/HEIF',
+    imageCompression: 'Image Compression',
+    // Video conversion submenu
+    screenRecording: 'Screen Recording',
+    videoCompression: 'Video Compression',
+    // File compression submenu
+    archiveCompression: 'Archive',
   },
 
   // Security banner
