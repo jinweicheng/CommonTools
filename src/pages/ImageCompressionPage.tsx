@@ -4,7 +4,7 @@ import ImageCompression from '../components/ImageCompression'
 import './PageStyles.css'
 
 export default function ImageCompressionPage() {
-  const { t, language } = useI18n()
+  const { language } = useI18n()
   
   const title = language === 'zh-CN' 
     ? '图片压缩 - CommonTools' 

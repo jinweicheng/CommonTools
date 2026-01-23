@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { Upload, Download, X, AlertCircle, Pause, Play, Trash2, GripVertical, Settings, Eye, EyeOff, CheckSquare, Square, Video, Maximize2 } from 'lucide-react'
 import { useI18n } from '../i18n/I18nContext'
 import { FFmpeg } from '@ffmpeg/ffmpeg'
-import { fetchFile, toBlobURL } from '@ffmpeg/util'
+import { fetchFile } from '@ffmpeg/util'
 import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
 import './VideoCompression.css'
@@ -118,71 +118,88 @@ export default function VideoCompression() {
   }, [language])
 
 
-  const loadFFmpegWithTimeout = useCallback(async (timeout: number = 90000): Promise<boolean> => {
-  return new Promise(async (resolve) => {
-    const envIssues = checkEnvironment()
-    if (envIssues.length > 0) {
-      console.error('Environment check failed:', envIssues)
-      setLoadingProgress(envIssues.join('\n'))
-      setTimeout(() => resolve(false), 3000)
-      return
-    }
+  const loadFFmpegWithTimeout = useCallback(
+    async (timeout: number = 90000): Promise<boolean> => {
+      return new Promise(async (resolve) => {
+        const envIssues = checkEnvironment();
+        if (envIssues.length > 0) {
+          console.error("Environment check failed:", envIssues);
+          setLoadingProgress(envIssues.join("\n"));
+          setTimeout(() => resolve(false), 3000);
+          return;
+        }
 
-    const timer = setTimeout(() => {
-      console.error('❌ FFmpeg initialization timeout')
-      setLoadingProgress(language === 'zh-CN' ? 'FFmpeg 加载超时' : 'FFmpeg load timeout')
-      resolve(false)
-    }, timeout)
+        const timer = setTimeout(() => {
+          console.error("❌ FFmpeg initialization timeout");
+          setLoadingProgress(
+            language === "zh-CN" ? "FFmpeg 加载超时" : "FFmpeg load timeout",
+          );
+          resolve(false);
+        }, timeout);
 
-    try {
-      // 检查关键环境
-      if (!window.crossOriginIsolated) {
-        throw new Error('crossOriginIsolated is false - check server headers')
-      }
+        try {
+          // 检查关键环境
+          if (!window.crossOriginIsolated) {
+            throw new Error(
+              "crossOriginIsolated is false - check server headers",
+            );
+          }
 
-      const ffmpeg = new FFmpeg()
-      
-      let lastLog = ''
-      ffmpeg.on('log', ({ message }) => {
-        console.log(`[FFmpeg]:`, message)
-        lastLog = message
-        setLoadingProgress(`${message.substring(0, 80)}`)
-      })
-      
-      console.log('🔄 Loading FFmpeg from jsdelivr CDN...')
-      setLoadingProgress(language === 'zh-CN' ? '正在加载 FFmpeg...' : 'Loading FFmpeg...')
-      
-      // 使用 jsdelivr CDN（通常比 unpkg 更稳定）
-      await ffmpeg.load({
-        coreURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js',
-        wasmURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.wasm',
-      })
-      
-      clearTimeout(timer)
-      ffmpegRef.current = ffmpeg
-      setFfmpegLoaded(true)
-      console.log('✅ FFmpeg loaded successfully')
-      setLoadingProgress(language === 'zh-CN' ? 'FFmpeg 已就绪' : 'FFmpeg ready')
-      resolve(true)
-      
-    } catch (err) {
-      clearTimeout(timer)
-      console.error('❌ FFmpeg load error:', err)
-      
-      // 更详细的错误信息
-      const errorMsg = typeof err === 'string' ? err : (err instanceof Error ? err.message : String(err))
-      console.error('Error details:', {
-        type: typeof err,
-        message: errorMsg,
-        crossOriginIsolated: window.crossOriginIsolated,
-        sharedArrayBuffer: typeof SharedArrayBuffer !== 'undefined',
-      })
-      
-      setLoadingProgress(`Error: ${errorMsg}`)
-      setTimeout(() => resolve(false), 3000)
-    }
-  })
-}, [language, checkEnvironment])
+          const ffmpeg = new FFmpeg();
+
+          // let lastLog = "";
+          ffmpeg.on("log", ({ message }) => {
+            console.log(`[FFmpeg]:`, message);
+            // lastLog = message;
+            setLoadingProgress(`${message.substring(0, 80)}`);
+          });
+
+          console.log("🔄 Loading FFmpeg from jsdelivr CDN...");
+          setLoadingProgress(
+            language === "zh-CN" ? "正在加载 FFmpeg..." : "Loading FFmpeg...",
+          );
+
+          // 使用 jsdelivr CDN（通常比 unpkg 更稳定）
+          await ffmpeg.load({
+            coreURL:
+              "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js",
+            wasmURL:
+              "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.wasm",
+          });
+
+          clearTimeout(timer);
+          ffmpegRef.current = ffmpeg;
+          setFfmpegLoaded(true);
+          console.log("✅ FFmpeg loaded successfully");
+          setLoadingProgress(
+            language === "zh-CN" ? "FFmpeg 已就绪" : "FFmpeg ready",
+          );
+          resolve(true);
+        } catch (err) {
+          clearTimeout(timer);
+          console.error("❌ FFmpeg load error:", err);
+
+          // 更详细的错误信息
+          const errorMsg =
+            typeof err === "string"
+              ? err
+              : err instanceof Error
+                ? err.message
+                : String(err);
+          console.error("Error details:", {
+            type: typeof err,
+            message: errorMsg,
+            crossOriginIsolated: window.crossOriginIsolated,
+            sharedArrayBuffer: typeof SharedArrayBuffer !== "undefined",
+          });
+
+          setLoadingProgress(`Error: ${errorMsg}`);
+          setTimeout(() => resolve(false), 3000);
+        }
+      });
+    },
+    [language, checkEnvironment],
+  );
 
   // 带超时的 FFmpeg 加载
   // const loadFFmpegWithTimeout = useCallback(async (timeout: number = 30000): Promise<boolean> => {
