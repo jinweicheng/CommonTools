@@ -12,7 +12,8 @@
     "postinstall": "node -e \"console.log('\\n💡 Tip: Run \\\"npm run download-ffmpeg\\\" to download FFmpeg files locally for faster Live Photo conversion\\n')\""
   },
   "dependencies": {
-    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@ffmpeg/core": "^0.12.6",
+    "@ffmpeg/ffmpeg": "^0.12.10",
     "@ffmpeg/util": "^0.12.2",
     "@zip.js/zip.js": "^2.8.11",
     "date-fns": "^3.6.0",

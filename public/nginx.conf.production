@@ -57,16 +57,26 @@ server {
 
     # ========================================
     # /tools/ - CommonTools SPA 应用
+    # 启用 SharedArrayBuffer（FFmpeg.wasm 需要）
     # ========================================
     location /tools/ {
         alias /var/www/html/tools/;
         try_files $uri $uri/ /tools/index.html;
         
+        # 启用 SharedArrayBuffer（FFmpeg.wasm 必需）
+        add_header Cross-Origin-Opener-Policy "same-origin" always;
+        add_header Cross-Origin-Embedder-Policy "require-corp" always;
+        add_header Cross-Origin-Resource-Policy "cross-origin" always;
+        
         # 确保 HTML 文件不缓存
         location ~ \.html$ {
             expires -1;
-            add_header Cache-Control "no-cache, no-store, must-revalidate";
-            add_header Pragma "no-cache";
+            add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+            add_header Pragma "no-cache" always;
+            # SharedArrayBuffer 头部（必须重复，因为 add_header 在嵌套 location 中不继承）
+            add_header Cross-Origin-Opener-Policy "same-origin" always;
+            add_header Cross-Origin-Embedder-Policy "require-corp" always;
+            add_header Cross-Origin-Resource-Policy "cross-origin" always;
         }
     }
 
@@ -147,12 +157,10 @@ server {
     }
     
     # ========================================
-    # FFmpeg WASM 支持（SharedArrayBuffer）
+    # FFmpeg WASM 支持
     # ========================================
     location ~ \.wasm$ {
         add_header Content-Type "application/wasm" always;
-        add_header Cross-Origin-Opener-Policy "same-origin" always;
-        add_header Cross-Origin-Embedder-Policy "require-corp" always;
         add_header Cross-Origin-Resource-Policy "cross-origin" always;
         add_header Access-Control-Allow-Origin "*" always;
         expires 1y;
@@ -160,12 +168,12 @@ server {
     }
     
     # ========================================
-    # JavaScript 文件配置
+    # JavaScript 文件配置（支持 FFmpeg COEP）
     # ========================================
     location ~ \.js$ {
         add_header Content-Type "application/javascript; charset=utf-8" always;
-        add_header Access-Control-Allow-Origin "*" always;
         add_header Cross-Origin-Resource-Policy "cross-origin" always;
+        add_header Access-Control-Allow-Origin "*" always;
         expires 1y;
         add_header Cache-Control "public, immutable" always;
     }

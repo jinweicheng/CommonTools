@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FFmpeg 文件检查工具</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: #e2e8f0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+
+        .container {
+            background: rgba(30, 41, 59, 0.9);
+            border-radius: 16px;
+            padding: 3rem;
+            max-width: 800px;
+            width: 100%;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(34, 211, 238, 0.2);
+        }
+
+        h1 {
+            color: #22d3ee;
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+            text-align: center;
+        }
+
+        .subtitle {
+            color: #94a3b8;
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .check-button {
+            width: 100%;
+            padding: 1rem;
+            background: linear-gradient(135deg, #22d3ee 0%, #0ea5e9 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 2rem;
+        }
+
+        .check-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(34, 211, 238, 0.3);
+        }
+
+        .check-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .results {
+            margin-top: 2rem;
+        }
+
+        .check-item {
+            background: rgba(15, 23, 42, 0.6);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            border-left: 4px solid transparent;
+        }
+
+        .check-item.success {
+            border-left-color: #22c55e;
+        }
+
+        .check-item.error {
+            border-left-color: #ef4444;
+        }
+
+        .check-item.warning {
+            border-left-color: #f59e0b;
+        }
+
+        .check-title {
+            font-weight: 600;
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .check-details {
+            color: #94a3b8;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
+        .icon {
+            font-size: 1.2rem;
+        }
+
+        .summary {
+            background: rgba(34, 211, 238, 0.1);
+            border: 1px solid rgba(34, 211, 238, 0.3);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .summary h3 {
+            color: #22d3ee;
+            margin-bottom: 1rem;
+        }
+
+        .summary ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .summary li {
+            padding: 0.5rem 0;
+            color: #cbd5e1;
+        }
+
+        .summary li::before {
+            content: "• ";
+            color: #22d3ee;
+            font-weight: bold;
+        }
+
+        code {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            color: #22d3ee;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #94a3b8;
+        }
+
+        .spinner {
+            border: 3px solid rgba(34, 211, 238, 0.2);
+            border-top-color: #22d3ee;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 FFmpeg 文件检查工具</h1>
+        <p class="subtitle">检查 FFmpeg.wasm 所需文件和环境配置</p>
+
+        <button class="check-button" onclick="runChecks()">开始检查</button>
+
+        <div id="results"></div>
+    </div>
+
+    <script>
+        async function runChecks() {
+            const resultsDiv = document.getElementById('results');
+            const button = document.querySelector('.check-button');
+            
+            button.disabled = true;
+            resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div>正在检查...</div>';
+
+            const results = [];
+
+            // 1. 检查 SharedArrayBuffer
+            const sabCheck = {
+                name: 'SharedArrayBuffer 支持',
+                success: typeof SharedArrayBuffer !== 'undefined',
+                details: typeof SharedArrayBuffer !== 'undefined'
+                    ? 'SharedArrayBuffer 可用 ✓'
+                    : 'SharedArrayBuffer 不可用。需要服务器发送 COOP/COEP 头部。'
+            };
+            results.push(sabCheck);
+
+            // 2. 检查 WebAssembly
+            const wasmCheck = {
+                name: 'WebAssembly 支持',
+                success: typeof WebAssembly !== 'undefined',
+                details: typeof WebAssembly !== 'undefined'
+                    ? 'WebAssembly 可用 ✓'
+                    : 'WebAssembly 不支持。请升级浏览器。'
+            };
+            results.push(wasmCheck);
+
+            // 3. 检查 HTTP 头部
+            const headersCheck = await checkHeaders();
+            results.push(headersCheck);
+
+            // 4. 检查 FFmpeg 文件
+            const isDev = window.location.hostname === 'localhost';
+            const baseURL = isDev ? window.location.origin : window.location.origin + '/tools';
+            
+            const coreCheck = await checkFile(`${baseURL}/ffmpeg-core.js`, 'ffmpeg-core.js');
+            results.push(coreCheck);
+
+            const wasmFileCheck = await checkFile(`${baseURL}/ffmpeg-core.wasm`, 'ffmpeg-core.wasm');
+            results.push(wasmFileCheck);
+
+            // 渲染结果
+            renderResults(results);
+            button.disabled = false;
+        }
+
+        async function checkHeaders() {
+            try {
+                const response = await fetch(window.location.href, { method: 'HEAD' });
+                const coop = response.headers.get('cross-origin-opener-policy');
+                const coep = response.headers.get('cross-origin-embedder-policy');
+
+                const hasCorrectHeaders = coop === 'same-origin' && coep === 'require-corp';
+
+                return {
+                    name: 'HTTP 头部配置',
+                    success: hasCorrectHeaders,
+                    details: hasCorrectHeaders
+                        ? `COOP: ${coop}, COEP: ${coep} ✓`
+                        : `COOP: ${coop || '未设置'}, COEP: ${coep || '未设置'}。需要设置为 same-origin 和 require-corp。`
+                };
+            } catch (err) {
+                return {
+                    name: 'HTTP 头部配置',
+                    success: false,
+                    details: '无法检查 HTTP 头部: ' + err.message
+                };
+            }
+        }
+
+        async function checkFile(url, name) {
+            try {
+                const response = await fetch(url, { method: 'HEAD' });
+                
+                if (response.ok) {
+                    const size = response.headers.get('content-length');
+                    return {
+                        name: `${name} 文件`,
+                        success: true,
+                        details: `文件存在，大小: ${formatBytes(parseInt(size || '0'))} ✓`
+                    };
+                } else {
+                    return {
+                        name: `${name} 文件`,
+                        success: false,
+                        details: `文件不存在 (HTTP ${response.status})。请运行: npm run download-ffmpeg`
+                    };
+                }
+            } catch (err) {
+                return {
+                    name: `${name} 文件`,
+                    success: false,
+                    details: `无法访问文件: ${err.message}`
+                };
+            }
+        }
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function renderResults(results) {
+            const successCount = results.filter(r => r.success).length;
+            const totalCount = results.length;
+
+            let html = '<div class="results">';
+
+            results.forEach(result => {
+                const className = result.success ? 'success' : 'error';
+                const icon = result.success ? '✅' : '❌';
+
+                html += `
+                    <div class="check-item ${className}">
+                        <div class="check-title">
+                            <span class="icon">${icon}</span>
+                            ${result.name}
+                        </div>
+                        <div class="check-details">${result.details}</div>
+                    </div>
+                `;
+            });
+
+            // 添加总结
+            html += '<div class="summary">';
+            html += '<h3>检查总结</h3>';
+            html += `<p style="margin-bottom: 1rem;">通过: ${successCount}/${totalCount}</p>`;
+
+            if (successCount === totalCount) {
+                html += '<p style="color: #22c55e; font-weight: 600;">✓ 所有检查通过！FFmpeg.wasm 应该可以正常工作。</p>';
+            } else {
+                html += '<p style="color: #ef4444; font-weight: 600;">✗ 发现问题。请按照以下步骤修复：</p>';
+                html += '<ul>';
+                
+                if (!results[0].success) {
+                    html += '<li>启用 SharedArrayBuffer：确保服务器发送正确的 COOP/COEP 头部</li>';
+                }
+                
+                if (!results[2].success) {
+                    html += '<li>配置 HTTP 头部：在 Nginx 或 Vite 配置中添加 COOP/COEP</li>';
+                }
+                
+                if (!results[3].success || !results[4].success) {
+                    html += '<li>下载 FFmpeg 文件：运行 <code>npm run download-ffmpeg</code></li>';
+                }
+                
+                html += '</ul>';
+            }
+
+            html += '</div>';
+            html += '</div>';
+
+            document.getElementById('results').innerHTML = html;
+        }
+    </script>
+</body>
+</html>

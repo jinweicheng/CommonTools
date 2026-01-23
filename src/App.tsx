@@ -30,7 +30,7 @@ function App() {
   return (
     <I18nProvider>
       <AuthProvider>
-        <Router basename="/tools">
+        <Router basename={import.meta.env.BASE_URL}>
           <StatisticsProvider>
             <Layout>
               <Routes>

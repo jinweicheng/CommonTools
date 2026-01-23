@@ -4,8 +4,9 @@ import react from '@vitejs/plugin-react'
 import obfuscatorPlugin from 'rollup-plugin-obfuscator'
 
 // https://vitejs.dev/config/
-export default defineConfig({
-  base: '/tools/',
+export default defineConfig(({ mode }) => ({
+  // 只在生产环境使用 /tools/ 前缀，开发环境使用根路径
+  base: mode === 'production' ? '/tools/' : '/',
   plugins: [react()],
   build: {
     // 构建优化配置
@@ -91,9 +92,12 @@ export default defineConfig({
   server: {
     port: 3000,
     open: true,
-    // 添加响应头以支持 Live Photo 转换
+    // 添加响应头以支持 FFmpeg.wasm（SharedArrayBuffer）
     headers: {
-      'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data: https:; media-src 'self' blob: data: https:; object-src 'self' blob: data:; connect-src 'self' blob: data: https: ws: wss:; worker-src 'self' blob:; child-src 'self' blob:;"
+      // 'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data: https:; media-src 'self' blob: data: https:; object-src 'self' blob: data:; connect-src 'self' blob: data: https: ws: wss:; worker-src 'self' blob:; child-src 'self' blob:;",
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+      'Cross-Origin-Resource-Policy': 'cross-origin'
     },
     // 注意：Vite 默认支持 SPA 路由，无需额外配置
     // API 代理配置（开发环境）
@@ -109,11 +113,19 @@ export default defineConfig({
   },
   preview: {
     port: 3000,
-    // 添加响应头以支持 Live Photo 转换
+    // 添加响应头以支持 FFmpeg.wasm（SharedArrayBuffer）
     headers: {
-      'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data: https:; media-src 'self' blob: data: https:; object-src 'self' blob: data:; connect-src 'self' blob: data: https:; worker-src 'self' blob:; child-src 'self' blob:;"
+      // 'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data: https:; media-src 'self' blob: data: https:; object-src 'self' blob: data:; connect-src 'self' blob: data: https:; worker-src 'self' blob:; child-src 'self' blob:;",
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'require-corp'
+      // 'Cross-Origin-Resource-Policy': 'cross-origin'
     }
     // 注意：Vite 预览模式默认支持 SPA 路由
+  },
+
+  // 🔥 添加：优化 WASM 和大文件处理
+  optimizeDeps: {
+    exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util']
   }
-})
+}))
 
