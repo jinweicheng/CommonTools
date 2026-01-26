@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { Upload, Download, X, AlertCircle, Pause, Play, Trash2, GripVertical, Settings, Eye, EyeOff, CheckSquare, Square, Video, Maximize2 } from 'lucide-react'
 import { useI18n } from '../i18n/I18nContext'
 import { FFmpeg } from '@ffmpeg/ffmpeg'
-import { fetchFile } from '@ffmpeg/util'
+import { fetchFile, toBlobURL } from '@ffmpeg/util'
 import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
 import './VideoCompression.css'
@@ -145,7 +145,7 @@ export default function VideoCompression() {
             );
           }
 
-          const ffmpeg = new FFmpeg();
+          let ffmpeg = new FFmpeg();
 
           // let lastLog = "";
           ffmpeg.on("log", ({ message }) => {
@@ -154,18 +154,242 @@ export default function VideoCompression() {
             setLoadingProgress(`${message.substring(0, 80)}`);
           });
 
-          console.log("🔄 Loading FFmpeg from jsdelivr CDN...");
+          console.log("🔄 Loading FFmpeg...");
           setLoadingProgress(
             language === "zh-CN" ? "正在加载 FFmpeg..." : "Loading FFmpeg...",
           );
 
-          // 使用 jsdelivr CDN（通常比 unpkg 更稳定）
-          await ffmpeg.load({
-            coreURL:
-              "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js",
-            wasmURL:
-              "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.wasm",
-          });
+          // 优先尝试本地文件（更可靠）
+          // 在开发环境中使用完整 URL，避免 Vite 模块解析错误
+          const isDev = import.meta.env.DEV;
+          const baseURL = isDev 
+            ? window.location.origin 
+            : (window.location.origin + import.meta.env.BASE_URL);
+          const localCore = `${baseURL}/ffmpeg-core.js`;
+          const localWasm = `${baseURL}/ffmpeg-core.wasm`;
+
+          // 检查本地文件是否存在
+          try {
+            const coreRes = await fetch(localCore, { method: "HEAD" });
+            const wasmRes = await fetch(localWasm, { method: "HEAD" });
+
+            if (coreRes.ok && wasmRes.ok) {
+              const coreSize = parseInt(coreRes.headers.get('content-length') || '0', 10);
+              const wasmSize = parseInt(wasmRes.headers.get('content-length') || '0', 10);
+              
+              console.log("✅ Using local files");
+              console.log(`   Core: ${localCore} (${(coreSize / 1024).toFixed(1)} KB)`);
+              console.log(`   WASM: ${localWasm} (${(wasmSize / 1024 / 1024).toFixed(1)} MB)`);
+              
+              // 验证文件大小（粗略检查）
+              if (coreSize < 100000) {
+                console.warn("⚠️ Core file seems too small, may be corrupted");
+              }
+              if (wasmSize < 30000000) {
+                console.warn("⚠️ WASM file seems too small, may be corrupted");
+              }
+              
+              // 验证文件内容（检查是否是有效的 JavaScript）
+              try {
+                const coreContentRes = await fetch(localCore);
+                const coreText = await coreContentRes.text();
+                const firstChars = coreText.substring(0, 100);
+                console.log(`📄 Core file starts with: ${firstChars}...`);
+                
+                // 检查是否是有效的 JavaScript（应该以 function, var, const, 或 (function 开头）
+                if (!/^(function|var|const|let|\(function|export|import)/.test(coreText.trim())) {
+                  console.warn("⚠️ Core file doesn't look like valid JavaScript");
+                } else {
+                  console.log("✅ Core file appears to be valid JavaScript");
+                }
+              } catch (verifyErr) {
+                console.warn("⚠️ Could not verify core file content:", verifyErr);
+              }
+              
+              setLoadingProgress(
+                language === "zh-CN" ? "正在加载本地文件..." : "Loading local files...",
+              );
+
+              try {
+                // 方法1：直接使用 toBlobURL（这是 FFmpeg.wasm 官方推荐的方式）
+                console.log("🔄 Using toBlobURL (official method)...");
+                setLoadingProgress(
+                  language === "zh-CN" ? "正在转换文件格式..." : "Converting file format...",
+                );
+                
+                // toBlobURL 会正确处理文件下载和 Blob URL 创建
+                const coreBlobURL = await toBlobURL(localCore, "text/javascript");
+                const wasmBlobURL = await toBlobURL(localWasm, "application/wasm");
+                
+                console.log("✅ Blob URLs created with toBlobURL");
+                console.log(`   Core Blob URL: ${coreBlobURL.substring(0, 50)}...`);
+                console.log(`   WASM Blob URL: ${wasmBlobURL.substring(0, 50)}...`);
+                
+                setLoadingProgress(
+                  language === "zh-CN" ? "正在初始化 FFmpeg..." : "Initializing FFmpeg...",
+                );
+                
+                // 使用 Blob URL 加载
+                await ffmpeg.load({
+                  coreURL: coreBlobURL,
+                  wasmURL: wasmBlobURL,
+                });
+                
+                console.log("✅ FFmpeg loaded successfully with toBlobURL");
+              } catch (blobErr) {
+                console.log("⚠️ toBlobURL failed, trying direct URL...");
+                console.error("toBlobURL error:", blobErr);
+                
+                try {
+                  // 方法2：回退到直接 URL
+                  console.log("🔄 Attempting direct URL load...");
+                  setLoadingProgress(
+                    language === "zh-CN" ? "正在使用直接 URL 加载..." : "Loading with direct URL...",
+                  );
+                  
+                  await ffmpeg.load({
+                    coreURL: localCore,
+                    wasmURL: localWasm,
+                  });
+                  
+                  console.log("✅ FFmpeg loaded with direct URLs");
+                } catch (directErr) {
+                  console.log("⚠️ Direct URL also failed, trying fetchFile...");
+                  console.error("Direct URL error:", directErr);
+                  
+                  // 方法3：最后尝试 fetchFile + 手动创建 Blob
+                  setLoadingProgress(
+                    language === "zh-CN" ? "正在下载文件..." : "Downloading files...",
+                  );
+                  
+                  const coreFile = await fetchFile(localCore);
+                  const wasmFile = await fetchFile(localWasm);
+                  
+                  console.log("✅ Files fetched, creating Blob URLs manually...");
+                  const coreBlobURL = URL.createObjectURL(new Blob([coreFile as any], { type: "text/javascript" }));
+                  const wasmBlobURL = URL.createObjectURL(new Blob([wasmFile as any], { type: "application/wasm" }));
+                  
+                  setLoadingProgress(
+                    language === "zh-CN" ? "正在初始化 FFmpeg..." : "Initializing FFmpeg...",
+                  );
+                  
+                  await ffmpeg.load({
+                    coreURL: coreBlobURL,
+                    wasmURL: wasmBlobURL,
+                  });
+                  
+                  console.log("✅ FFmpeg loaded with fetchFile");
+                }
+              }
+            } else {
+              throw new Error(`Local files not found: core=${coreRes.status}, wasm=${wasmRes.status}`);
+            }
+          } catch (localErr) {
+            console.log("⚠️ Local file load failed:", localErr);
+            console.log("🔄 Trying CDN as fallback...");
+            setLoadingProgress(
+              language === "zh-CN" ? "本地文件加载失败，尝试 CDN..." : "Local load failed, trying CDN...",
+            );
+
+            // 创建新的 FFmpeg 实例（避免状态污染）
+            const ffmpegCDN = new FFmpeg();
+            ffmpegCDN.on("log", ({ message }) => {
+              console.log(`[FFmpeg CDN]:`, message);
+            });
+
+            // CDN 回退 - 尝试 ESM 版本（可能比 UMD 更兼容）
+            // 注意：如果 ESM 失败，会回退到 UMD
+            let cdnBase = "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm";
+            let coreCDN = `${cdnBase}/ffmpeg-core.js`;
+            let wasmCDN = `${cdnBase}/ffmpeg-core.wasm`;
+            
+            console.log("📦 Trying ESM version from CDN first...");
+
+            try {
+              // 方法1：直接使用 toBlobURL（官方推荐）
+              console.log("🔄 Using toBlobURL from CDN (official method)...");
+              setLoadingProgress(
+                language === "zh-CN" ? "正在从 CDN 转换文件格式..." : "Converting CDN files...",
+              );
+              
+              const coreBlobURL = await toBlobURL(coreCDN, "text/javascript");
+              const wasmBlobURL = await toBlobURL(wasmCDN, "application/wasm");
+              
+              console.log("✅ Blob URLs created from CDN with toBlobURL");
+              setLoadingProgress(
+                language === "zh-CN" ? "正在初始化 FFmpeg..." : "Initializing FFmpeg...",
+              );
+
+              await ffmpegCDN.load({
+                coreURL: coreBlobURL,
+                wasmURL: wasmBlobURL,
+              });
+              
+              // 成功，替换实例并重新设置事件监听
+              ffmpeg = ffmpegCDN;
+              ffmpeg.on("log", ({ message }) => {
+                console.log(`[FFmpeg]:`, message);
+                setLoadingProgress(`${message.substring(0, 80)}`);
+              });
+              console.log("✅ FFmpeg loaded successfully with toBlobURL from CDN");
+            } catch (blobErr) {
+              console.log("⚠️ toBlobURL from CDN failed, trying direct URL...");
+              console.error("toBlobURL error:", blobErr);
+              
+              try {
+                // 方法2：回退到直接 URL
+                console.log("🔄 Attempting direct CDN URL load...");
+                setLoadingProgress(
+                  language === "zh-CN" ? "正在使用直接 CDN URL 加载..." : "Loading with direct CDN URL...",
+                );
+                
+                await ffmpegCDN.load({
+                  coreURL: coreCDN,
+                  wasmURL: wasmCDN,
+                });
+                console.log("✅ FFmpeg loaded with direct CDN URLs");
+                
+                // 成功，替换实例
+                ffmpeg = ffmpegCDN;
+                ffmpeg.on("log", ({ message }) => {
+                  console.log(`[FFmpeg]:`, message);
+                  setLoadingProgress(`${message.substring(0, 80)}`);
+                });
+              } catch (directErr) {
+                console.log("⚠️ Direct CDN URL also failed, trying fetchFile...");
+                console.error("Direct URL error:", directErr);
+                
+                // 方法3：最后尝试 fetchFile
+                setLoadingProgress(
+                  language === "zh-CN" ? "正在从 CDN 下载文件..." : "Downloading files from CDN...",
+                );
+                
+                const coreFile = await fetchFile(coreCDN);
+                const wasmFile = await fetchFile(wasmCDN);
+                
+                console.log("✅ CDN files fetched, creating Blob URLs manually...");
+                const coreBlobURL = URL.createObjectURL(new Blob([coreFile as any], { type: "text/javascript" }));
+                const wasmBlobURL = URL.createObjectURL(new Blob([wasmFile as any], { type: "application/wasm" }));
+                
+                setLoadingProgress(
+                  language === "zh-CN" ? "正在初始化 FFmpeg..." : "Initializing FFmpeg...",
+                );
+
+                await ffmpegCDN.load({
+                  coreURL: coreBlobURL,
+                  wasmURL: wasmBlobURL,
+                });
+                
+                // 成功，替换实例并重新设置事件监听
+                ffmpeg = ffmpegCDN;
+                ffmpeg.on("log", ({ message }) => {
+                  console.log(`[FFmpeg]:`, message);
+                  setLoadingProgress(`${message.substring(0, 80)}`);
+                });
+                console.log("✅ FFmpeg loaded with fetchFile from CDN");
+              }
+            }
+          }
 
           clearTimeout(timer);
           ffmpegRef.current = ffmpeg;
@@ -177,7 +401,7 @@ export default function VideoCompression() {
           resolve(true);
         } catch (err) {
           clearTimeout(timer);
-          console.error("❌ FFmpeg load error:", err);
+          console.error("❌ FFmpeg load failed:", err);
 
           // 更详细的错误信息
           const errorMsg =
@@ -186,14 +410,55 @@ export default function VideoCompression() {
               : err instanceof Error
                 ? err.message
                 : String(err);
-          console.error("Error details:", {
+          
+          // 收集完整的错误信息
+          const errorDetails: any = {
             type: typeof err,
             message: errorMsg,
             crossOriginIsolated: window.crossOriginIsolated,
             sharedArrayBuffer: typeof SharedArrayBuffer !== "undefined",
-          });
+            userAgent: navigator.userAgent,
+            browser: {
+              name: navigator.userAgent.includes("Chrome") ? "Chrome" : 
+                    navigator.userAgent.includes("Firefox") ? "Firefox" :
+                    navigator.userAgent.includes("Safari") ? "Safari" : "Unknown",
+            },
+            error: err,
+          };
+          
+          // 如果是 Error 对象，添加堆栈信息
+          if (err instanceof Error) {
+            errorDetails.stack = err.stack;
+            errorDetails.name = err.name;
+          }
+          
+          console.error("❌ Complete error details:", errorDetails);
+          
+          // 检查是否是已知的 FFmpeg.wasm bug
+          if (errorMsg.includes("failed to import")) {
+            console.error("🔍 This is a known FFmpeg.wasm issue:");
+            console.error("   - The file cannot be dynamically imported as a module");
+            console.error("   - This may be a browser compatibility issue");
+            console.error("   - Or a version mismatch between @ffmpeg/ffmpeg and @ffmpeg/core");
+            console.error("   - Try: Clear browser cache, use Chrome/Edge latest version");
+          }
 
-          setLoadingProgress(`Error: ${errorMsg}`);
+          // 检查是否是导入错误
+          if (errorMsg.includes("failed to import")) {
+            const helpMsg = language === "zh-CN"
+              ? "FFmpeg 导入失败。这可能是版本不匹配或浏览器兼容性问题。\n\n建议：\n1. 确保使用 Chrome/Edge 最新版本\n2. 清除浏览器缓存后重试\n3. 检查控制台是否有其他错误"
+              : "FFmpeg import failed. This may be a version mismatch or browser compatibility issue.\n\nSuggestions:\n1. Use latest Chrome/Edge\n2. Clear cache and retry\n3. Check console for other errors";
+            
+            setLoadingProgress(helpMsg);
+            alert(helpMsg);
+          } else {
+            setLoadingProgress(
+              language === "zh-CN"
+                ? `加载失败: ${errorMsg}。请检查网络连接或刷新页面重试。`
+                : `Load failed: ${errorMsg}. Please check network or refresh.`,
+            );
+          }
+          
           setTimeout(() => resolve(false), 3000);
         }
       });

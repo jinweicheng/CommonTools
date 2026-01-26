@@ -18,7 +18,7 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 
-const VERSION = '0.12.6';
+const VERSION = '0.12.10';
 const BASE_URL = `https://cdn.jsdelivr.net/npm/@ffmpeg/core@${VERSION}/dist/umd/`;
 
 const files = [
