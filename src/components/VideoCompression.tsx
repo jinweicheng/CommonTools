@@ -182,11 +182,21 @@ export default function VideoCompression() {
               console.log(`   WASM: ${localWasm} (${(wasmSize / 1024 / 1024).toFixed(1)} MB)`);
               
               // 验证文件大小（粗略检查）
-              if (coreSize < 100000) {
+              // ffmpeg-core.js 通常约 110-120 KB，ffmpeg-core.wasm 约 30-32 MB
+              if (coreSize < 50000) {
                 console.warn("⚠️ Core file seems too small, may be corrupted");
+              } else if (coreSize < 100000) {
+                console.log(`ℹ️ Core file size: ${(coreSize / 1024).toFixed(1)} KB (acceptable, but smaller than expected)`);
+              } else {
+                console.log(`✅ Core file size: ${(coreSize / 1024).toFixed(1)} KB`);
               }
-              if (wasmSize < 30000000) {
+              
+              if (wasmSize < 20000000) {
                 console.warn("⚠️ WASM file seems too small, may be corrupted");
+              } else if (wasmSize < 30000000) {
+                console.log(`ℹ️ WASM file size: ${(wasmSize / 1024 / 1024).toFixed(1)} MB (acceptable, but smaller than expected)`);
+              } else {
+                console.log(`✅ WASM file size: ${(wasmSize / 1024 / 1024).toFixed(1)} MB`);
               }
               
               // 验证文件内容（检查是否是有效的 JavaScript）
@@ -217,6 +227,19 @@ export default function VideoCompression() {
                   language === "zh-CN" ? "正在转换文件格式..." : "Converting file format...",
                 );
                 
+                // 验证文件可以实际读取（防止空文件或损坏文件）
+                try {
+                  const testRes = await fetch(localCore, { method: "GET" });
+                  const testText = await testRes.text();
+                  if (!testText || testText.length < 1000) {
+                    throw new Error(`Core file appears empty or too small: ${testText.length} bytes`);
+                  }
+                  console.log(`✅ Core file readable: ${testText.length} bytes`);
+                } catch (testErr) {
+                  console.error("❌ Core file validation failed:", testErr);
+                  throw new Error(`Core file validation failed: ${testErr instanceof Error ? testErr.message : String(testErr)}`);
+                }
+                
                 // toBlobURL 会正确处理文件下载和 Blob URL 创建
                 const coreBlobURL = await toBlobURL(localCore, "text/javascript");
                 const wasmBlobURL = await toBlobURL(localWasm, "application/wasm");
@@ -226,10 +249,11 @@ export default function VideoCompression() {
                 console.log(`   WASM Blob URL: ${wasmBlobURL.substring(0, 50)}...`);
                 
                 setLoadingProgress(
-                  language === "zh-CN" ? "正在初始化 FFmpeg..." : "Initializing FFmpeg...",
+                  language === "zh-CN" ? "正在初始化 FFmpeg（这可能需要 10-30 秒）..." : "Initializing FFmpeg (may take 10-30 seconds)...",
                 );
                 
                 // 使用 Blob URL 加载
+                // 注意：FFmpeg.wasm 初始化可能需要 10-30 秒，请耐心等待
                 await ffmpeg.load({
                   coreURL: coreBlobURL,
                   wasmURL: wasmBlobURL,
@@ -451,6 +475,25 @@ export default function VideoCompression() {
             
             setLoadingProgress(helpMsg);
             alert(helpMsg);
+          } else if (errorMsg.includes("timeout") || errorMsg.includes("超时")) {
+            // 超时错误
+            const timeoutMsg = language === "zh-CN"
+              ? "FFmpeg 初始化超时（90秒）。\n\n可能原因：\n1. 文件下载或加载缓慢\n2. 浏览器性能限制\n3. 网络连接问题\n\n建议：\n1. 刷新页面重试\n2. 检查网络连接\n3. 使用 Chrome/Edge 浏览器\n4. 如果问题持续，可能是服务器文件有问题，请联系管理员"
+              : "FFmpeg initialization timeout (90s).\n\nPossible causes:\n1. Slow file download/load\n2. Browser performance limits\n3. Network issues\n\nSuggestions:\n1. Refresh and retry\n2. Check network connection\n3. Use Chrome/Edge browser\n4. If persists, server files may be corrupted, contact admin";
+            
+            setLoadingProgress(timeoutMsg);
+            console.error("⏱️ FFmpeg initialization timeout - this may indicate:");
+            console.error("   1. File corruption or incomplete download");
+            console.error("   2. Browser performance issues");
+            console.error("   3. Network connectivity problems");
+          } else if (errorMsg.includes("validation failed") || errorMsg.includes("empty")) {
+            // 文件验证失败
+            const validationMsg = language === "zh-CN"
+              ? "FFmpeg 文件验证失败。\n\n文件可能损坏或未正确上传。\n\n请：\n1. 联系管理员检查服务器文件\n2. 刷新页面重试\n3. 检查控制台错误信息"
+              : "FFmpeg file validation failed.\n\nFiles may be corrupted or not properly uploaded.\n\nPlease:\n1. Contact admin to check server files\n2. Refresh and retry\n3. Check console errors";
+            
+            setLoadingProgress(validationMsg);
+            alert(validationMsg);
           } else {
             setLoadingProgress(
               language === "zh-CN"
