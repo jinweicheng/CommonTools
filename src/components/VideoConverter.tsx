@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { Upload, Download, X, Video, Settings, Loader2, AlertCircle, Play, CheckCircle2, FileVideo } from 'lucide-react'
+import { Upload, Download, X, Video, Settings, Loader2, AlertCircle, Play, CheckCircle2 } from 'lucide-react'
 import { useI18n } from '../i18n/I18nContext'
 import { FFmpeg } from '@ffmpeg/ffmpeg'
 import { fetchFile, toBlobURL } from '@ffmpeg/util'
