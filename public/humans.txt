@@ -12,14 +12,17 @@
 # THANKS
     Thanks to all users who provide feedback and suggestions
     Special thanks to the open-source community
-    Special thanks to Mozilla, Google, and Web Standards community
+    Special thanks to Mozilla (PDF.js), Google (Web Standards), FFmpeg team
+    Special thanks to React, TypeScript, Vite, and WebAssembly communities
+    Libraries: FFmpeg.wasm, PDF.js, JSZip, heic2any, GIF.js, file-saver
 
 # SITE
-    Last update: 2026-01-27
-    Language: English, Chinese
-    Standards: HTML5, CSS3, ES2022
-    Components: React, TypeScript, Vite
+    Last update: 2026-01-22
+    Language: English, Chinese (Simplified)
+    Standards: HTML5, CSS3, ES2022, WebAssembly
+    Components: React 18.2+, TypeScript 5.0+, Vite 4.0+
     IDE: VS Code, WebStorm
+    Version: 2.0
 
 # TECHNOLOGY COLOPHON
 
@@ -34,19 +37,26 @@
     PDF.js (Mozilla) - PDF parsing and manipulation
     JSZip 3.10+ - ZIP archive creation/extraction
     HEIC2ANY - Apple HEIC/HEIF to JPG conversion
-    FFmpeg.wasm - Video/audio processing in browser
+    FFmpeg.wasm 0.12.10 - Video/audio processing in browser (H.264, H.265, VP9)
+    @ffmpeg/ffmpeg - FFmpeg WebAssembly wrapper
+    @ffmpeg/util - FFmpeg utility functions
     Canvas API - 2D graphics and image manipulation
     WebGL - Hardware-accelerated graphics
     MediaRecorder API - Screen recording and video capture
     Web Crypto API - AES-256-GCM encryption/decryption
     File System Access API - Direct file system access
     Web Workers - Background processing threads
+    IndexedDB - Client-side storage for caching
+    SharedArrayBuffer - High-performance parallel processing
 
     ## Image Processing
-    Sharp (via WebAssembly) - High-performance image processing
     ImageBitmap API - Efficient image loading
     OffscreenCanvas - Background image rendering
-    WebP, AVIF, JPEG XL - Modern image format support
+    Canvas 2D Context - Image manipulation and compression
+    WebP, AVIF, GIF, JPEG XL - Modern image format support
+    Custom TIFF decoder - Uncompressed and PackBits TIFF support
+    GIF.js - Animated GIF encoding
+    heic2any - HEIC/HEIF format conversion
 
     ## Infrastructure & Deployment
     Nginx 1.24+ - High-performance web server
@@ -64,31 +74,48 @@
     Open source transparency - Auditable code
 
 # FEATURES
+    ## Video Tools
+    ✓ Video Format Converter (MP4/MOV/MKV/WebM) - Convert between formats
+    ✓ Video to GIF Converter - Convert MP4/MOV/WebM to animated GIF
+    ✓ Video Compression - H.264/VP9 encoding with quality control
     ✓ iPhone Screen Recording Editor (Crop, Compress, Blur)
+    
+    ## Image Tools
+    ✓ Image Compression - Batch processing with quality control
     ✓ ProRAW/HEIF Converter with EXIF preservation
     ✓ AVIF/WebP Converter with quality control
     ✓ Live Photo to GIF/MP4 Converter
     ✓ Legacy Image Format Converter (BMP/TGA/PCX/TIFF)
-    ✓ Modern Image Format Converter (PNG/JPG/WebP/AVIF)
+    ✓ Modern Image Format Converter (PNG/JPG/WebP/AVIF/GIF)
+    ✓ HEIC to JPG Converter for iPhone photos
+    
+    ## File Tools
     ✓ PDF Encryption/Decryption with password protection
     ✓ Military-grade File Encryption (AES-256-GCM)
     ✓ Professional PDF Watermark (text and image)
     ✓ Electronic Signature with drag-and-drop
     ✓ ZIP Archive Compression/Decompression
-    ✓ HEIC to JPG Converter for iPhone photos
-    ✓ Batch processing for all tools
+    
+    ## General Features
+    ✓ Batch processing for all tools (up to 5-20 files)
     ✓ Real-time preview and quality control
+    ✓ Progress tracking with detailed status messages
     ✓ Cross-platform compatibility
+    ✓ 100% local processing - No server uploads
 
 # SEO KEYWORDS
-    online tools, free tools, image tools, video tools, file tools
-    image compression, image converter, video compression, video editor
+    online tools, free tools, top 100 tools, top 10 tools, 2026 tools
+    video format converter, MP4 to MOV, MOV to MP4, MKV converter, WebM converter
+    video to GIF converter, MP4 to GIF, MOV to GIF, animated GIF maker
+    video compression, image compression, batch compression
+    image converter, video converter, format converter
     PDF tools, PDF encryption, file encryption, watermark tool
     electronic signature, file compression, HEIC converter, HEIF converter
     ProRAW converter, screen recording editor, live photo converter
     privacy tools, local processing, browser tools, no upload tools
     batch processing, format conversion, image optimization
-    web tools, productivity tools, utility tools
+    web tools, productivity tools, utility tools, online image tools
+    online video tools, online file tools, free online tools 2026
 
 # VALUES
     Privacy First - Your data never leaves your browser
@@ -104,11 +131,16 @@
 
 # PERFORMANCE
     Core Web Vitals optimized
-    Lighthouse score: 95+ (Performance, Accessibility, SEO)
+    Lighthouse score: 95+ (Performance, Accessibility, SEO, Best Practices)
     First Contentful Paint: <1.5s
     Largest Contentful Paint: <2.5s
     Cumulative Layout Shift: <0.1
     First Input Delay: <100ms
+    Time to Interactive: <3.5s
+    FFmpeg.wasm caching via IndexedDB (30s+ → 1-3s load time)
+    Progressive loading and preloading strategies
+    Code splitting and lazy loading
+    Asset optimization and compression
 
 # ACCESSIBILITY
     WCAG 2.1 AA compliant
@@ -118,10 +150,40 @@
     Reduced motion preferences respected
 
 # BROWSER SUPPORT
-    Chrome 90+, Firefox 88+, Safari 14+, Edge 90+
-    Mobile: iOS Safari 14+, Chrome Mobile 90+
-    Progressive Web App (PWA) support
-    Offline functionality for core features
+    Desktop: Chrome 90+, Firefox 88+, Safari 14+, Edge 90+
+    Mobile: iOS Safari 14+, Chrome Mobile 90+, Samsung Internet 14+
+    Progressive Web App (PWA) support with offline functionality
+    WebAssembly support required for video processing
+    SharedArrayBuffer support required (COOP/COEP headers)
+    Modern browser APIs: WebCodecs, File System Access, Web Workers
+
+# ARCHITECTURE
+    Single Page Application (SPA) with React Router
+    Component-based architecture with TypeScript
+    Web Workers for CPU-intensive tasks
+    IndexedDB for persistent caching
+    Service Worker for offline support (planned)
+    Responsive design with mobile-first approach
+    Dark theme with tech/security aesthetic
+    Internationalization (i18n) support (English, Chinese)
+
+# SECURITY & PRIVACY
+    Content Security Policy (CSP) implemented
+    Cross-Origin-Opener-Policy (COOP): same-origin
+    Cross-Origin-Embedder-Policy (COEP): require-corp
+    Cross-Origin-Resource-Policy (CORP): cross-origin
+    HTTPS enforced with HSTS
+    No third-party tracking or analytics
+    No user data collection or storage
+    All processing happens client-side
+
+# DEPLOYMENT
+    Nginx reverse proxy with optimized configuration
+    Gzip compression enabled
+    Static asset caching (1 year for immutable resources)
+    CDN integration for FFmpeg.wasm files
+    SSL/TLS via Let's Encrypt
+    Automated deployment via CI/CD
 
 # LAST UPDATE
-    2026-01-27
+    2026-01-22

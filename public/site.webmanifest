@@ -1,7 +1,7 @@
 {
   "name": "CommonTools - Professional Online Tools",
   "short_name": "CommonTools",
-  "description": "Top Tools & Free Online Tools: PDF encryption/decryption, file encryption, format conversion, PDF watermark, electronic signature, file compression/decompression, HEIC to JPG, screen recording editor, ProRAW converter, image compression, video compression. Everything locally in your web browser, 100% privacy protected, no file upload to server. Online Image Tools, Online Video Tools, Online File Tools.",
+  "description": "Top 100 Free Online Tools 2026: Video format converter (MP4/MOV/MKV/WebM), video to GIF converter, image compression, video compression, HEIC to JPG, ProRAW converter, PDF encryption, watermark, e-signature. Everything locally in your web browser, 100% privacy protected, no upload.",
   "start_url": "/tools/",
   "scope": "/tools/",
   "display": "standalone",
@@ -54,10 +54,10 @@
   ],
   "shortcuts": [
     {
-      "name": "Image Tools",
-      "short_name": "Images",
-      "description": "Image compression, conversion, and processing tools",
-      "url": "/tools/modern-image-converter",
+      "name": "Video Format Converter",
+      "short_name": "Video Converter",
+      "description": "Convert videos between MP4, MOV, MKV, WebM formats",
+      "url": "/tools/video-converter",
       "icons": [
         {
           "src": "/favicon-192x192.png",
@@ -66,10 +66,46 @@
       ]
     },
     {
-      "name": "Video Tools",
-      "short_name": "Videos",
-      "description": "Video compression and editing tools",
-      "url": "/tools/screen-recording",
+      "name": "Video to GIF",
+      "short_name": "Video to GIF",
+      "description": "Convert MP4, MOV, WebM videos to animated GIF",
+      "url": "/tools/video-to-gif",
+      "icons": [
+        {
+          "src": "/favicon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Image Compression",
+      "short_name": "Image Compress",
+      "description": "Compress images with batch processing support",
+      "url": "/tools/image-compression",
+      "icons": [
+        {
+          "src": "/favicon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Video Compression",
+      "short_name": "Video Compress",
+      "description": "Compress videos with quality control",
+      "url": "/tools/video-compression",
+      "icons": [
+        {
+          "src": "/favicon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Image Tools",
+      "short_name": "Images",
+      "description": "Image conversion and processing tools",
+      "url": "/tools/modern-image-converter",
       "icons": [
         {
           "src": "/favicon-192x192.png",

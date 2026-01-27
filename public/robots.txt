@@ -1,7 +1,20 @@
+# ===== 通用爬虫规则 =====
 User-agent: *
 Allow: /
 
 # ===== 核心功能页面（高优先级） =====
+# Video Format Converter - 🔥 重点功能（新增）
+Allow: /tools/video-converter
+
+# Video to GIF Converter - 🔥 重点功能（新增）
+Allow: /tools/video-to-gif
+
+# Video Compression - 🔥 重点功能
+Allow: /tools/video-compression
+
+# Image Compression - 🔥 重点功能（新增）
+Allow: /tools/image-compression
+
 # iPhone Screen Recording Processor - 🔥 重点功能
 Allow: /tools/screen-recording
 
@@ -80,6 +93,7 @@ Crawl-delay: 1
 
 # ===== Sitemap 位置 =====
 Sitemap: https://commontools.top/tools/sitemap.xml
+Sitemap: https://commontools.top/sitemap.xml
 
 # ===== 主机声明 =====
 Host: https://commontools.top

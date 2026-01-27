@@ -7,7 +7,7 @@
   <!-- 首页 - 加密文件 -->
   <url>
     <loc>https://commontools.top/tools/</loc>
-    <lastmod>2026-01-27</lastmod>
+    <lastmod>2026-01-22</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
@@ -15,7 +15,7 @@
   <!-- 格式转换 -->
   <url>
     <loc>https://commontools.top/tools/conversion</loc>
-    <lastmod>2026-01-27</lastmod>
+    <lastmod>2026-01-22</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
@@ -23,7 +23,7 @@
   <!-- 加水印 -->
   <url>
     <loc>https://commontools.top/tools/watermark</loc>
-    <lastmod>2026-01-27</lastmod>
+    <lastmod>2026-01-22</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
@@ -31,7 +31,7 @@
   <!-- 电子签名 -->
   <url>
     <loc>https://commontools.top/tools/signature</loc>
-    <lastmod>2026-01-27</lastmod>
+    <lastmod>2026-01-22</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
@@ -39,7 +39,7 @@
   <!-- 解压/压缩 -->
   <url>
     <loc>https://commontools.top/tools/compression</loc>
-    <lastmod>2026-01-27</lastmod>
+    <lastmod>2026-01-22</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
@@ -47,7 +47,7 @@
   <!-- HEIC转JPG -->
   <url>
     <loc>https://commontools.top/tools/heic-to-jpg</loc>
-    <lastmod>2026-01-27</lastmod>
+    <lastmod>2026-01-22</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
@@ -55,7 +55,7 @@
   <!-- Live Photo转换 -->
   <url>
     <loc>https://commontools.top/tools/live-photo</loc>
-    <lastmod>2026-01-27</lastmod>
+    <lastmod>2026-01-22</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
@@ -63,7 +63,7 @@
   <!-- 老旧格式图片转换 -->
   <url>
     <loc>https://commontools.top/tools/legacy-image-converter</loc>
-    <lastmod>2026-01-27</lastmod>
+    <lastmod>2026-01-22</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
@@ -71,7 +71,7 @@
   <!-- 现代图片格式转换 -->
   <url>
     <loc>https://commontools.top/tools/modern-image-converter</loc>
-    <lastmod>2026-01-27</lastmod>
+    <lastmod>2026-01-22</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.95</priority>
   </url>
@@ -79,7 +79,7 @@
   <!-- ProRAW/HEIF 专业转换 -->
   <url>
     <loc>https://commontools.top/tools/proraw-converter</loc>
-    <lastmod>2026-01-27</lastmod>
+    <lastmod>2026-01-22</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.95</priority>
   </url>
@@ -87,14 +87,39 @@
   <!-- 屏幕录像处理 -->
   <url>
     <loc>https://commontools.top/tools/screen-recording</loc>
-    <lastmod>2026-01-27</lastmod>
+    <lastmod>2026-01-22</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.95</priority>
   </url>
 
+  <!-- 视频压缩 -->
   <url>
     <loc>https://commontools.top/tools/video-compression</loc>
-    <lastmod>2026-01-27</lastmod>
+    <lastmod>2026-01-22</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.95</priority>
+  </url>
+
+  <!-- 视频格式转换 -->
+  <url>
+    <loc>https://commontools.top/tools/video-converter</loc>
+    <lastmod>2026-01-22</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.95</priority>
+  </url>
+
+  <!-- MP4转GIF -->
+  <url>
+    <loc>https://commontools.top/tools/video-to-gif</loc>
+    <lastmod>2026-01-22</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.95</priority>
+  </url>
+
+  <!-- 图片压缩 -->
+  <url>
+    <loc>https://commontools.top/tools/image-compression</loc>
+    <lastmod>2026-01-22</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.95</priority>
   </url>
@@ -102,7 +127,7 @@
   <!-- 支持页面 -->
   <url>
     <loc>https://commontools.top/tools/support</loc>
-    <lastmod>2026-01-27</lastmod>
+    <lastmod>2026-01-22</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -110,7 +135,7 @@
   <!-- 支持政策 -->
   <url>
     <loc>https://commontools.top/tools/support-policy</loc>
-    <lastmod>2026-01-27</lastmod>
+    <lastmod>2026-01-22</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
@@ -118,7 +143,7 @@
   <!-- 隐私政策 -->
   <url>
     <loc>https://commontools.top/tools/privacy-policy</loc>
-    <lastmod>2026-01-27</lastmod>
+    <lastmod>2026-01-22</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
@@ -126,7 +151,7 @@
   <!-- 服务条款 -->
   <url>
     <loc>https://commontools.top/tools/terms-of-service</loc>
-    <lastmod>2026-01-27</lastmod>
+    <lastmod>2026-01-22</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
@@ -134,7 +159,7 @@
   <!-- 退款政策 -->
   <url>
     <loc>https://commontools.top/tools/refund-policy</loc>
-    <lastmod>2026-01-27</lastmod>
+    <lastmod>2026-01-22</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
@@ -142,7 +167,7 @@
   <!-- 定价页面 -->
   <url>
     <loc>https://commontools.top/tools/pricing</loc>
-    <lastmod>2026-01-27</lastmod>
+    <lastmod>2026-01-22</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
