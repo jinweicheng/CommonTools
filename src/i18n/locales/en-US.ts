@@ -58,6 +58,7 @@ export default {
     // Video conversion submenu
     screenRecording: 'Screen Recording',
     videoCompression: 'Video Compression',
+    videoToGif: 'MP4 To GIF',
     // File compression submenu
     archiveCompression: 'Archive',
   },

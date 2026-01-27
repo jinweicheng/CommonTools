@@ -56,6 +56,7 @@ export default function Layout({ children }: LayoutProps) {
       items: [
         { path: '/screen-recording', icon: <Video size={18} />, label: t('nav.screenRecording') },
         { path: '/video-compression', icon: <Film size={18} />, label: t('nav.videoCompression') },
+        { path: '/video-to-gif', icon: <FileImage size={18} />, label: t('nav.videoToGif') },
       ],
     },
     {
