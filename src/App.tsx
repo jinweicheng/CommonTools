@@ -18,6 +18,7 @@ import ScreenRecordingPage from './pages/ScreenRecordingPage'
 import ImageCompressionPage from './pages/ImageCompressionPage'
 import VideoCompressionPage from './pages/VideoCompressionPage'
 import VideoToGifPage from './pages/VideoToGifPage'
+import VideoConverterPage from './pages/VideoConverterPage'
 import LoginPage from './pages/LoginPage'
 import SupportPage from './pages/SupportPage'
 import SupportPolicyPage from './pages/SupportPolicyPage'
@@ -82,6 +83,9 @@ function App() {
               
               {/* MP4 转 GIF */}
               <Route path="/video-to-gif" element={<VideoToGifPage />} />
+              
+              {/* 视频格式转换 */}
+              <Route path="/video-converter" element={<VideoConverterPage />} />
               
               {/* Support & Policy Pages */}
               <Route path="/support" element={<SupportPage />} />

@@ -1,13 +1,16 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { Upload, Download, X, Video, Settings, Loader2, AlertCircle, Play, CheckCircle2 } from 'lucide-react'
+import { Upload, Download, X, Video, Settings, Loader2, AlertCircle, Play, CheckCircle2, FileVideo } from 'lucide-react'
 import { useI18n } from '../i18n/I18nContext'
 import { FFmpeg } from '@ffmpeg/ffmpeg'
 import { fetchFile, toBlobURL } from '@ffmpeg/util'
 import { saveAs } from 'file-saver'
-import './VideoToGif.css'
+import './VideoConverter.css'
 
 const MAX_FILES = 5
 const MAX_FILE_SIZE = 500 * 1024 * 1024 // 500MB
+
+type VideoFormat = 'mp4' | 'mov' | 'mkv' | 'webm'
+type VideoCodec = 'h264' | 'h265' | 'vp9'
 
 interface ConversionTask {
   id: string
@@ -16,6 +19,7 @@ interface ConversionTask {
   status: 'pending' | 'processing' | 'completed' | 'failed'
   progress: number
   progressMessage?: string
+  targetFormat: VideoFormat
   result?: Blob
   resultUrl?: string
   error?: string
@@ -23,19 +27,19 @@ interface ConversionTask {
   endTime?: number
 }
 
-export default function VideoToGif() {
+export default function VideoConverter() {
   const { language } = useI18n()
-  // const [files] = useState<File[]>([])
   const [tasks, setTasks] = useState<ConversionTask[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
   const [ffmpegLoaded, setFfmpegLoaded] = useState(false)
   const [ffmpegLoading, setFfmpegLoading] = useState(false)
   const [loadingProgress, setLoadingProgress] = useState('')
   
-  // GIF 设置
-  const [gifQuality, setGifQuality] = useState(3) // 0-5, 越低越好（bayer_scale 的有效范围）
-  const [gifFps, setGifFps] = useState(10) // 帧率
-  const [gifWidth, setGifWidth] = useState(480) // 宽度
+  // 转换设置
+  const [defaultFormat, setDefaultFormat] = useState<VideoFormat>('mp4')
+  const [codec, setCodec] = useState<VideoCodec>('h264')
+  const [quality, setQuality] = useState(23) // CRF: 18-28, 越小质量越高
+  const [preset, setPreset] = useState('medium') // ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow
   
   const fileInputRef = useRef<HTMLInputElement>(null)
   const ffmpegRef = useRef<FFmpeg | null>(null)
@@ -145,6 +149,16 @@ export default function VideoToGif() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // 获取文件格式
+  const getFileFormat = (fileName: string): VideoFormat | null => {
+    const ext = fileName.split('.').pop()?.toLowerCase()
+    if (ext === 'mp4') return 'mp4'
+    if (ext === 'mov') return 'mov'
+    if (ext === 'mkv') return 'mkv'
+    if (ext === 'webm') return 'webm'
+    return null
+  }
+
   // 文件上传处理
   const handleFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const uploadedFiles = event.target.files
@@ -187,13 +201,26 @@ export default function VideoToGif() {
 
       const preview = URL.createObjectURL(file)
       const taskId = `${Date.now()}-${Math.random()}`
+      const currentFormat = getFileFormat(file.name)
+      
+      // 如果当前格式就是目标格式，跳过
+      if (currentFormat === defaultFormat) {
+        alert(
+          language === 'zh-CN' 
+            ? `文件 ${file.name} 已经是 ${defaultFormat.toUpperCase()} 格式，无需转换`
+            : `File ${file.name} is already ${defaultFormat.toUpperCase()} format, no conversion needed`
+        )
+        URL.revokeObjectURL(preview)
+        continue
+      }
 
       newTasks.push({
         id: taskId,
         file,
         preview,
         status: 'pending',
-        progress: 0
+        progress: 0,
+        targetFormat: defaultFormat
       })
     }
 
@@ -202,10 +229,50 @@ export default function VideoToGif() {
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
-  }, [tasks.length, language])
+  }, [tasks.length, language, defaultFormat])
 
-  // 转换单个视频为 GIF
-  const convertToGif = useCallback(async (task: ConversionTask): Promise<void> => {
+  // 构建 FFmpeg 参数
+  const buildFFmpegArgs = useCallback((task: ConversionTask): string[] => {
+    const inputExt = task.file.name.split('.').pop()?.toLowerCase() || 'mp4'
+    const args: string[] = ['-i', `input.${inputExt}`]
+
+    // 视频编码器
+    if (codec === 'h264') {
+      args.push('-c:v', 'libx264')
+      args.push('-preset', preset)
+      args.push('-crf', quality.toString())
+      args.push('-pix_fmt', 'yuv420p')
+    } else if (codec === 'h265') {
+      args.push('-c:v', 'libx265')
+      args.push('-preset', preset)
+      args.push('-crf', quality.toString())
+      args.push('-pix_fmt', 'yuv420p')
+    } else if (codec === 'vp9') {
+      args.push('-c:v', 'libvpx-vp9')
+      args.push('-crf', quality.toString())
+      args.push('-b:v', '0')
+    }
+
+    // 音频编码器
+    if (task.targetFormat === 'webm') {
+      args.push('-c:a', 'libopus')
+      args.push('-b:a', '128k')
+    } else {
+      args.push('-c:a', 'aac')
+      args.push('-b:a', '128k')
+    }
+
+    // 输出格式特定设置
+    if (task.targetFormat === 'mp4') {
+      args.push('-movflags', '+faststart')
+    }
+
+    args.push(`output.${task.targetFormat}`)
+    return args
+  }, [codec, preset, quality])
+
+  // 转换单个视频
+  const convertVideo = useCallback(async (task: ConversionTask): Promise<void> => {
     if (!ffmpegRef.current) {
       const loaded = await loadFFmpeg()
       if (!loaded || !ffmpegRef.current) {
@@ -251,7 +318,7 @@ export default function VideoToGif() {
 
       // 设置进度监听器
       let lastProgressUpdate = 0
-      const PROGRESS_UPDATE_INTERVAL = 200 // 每200ms更新一次
+      const PROGRESS_UPDATE_INTERVAL = 200
       
       const progressHandler = ({ progress: prog }: { progress: number }) => {
         const now = Date.now()
@@ -277,15 +344,9 @@ export default function VideoToGif() {
 
       ffmpeg.on('progress', progressHandler)
 
-      // 生成 GIF
-      const filterComplex = `fps=${gifFps},scale=${gifWidth}:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=256:stats_mode=diff[p];[s1][p]paletteuse=dither=bayer:bayer_scale=${gifQuality}:diff_mode=rectangle`
-      
-      await ffmpeg.exec([
-        '-i', `input.${inputExt}`,
-        '-filter_complex', filterComplex,
-        '-loop', '0',
-        'output.gif'
-      ])
+      // 执行转换
+      const args = buildFFmpegArgs(task)
+      await ffmpeg.exec(args)
 
       // 移除进度监听器
       ffmpeg.off('progress', progressHandler)
@@ -294,19 +355,19 @@ export default function VideoToGif() {
         t.id === task.id ? { 
           ...t, 
           progress: 90,
-          progressMessage: language === 'zh-CN' ? '生成 GIF 文件...' : 'Generating GIF...'
+          progressMessage: language === 'zh-CN' ? '生成输出文件...' : 'Generating output file...'
         } : t
       ))
 
       // 读取输出文件
-      const data = await ffmpeg.readFile('output.gif')
-      const blob = new Blob([data as any], { type: 'image/gif' })
+      const data = await ffmpeg.readFile(`output.${task.targetFormat}`)
+      const blob = new Blob([data as any], { type: `video/${task.targetFormat}` })
       const resultUrl = URL.createObjectURL(blob)
 
       // 清理文件
       try {
         await ffmpeg.deleteFile(`input.${inputExt}`)
-        await ffmpeg.deleteFile('output.gif')
+        await ffmpeg.deleteFile(`output.${task.targetFormat}`)
       } catch (err) {
         console.warn('Failed to clean up:', err)
       }
@@ -331,11 +392,11 @@ export default function VideoToGif() {
           : t
       ))
 
-      // 播放完成音效（可选）
+      // 播放完成音效
       try {
         const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OSfTQ8MT6bj8LZjHAY4kdfyzHksBSR3x/DdkEAKFF606euoVRQKRp/g8r5sIQUrgc7y2Yk2CBtpvfDkn00PDE+m4/C2YxwGOJHX8sx5LAUkd8fw3ZBAC')
         audio.volume = 0.3
-        audio.play().catch(() => {}) // 忽略播放错误
+        audio.play().catch(() => {})
       } catch (err) {
         // 忽略音效错误
       }
@@ -354,7 +415,7 @@ export default function VideoToGif() {
       ))
       throw err
     }
-  }, [gifFps, gifWidth, gifQuality, loadFFmpeg, language])
+  }, [buildFFmpegArgs, loadFFmpeg, language])
 
   // 处理所有任务
   const handleProcess = useCallback(async () => {
@@ -368,7 +429,7 @@ export default function VideoToGif() {
     try {
       for (const task of pendingTasks) {
         try {
-          await convertToGif(task)
+          await convertVideo(task)
         } catch (err) {
           console.error(`Failed to convert ${task.file.name}:`, err)
         }
@@ -376,13 +437,13 @@ export default function VideoToGif() {
     } finally {
       setIsProcessing(false)
     }
-  }, [tasks, convertToGif])
+  }, [tasks, convertVideo])
 
   // 下载单个文件
   const handleDownload = useCallback((task: ConversionTask) => {
     if (!task.result || !task.resultUrl) return
     
-    const fileName = task.file.name.replace(/\.[^/.]+$/, '') + '.gif'
+    const fileName = task.file.name.replace(/\.[^/.]+$/, '') + `.${task.targetFormat}`
     saveAs(task.result, fileName)
   }, [])
 
@@ -393,9 +454,8 @@ export default function VideoToGif() {
 
     for (const task of completedTasks) {
       if (task.result) {
-        const fileName = task.file.name.replace(/\.[^/.]+$/, '') + '.gif'
+        const fileName = task.file.name.replace(/\.[^/.]+$/, '') + `.${task.targetFormat}`
         saveAs(task.result, fileName)
-        // 延迟一下，避免浏览器阻止多个下载
         await new Promise(resolve => setTimeout(resolve, 100))
       }
     }
@@ -411,25 +471,36 @@ export default function VideoToGif() {
     })
   }, [])
 
+  // 更新任务的目标格式
+  const handleFormatChange = useCallback((taskId: string, format: VideoFormat) => {
+    setTasks(prev => prev.map(t => 
+      t.id === taskId ? { ...t, targetFormat: format } : t
+    ))
+  }, [])
+
   const formatFileSize = (bytes: number): string => {
     if (bytes < 1024) return `${bytes} B`
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
   }
 
+  const getFormatLabel = (format: VideoFormat): string => {
+    return format.toUpperCase()
+  }
+
   return (
-    <div className="video-to-gif">
+    <div className="video-converter">
       {/* Header */}
       <div className="converter-header">
         <div className="header-content">
           <h1 className="tool-title">
             <Video />
-            {language === 'zh-CN' ? 'MP4 转 GIF' : 'MP4 To GIF'}
+            {language === 'zh-CN' ? '视频格式转换' : 'Video Format Converter'}
           </h1>
           <p className="tool-description">
             {language === 'zh-CN'
-              ? '将 MP4、MOV、WebM 等视频格式转换为 GIF 动图。支持批量处理、自定义质量、帧率和尺寸。使用 FFmpeg WebAssembly，100% 本地处理，保护隐私安全。'
-              : 'Convert MP4, MOV, WebM and other video formats to animated GIF. Supports batch processing, custom quality, frame rate and size. Uses FFmpeg WebAssembly, 100% local processing, privacy-friendly.'}
+              ? '将视频文件在 MP4、MOV、MKV、WebM 格式之间转换。支持批量处理、自定义编码参数。使用 FFmpeg WebAssembly，100% 本地处理，保护隐私安全。'
+              : 'Convert video files between MP4, MOV, MKV, and WebM formats. Supports batch processing and custom encoding parameters. Uses FFmpeg WebAssembly, 100% local processing, privacy-friendly.'}
           </p>
         </div>
       </div>
@@ -472,8 +543,8 @@ export default function VideoToGif() {
           <span>{language === 'zh-CN' ? '上传视频文件' : 'Upload Videos'}</span>
           <small>
             {language === 'zh-CN' 
-              ? '支持 MP4, MOV, WebM 等格式，最多 5 个文件，每个最大 500MB'
-              : 'Supports MP4, MOV, WebM, max 5 files, 500MB each'}
+              ? '支持 MP4, MOV, MKV, WebM 等格式，最多 5 个文件，每个最大 500MB'
+              : 'Supports MP4, MOV, MKV, WebM, max 5 files, 500MB each'}
           </small>
         </div>
 
@@ -487,6 +558,23 @@ export default function VideoToGif() {
                 <div className="file-info">
                   <span className="file-name">{task.file.name}</span>
                   <span className="file-size">{formatFileSize(task.file.size)}</span>
+                  
+                  {task.status === 'pending' && (
+                    <div className="format-selector">
+                      <label>{language === 'zh-CN' ? '转换为' : 'Convert to'}:</label>
+                      <select
+                        value={task.targetFormat}
+                        onChange={(e) => handleFormatChange(task.id, e.target.value as VideoFormat)}
+                        disabled={isProcessing}
+                      >
+                        <option value="mp4">MP4</option>
+                        <option value="mov">MOV</option>
+                        <option value="mkv">MKV</option>
+                        <option value="webm">WebM</option>
+                      </select>
+                    </div>
+                  )}
+
                   {task.status === 'processing' && (
                     <>
                       <div className="progress-bar">
@@ -497,12 +585,14 @@ export default function VideoToGif() {
                       </div>
                     </>
                   )}
+                  
                   {task.status === 'completed' && task.progressMessage && (
                     <div className="success-message">
                       <CheckCircle2 size={14} />
                       {task.progressMessage}
                     </div>
                   )}
+                  
                   {task.status === 'failed' && task.error && (
                     <div className="error-message">
                       <AlertCircle size={14} />
@@ -538,63 +628,91 @@ export default function VideoToGif() {
       {/* Settings Section */}
       {tasks.length > 0 && (
         <div className="settings-section">
-          <h3><Settings /> {language === 'zh-CN' ? 'GIF 设置' : 'GIF Settings'}</h3>
+          <h3><Settings /> {language === 'zh-CN' ? '转换设置' : 'Conversion Settings'}</h3>
           
           <div className="setting-group">
             <label>
-              {language === 'zh-CN' ? 'GIF 质量' : 'GIF Quality'}: {gifQuality}
+              {language === 'zh-CN' ? '默认输出格式' : 'Default Output Format'}
             </label>
-            <input
-              type="range"
-              min="0"
-              max="5"
-              value={gifQuality}
-              onChange={(e) => setGifQuality(parseInt(e.target.value))}
+            <select
+              value={defaultFormat}
+              onChange={(e) => setDefaultFormat(e.target.value as VideoFormat)}
               disabled={isProcessing}
-            />
+            >
+              <option value="mp4">MP4</option>
+              <option value="mov">MOV</option>
+              <option value="mkv">MKV</option>
+              <option value="webm">WebM</option>
+            </select>
             <small>
               {language === 'zh-CN' 
-                ? '0-5，数值越低质量越高（文件越大）'
-                : '0-5, lower is better quality (larger file)'}
+                ? '新上传的文件将默认转换为该格式'
+                : 'Newly uploaded files will be converted to this format by default'}
             </small>
           </div>
 
           <div className="setting-group">
             <label>
-              {language === 'zh-CN' ? '帧率' : 'Frame Rate'}: {gifFps} fps
+              {language === 'zh-CN' ? '视频编码器' : 'Video Codec'}
             </label>
-            <input
-              type="range"
-              min="5"
-              max="30"
-              value={gifFps}
-              onChange={(e) => setGifFps(parseInt(e.target.value))}
+            <select
+              value={codec}
+              onChange={(e) => setCodec(e.target.value as VideoCodec)}
               disabled={isProcessing}
-            />
+            >
+              <option value="h264">H.264 (兼容性最好)</option>
+              <option value="h265">H.265 (文件更小)</option>
+              <option value="vp9">VP9 (WebM 推荐)</option>
+            </select>
             <small>
               {language === 'zh-CN' 
-                ? '每秒帧数，越高越流畅（文件越大）'
-                : 'Frames per second, higher is smoother (larger file)'}
+                ? 'H.264 兼容性最好，H.265 文件更小，VP9 适合 WebM'
+                : 'H.264 best compatibility, H.265 smaller files, VP9 for WebM'}
             </small>
           </div>
 
           <div className="setting-group">
             <label>
-              {language === 'zh-CN' ? 'GIF 宽度' : 'GIF Width'}: {gifWidth}px
+              {language === 'zh-CN' ? '视频质量' : 'Video Quality'}: {quality}
             </label>
             <input
               type="range"
-              min="240"
-              max="1920"
-              step="40"
-              value={gifWidth}
-              onChange={(e) => setGifWidth(parseInt(e.target.value))}
+              min="18"
+              max="28"
+              value={quality}
+              onChange={(e) => setQuality(parseInt(e.target.value))}
               disabled={isProcessing}
             />
             <small>
               {language === 'zh-CN' 
-                ? '宽度（像素），越大越清晰（文件越大）'
-                : 'Width in pixels, larger is clearer (larger file)'}
+                ? '18-28，数值越小质量越高（文件越大）'
+                : '18-28, lower is better quality (larger file)'}
+            </small>
+          </div>
+
+          <div className="setting-group">
+            <label>
+              {language === 'zh-CN' ? '编码速度' : 'Encoding Speed'}
+            </label>
+            <select
+              value={preset}
+              onChange={(e) => setPreset(e.target.value)}
+              disabled={isProcessing}
+            >
+              <option value="ultrafast">{language === 'zh-CN' ? '极快' : 'Ultrafast'}</option>
+              <option value="superfast">{language === 'zh-CN' ? '超快' : 'Superfast'}</option>
+              <option value="veryfast">{language === 'zh-CN' ? '很快' : 'Veryfast'}</option>
+              <option value="faster">{language === 'zh-CN' ? '较快' : 'Faster'}</option>
+              <option value="fast">{language === 'zh-CN' ? '快' : 'Fast'}</option>
+              <option value="medium">{language === 'zh-CN' ? '中等' : 'Medium'}</option>
+              <option value="slow">{language === 'zh-CN' ? '慢' : 'Slow'}</option>
+              <option value="slower">{language === 'zh-CN' ? '较慢' : 'Slower'}</option>
+              <option value="veryslow">{language === 'zh-CN' ? '很慢' : 'Veryslow'}</option>
+            </select>
+            <small>
+              {language === 'zh-CN' 
+                ? '速度越快，文件越大；速度越慢，文件越小'
+                : 'Faster = larger files, Slower = smaller files'}
             </small>
           </div>
 
@@ -641,19 +759,19 @@ export default function VideoToGif() {
               .map((task) => (
                 <div key={task.id} className="result-card">
                   <div className="result-preview">
-                    <img src={task.resultUrl} alt="GIF result" />
+                    <video src={task.resultUrl} controls />
                   </div>
                   <div className="result-info">
                     <div className="result-name">
-                      {task.file.name.replace(/\.[^/.]+$/, '')}.gif
+                      {task.file.name.replace(/\.[^/.]+$/, '')}.{task.targetFormat}
                     </div>
                     <div className="result-stats">
                       <span className="stat-item">
-                        <strong>{language === 'zh-CN' ? '原始' : 'Original'}:</strong> {formatFileSize(task.file.size)}
+                        <strong>{language === 'zh-CN' ? '原始' : 'Original'}:</strong> {formatFileSize(task.file.size)} ({getFileFormat(task.file.name)?.toUpperCase() || '?'})
                       </span>
                       <span className="stat-arrow">→</span>
                       <span className="stat-item">
-                        <strong>{language === 'zh-CN' ? 'GIF' : 'GIF'}:</strong> {task.result ? formatFileSize(task.result.size) : '--'}
+                        <strong>{getFormatLabel(task.targetFormat)}:</strong> {task.result ? formatFileSize(task.result.size) : '--'}
                       </span>
                       {task.result && task.file.size > 0 && (
                         <span className="stat-badge">

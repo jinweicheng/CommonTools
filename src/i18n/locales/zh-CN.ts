@@ -59,6 +59,7 @@ export default {
     screenRecording: '屏幕录像',
     videoCompression: '视频压缩',
     videoToGif: 'MP4转GIF',
+    videoConverter: '格式转换',
     // 文件压缩子菜单
     archiveCompression: '解压/压缩',
   },
