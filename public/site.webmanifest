@@ -1,19 +1,37 @@
 {
   "name": "CommonTools - Professional Online Tools",
   "short_name": "CommonTools",
-  "description": "Professional online tools: PDF encryption/decryption, file encryption, format conversion, PDF watermark, electronic signature, file compression/decompression, HEIC to JPG, etc. 100% browser local processing, privacy protected, no file upload to server.",
+  "description": "Top Tools & Free Online Tools: PDF encryption/decryption, file encryption, format conversion, PDF watermark, electronic signature, file compression/decompression, HEIC to JPG, screen recording editor, ProRAW converter, image compression, video compression. Everything locally in your web browser, 100% privacy protected, no file upload to server. Online Image Tools, Online Video Tools, Online File Tools.",
   "start_url": "/tools/",
   "scope": "/tools/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#667eea",
   "orientation": "any",
+  "lang": "en-US",
+  "dir": "ltr",
+  "categories": ["utilities", "productivity", "tools", "business", "developer-tools"],
+  "screenshots": [
+    {
+      "src": "/screenshot-wide.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "label": "CommonTools main interface"
+    },
+    {
+      "src": "/screenshot-mobile.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "label": "CommonTools mobile interface",
+      "form_factor": "narrow"
+    }
+  ],
   "icons": [
     {
       "src": "/favicon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any"
+      "purpose": "any maskable"
     },
     {
       "src": "/favicon-192x192.png",
@@ -26,10 +44,53 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
     }
   ],
-  "categories": ["utilities", "productivity", "tools"],
-  "lang": "en-US",
-  "dir": "ltr",
-  "prefer_related_applications": false
+  "shortcuts": [
+    {
+      "name": "Image Tools",
+      "short_name": "Images",
+      "description": "Image compression, conversion, and processing tools",
+      "url": "/tools/modern-image-converter",
+      "icons": [
+        {
+          "src": "/favicon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Video Tools",
+      "short_name": "Videos",
+      "description": "Video compression and editing tools",
+      "url": "/tools/screen-recording",
+      "icons": [
+        {
+          "src": "/favicon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "PDF Tools",
+      "short_name": "PDF",
+      "description": "PDF encryption, watermark, and signature tools",
+      "url": "/tools/conversion",
+      "icons": [
+        {
+          "src": "/favicon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ],
+  "prefer_related_applications": false,
+  "iarc_rating_id": "",
+  "related_applications": []
 }
