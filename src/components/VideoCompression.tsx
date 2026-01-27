@@ -65,7 +65,7 @@ export default function VideoCompression() {
   const [isPaused, setIsPaused] = useState(false)
   const [globalOptions, setGlobalOptions] = useState<CompressionOptions>({
     mode: 'crf',
-    crf: 23,
+    crf: 28, // 默认 28（更激进的压缩，文件更小，23 质量太高文件大）
     codec: 'h264',
     resolution: 'original'
   })
@@ -87,6 +87,49 @@ export default function VideoCompression() {
   useEffect(() => {
     tasksRef.current = tasks
   }, [tasks])
+
+  // 清理选中列表中未完成的任务（确保状态一致性）
+  useEffect(() => {
+    const completedTaskIds = new Set(
+      tasks
+        .filter(t => t.status === 'completed' && t.compressedPreview)
+        .map(t => t.id)
+    )
+    
+    setSelectedTasks(prev => {
+      // 检查是否有无效的选中项
+      let hasInvalidSelection = false
+      const newSet = new Set<string>()
+      
+      prev.forEach(id => {
+        if (completedTaskIds.has(id)) {
+          newSet.add(id)
+        } else {
+          hasInvalidSelection = true
+        }
+      })
+      
+      // 如果有无效的选中项或大小变化，返回新集合
+      if (hasInvalidSelection || newSet.size !== prev.size) {
+        return newSet
+      }
+      
+      // 检查是否有新完成的任务需要自动选中（可选，这里不自动选中）
+      return prev
+    })
+  }, [tasks])
+
+  // 预加载 FFmpeg（提升用户体验，避免上传文件后才开始加载）
+  useEffect(() => {
+    if (!ffmpegLoaded && !ffmpegLoading) {
+      console.log('🚀 Preloading FFmpeg in background...')
+      // 预加载时不显示错误提示（后台静默加载）
+      loadFFmpeg(false).catch(err => {
+        console.warn('FFmpeg preload failed (will retry when user uploads file):', err)
+      })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // 只在组件挂载时执行一次
 
   // 环境检查
   const checkEnvironment = useCallback(() => {
@@ -130,9 +173,11 @@ export default function VideoCompression() {
         }
 
         const timer = setTimeout(() => {
-          console.error("❌ FFmpeg initialization timeout");
+          console.error(`❌ FFmpeg initialization timeout after ${timeout / 1000}s`);
           setLoadingProgress(
-            language === "zh-CN" ? "FFmpeg 加载超时" : "FFmpeg load timeout",
+            language === "zh-CN" 
+              ? `FFmpeg 加载超时（${timeout / 1000}秒）。请检查网络连接或刷新页面重试。`
+              : `FFmpeg load timeout (${timeout / 1000}s). Please check network or refresh.`,
           );
           resolve(false);
         }, timeout);
@@ -162,256 +207,285 @@ export default function VideoCompression() {
           // 优先尝试本地文件（更可靠）
           // 在开发环境中使用完整 URL，避免 Vite 模块解析错误
           const isDev = import.meta.env.DEV;
-          const baseURL = isDev 
+          // 确保 baseURL 正确构建（处理尾部斜杠）
+          let baseURL = isDev 
             ? window.location.origin 
             : (window.location.origin + import.meta.env.BASE_URL);
+          // 移除尾部斜杠（如果有），然后统一添加
+          baseURL = baseURL.replace(/\/+$/, '');
           const localCore = `${baseURL}/ffmpeg-core.js`;
           const localWasm = `${baseURL}/ffmpeg-core.wasm`;
 
-          // 检查本地文件是否存在
+          // 检查本地文件是否存在和有效
           try {
+            console.log(`🔍 Checking local files...`);
+            console.log(`   Core: ${localCore}`);
+            console.log(`   WASM: ${localWasm}`);
+            
             const coreRes = await fetch(localCore, { method: "HEAD" });
             const wasmRes = await fetch(localWasm, { method: "HEAD" });
 
             if (coreRes.ok && wasmRes.ok) {
-              const coreSize = parseInt(coreRes.headers.get('content-length') || '0', 10);
-              const wasmSize = parseInt(wasmRes.headers.get('content-length') || '0', 10);
+              // 获取文件大小（可能为 null，需要实际下载验证）
+              const coreSizeHeader = coreRes.headers.get('content-length');
+              const wasmSizeHeader = wasmRes.headers.get('content-length');
+              const coreSize = coreSizeHeader ? parseInt(coreSizeHeader, 10) : null;
+              const wasmSize = wasmSizeHeader ? parseInt(wasmSizeHeader, 10) : null;
               
-              console.log("✅ Using local files");
-              console.log(`   Core: ${localCore} (${(coreSize / 1024).toFixed(1)} KB)`);
-              console.log(`   WASM: ${localWasm} (${(wasmSize / 1024 / 1024).toFixed(1)} MB)`);
+              console.log(`📊 File size from headers: core=${coreSize || 'unknown'} B, wasm=${wasmSize || 'unknown'} B`);
               
-              // 验证文件大小（粗略检查）
-              // ffmpeg-core.js 通常约 110-120 KB，ffmpeg-core.wasm 约 30-32 MB
-              if (coreSize < 50000) {
-                console.warn("⚠️ Core file seems too small, may be corrupted");
-              } else if (coreSize < 100000) {
-                console.log(`ℹ️ Core file size: ${(coreSize / 1024).toFixed(1)} KB (acceptable, but smaller than expected)`);
-              } else {
-                console.log(`✅ Core file size: ${(coreSize / 1024).toFixed(1)} KB`);
-              }
+              // 如果 content-length 不可用或为 0，实际下载验证文件大小
+              let actualCoreSize = coreSize;
+              let actualWasmSize = wasmSize;
               
-              if (wasmSize < 20000000) {
-                console.warn("⚠️ WASM file seems too small, may be corrupted");
-              } else if (wasmSize < 30000000) {
-                console.log(`ℹ️ WASM file size: ${(wasmSize / 1024 / 1024).toFixed(1)} MB (acceptable, but smaller than expected)`);
-              } else {
-                console.log(`✅ WASM file size: ${(wasmSize / 1024 / 1024).toFixed(1)} MB`);
-              }
-              
-              // 验证文件内容（检查是否是有效的 JavaScript）
-              try {
-                const coreContentRes = await fetch(localCore);
-                const coreText = await coreContentRes.text();
-                const firstChars = coreText.substring(0, 100);
-                console.log(`📄 Core file starts with: ${firstChars}...`);
-                
-                // 检查是否是有效的 JavaScript（应该以 function, var, const, 或 (function 开头）
-                if (!/^(function|var|const|let|\(function|export|import)/.test(coreText.trim())) {
-                  console.warn("⚠️ Core file doesn't look like valid JavaScript");
-                } else {
-                  console.log("✅ Core file appears to be valid JavaScript");
+              if (!coreSize || coreSize === 0) {
+                console.log("⚠️ Core file size unknown from HEAD, downloading to verify...");
+                try {
+                  const coreTestRes = await fetch(localCore, { 
+                    method: "GET",
+                    headers: { "Range": "bytes=0-1023" } // 只下载前 1KB 来验证
+                  });
+                  if (coreTestRes.ok) {
+                    const coreTestData = await coreTestRes.arrayBuffer();
+                    actualCoreSize = coreTestData.byteLength;
+                    // 如果只下载了 1KB，说明文件可能很小或为空
+                    if (actualCoreSize < 1024) {
+                      const fullCoreRes = await fetch(localCore);
+                      const fullCoreData = await fullCoreRes.arrayBuffer();
+                      actualCoreSize = fullCoreData.byteLength;
+                    }
+                  }
+                } catch (testErr) {
+                  console.warn("⚠️ Could not verify core file size:", testErr);
                 }
-              } catch (verifyErr) {
-                console.warn("⚠️ Could not verify core file content:", verifyErr);
               }
+              
+              // 关键检查：如果文件为 0 B 或过小，直接使用 CDN
+              // ffmpeg-core.js 正常大小约 110-120 KB，最小不应小于 50 KB
+              // ffmpeg-core.wasm 正常大小约 30-32 MB，最小不应小于 20 MB
+              if (!actualCoreSize || actualCoreSize === 0 || actualCoreSize < 50000) {
+                console.warn(`⚠️ Local core file invalid (size: ${actualCoreSize || 'unknown'} B), using CDN instead`);
+                throw new Error(`Local core file invalid: size=${actualCoreSize || 'unknown'}B`);
+              }
+              
+              if (!actualWasmSize || actualWasmSize === 0 || actualWasmSize < 20000000) {
+                console.warn(`⚠️ Local WASM file invalid (size: ${actualWasmSize || 'unknown'} B), using CDN instead`);
+                throw new Error(`Local WASM file invalid: size=${actualWasmSize || 'unknown'}B`);
+              }
+              
+              console.log("✅ Local files valid");
+              console.log(`   Core: ${localCore} (${(actualCoreSize / 1024).toFixed(1)} KB)`);
+              console.log(`   WASM: ${localWasm} (${(actualWasmSize / 1024 / 1024).toFixed(1)} MB)`);
               
               setLoadingProgress(
                 language === "zh-CN" ? "正在加载本地文件..." : "Loading local files...",
               );
 
               try {
-                // 方法1：直接使用 toBlobURL（这是 FFmpeg.wasm 官方推荐的方式）
-                console.log("🔄 Using toBlobURL (official method)...");
+                // 使用带超时的 toBlobURL
+                console.log("🔄 Using toBlobURL with timeout...");
                 setLoadingProgress(
                   language === "zh-CN" ? "正在转换文件格式..." : "Converting file format...",
                 );
                 
-                // 验证文件可以实际读取（防止空文件或损坏文件）
-                try {
-                  const testRes = await fetch(localCore, { method: "GET" });
-                  const testText = await testRes.text();
-                  if (!testText || testText.length < 1000) {
-                    throw new Error(`Core file appears empty or too small: ${testText.length} bytes`);
-                  }
-                  console.log(`✅ Core file readable: ${testText.length} bytes`);
-                } catch (testErr) {
-                  console.error("❌ Core file validation failed:", testErr);
-                  throw new Error(`Core file validation failed: ${testErr instanceof Error ? testErr.message : String(testErr)}`);
-                }
+                // 为 toBlobURL 添加超时控制
+                const toBlobURLWithTimeout = async (url: string, mimeType: string, timeout: number = 30000): Promise<string> => {
+                  return Promise.race([
+                    toBlobURL(url, mimeType),
+                    new Promise<string>((_, reject) => 
+                      setTimeout(() => reject(new Error(`toBlobURL timeout after ${timeout / 1000}s`)), timeout)
+                    )
+                  ]);
+                };
                 
-                // toBlobURL 会正确处理文件下载和 Blob URL 创建
-                const coreBlobURL = await toBlobURL(localCore, "text/javascript");
-                const wasmBlobURL = await toBlobURL(localWasm, "application/wasm");
-                
-                console.log("✅ Blob URLs created with toBlobURL");
-                console.log(`   Core Blob URL: ${coreBlobURL.substring(0, 50)}...`);
-                console.log(`   WASM Blob URL: ${wasmBlobURL.substring(0, 50)}...`);
+                const coreBlobURL = await toBlobURLWithTimeout(localCore, "text/javascript", 30000);
+                console.log("✅ Core Blob URL created");
                 
                 setLoadingProgress(
-                  language === "zh-CN" ? "正在初始化 FFmpeg（这可能需要 10-30 秒）..." : "Initializing FFmpeg (may take 10-30 seconds)...",
+                  language === "zh-CN" ? "正在转换 WASM 文件格式..." : "Converting WASM file format...",
                 );
                 
-                // 使用 Blob URL 加载
-                // 注意：FFmpeg.wasm 初始化可能需要 10-30 秒，请耐心等待
-                await ffmpeg.load({
+                const wasmBlobURL = await toBlobURLWithTimeout(localWasm, "application/wasm", 60000);
+                console.log("✅ WASM Blob URL created");
+                
+                console.log("✅ All Blob URLs created");
+                
+                setLoadingProgress(
+                  language === "zh-CN" ? "正在初始化 FFmpeg（这可能需要 10-20 秒）..." : "Initializing FFmpeg (may take 10-20 seconds)...",
+                );
+                
+                // 使用带超时的 FFmpeg.load
+                const loadPromise = ffmpeg.load({
                   coreURL: coreBlobURL,
                   wasmURL: wasmBlobURL,
                 });
                 
-                console.log("✅ FFmpeg loaded successfully with toBlobURL");
-              } catch (blobErr) {
-                console.log("⚠️ toBlobURL failed, trying direct URL...");
-                console.error("toBlobURL error:", blobErr);
+                const timeoutPromise = new Promise<never>((_, reject) => 
+                  setTimeout(() => reject(new Error("FFmpeg.load timeout after 60s")), 60000)
+                );
                 
-                try {
-                  // 方法2：回退到直接 URL
-                  console.log("🔄 Attempting direct URL load...");
-                  setLoadingProgress(
-                    language === "zh-CN" ? "正在使用直接 URL 加载..." : "Loading with direct URL...",
-                  );
-                  
-                  await ffmpeg.load({
-                    coreURL: localCore,
-                    wasmURL: localWasm,
-                  });
-                  
-                  console.log("✅ FFmpeg loaded with direct URLs");
-                } catch (directErr) {
-                  console.log("⚠️ Direct URL also failed, trying fetchFile...");
-                  console.error("Direct URL error:", directErr);
-                  
-                  // 方法3：最后尝试 fetchFile + 手动创建 Blob
-                  setLoadingProgress(
-                    language === "zh-CN" ? "正在下载文件..." : "Downloading files...",
-                  );
-                  
-                  const coreFile = await fetchFile(localCore);
-                  const wasmFile = await fetchFile(localWasm);
-                  
-                  console.log("✅ Files fetched, creating Blob URLs manually...");
-                  const coreBlobURL = URL.createObjectURL(new Blob([coreFile as any], { type: "text/javascript" }));
-                  const wasmBlobURL = URL.createObjectURL(new Blob([wasmFile as any], { type: "application/wasm" }));
-                  
-                  setLoadingProgress(
-                    language === "zh-CN" ? "正在初始化 FFmpeg..." : "Initializing FFmpeg...",
-                  );
-                  
-                  await ffmpeg.load({
-                    coreURL: coreBlobURL,
-                    wasmURL: wasmBlobURL,
-                  });
-                  
-                  console.log("✅ FFmpeg loaded with fetchFile");
-                }
+                await Promise.race([loadPromise, timeoutPromise]);
+                
+                console.log("✅ FFmpeg loaded successfully");
+              } catch (blobErr) {
+                console.error("❌ Local file load failed:", blobErr);
+                throw blobErr; // 直接抛出错误，切换到 CDN
               }
             } else {
               throw new Error(`Local files not found: core=${coreRes.status}, wasm=${wasmRes.status}`);
             }
           } catch (localErr) {
-            console.log("⚠️ Local file load failed:", localErr);
-            console.log("🔄 Trying CDN as fallback...");
+            console.log("⚠️ Local file invalid or missing, using CDN (recommended)...");
             setLoadingProgress(
-              language === "zh-CN" ? "本地文件加载失败，尝试 CDN..." : "Local load failed, trying CDN...",
+              language === "zh-CN" ? "正在从 CDN 加载（推荐方式）..." : "Loading from CDN (recommended)...",
             );
 
             // 创建新的 FFmpeg 实例（避免状态污染）
             const ffmpegCDN = new FFmpeg();
             ffmpegCDN.on("log", ({ message }) => {
-              console.log(`[FFmpeg CDN]:`, message);
+              console.log(`[FFmpeg]:`, message);
+              // 只显示关键日志，减少 UI 更新
+              if (message.includes("error") || message.includes("Error") || message.includes("warning")) {
+                setLoadingProgress(`${message.substring(0, 80)}`);
+              }
             });
 
-            // CDN 回退 - 尝试 ESM 版本（可能比 UMD 更兼容）
-            // 注意：如果 ESM 失败，会回退到 UMD
-            let cdnBase = "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm";
-            let coreCDN = `${cdnBase}/ffmpeg-core.js`;
-            let wasmCDN = `${cdnBase}/ffmpeg-core.wasm`;
-            
-            console.log("📦 Trying ESM version from CDN first...");
+            // CDN 源列表（按优先级排序，jsDelivr 最快最稳定）
+            const cdnSources = [
+              {
+                name: "jsDelivr ESM",
+                base: "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm",
+              },
+              {
+                name: "jsDelivr UMD",
+                base: "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd",
+              },
+              {
+                name: "UNPKG",
+                base: "https://unpkg.com/@ffmpeg/core@0.12.10/dist/esm",
+              },
+            ];
 
-            try {
-              // 方法1：直接使用 toBlobURL（官方推荐）
-              console.log("🔄 Using toBlobURL from CDN (official method)...");
-              setLoadingProgress(
-                language === "zh-CN" ? "正在从 CDN 转换文件格式..." : "Converting CDN files...",
-              );
-              
-              const coreBlobURL = await toBlobURL(coreCDN, "text/javascript");
-              const wasmBlobURL = await toBlobURL(wasmCDN, "application/wasm");
-              
-              console.log("✅ Blob URLs created from CDN with toBlobURL");
-              setLoadingProgress(
-                language === "zh-CN" ? "正在初始化 FFmpeg..." : "Initializing FFmpeg...",
-              );
+            let lastError: Error | null = null;
+            let loaded = false;
 
-              await ffmpegCDN.load({
-                coreURL: coreBlobURL,
-                wasmURL: wasmBlobURL,
+            // 辅助函数：带超时的下载
+            const downloadWithTimeout = async (url: string, timeout: number = 30000): Promise<string> => {
+              return new Promise(async (resolve, reject) => {
+                const downloadTimer = setTimeout(() => {
+                  reject(new Error(`Download timeout after ${timeout / 1000}s: ${url}`));
+                }, timeout);
+
+                try {
+                  // 方法1：尝试 toBlobURL（官方推荐）
+                  try {
+                    const blobURL = await toBlobURL(url, url.endsWith('.wasm') ? 'application/wasm' : 'text/javascript');
+                    clearTimeout(downloadTimer);
+                    resolve(blobURL);
+                    return;
+                  } catch (blobErr) {
+                    console.warn(`toBlobURL failed, trying fetchFile:`, blobErr);
+                  }
+
+                  // 方法2：使用 fetchFile（备选方案）
+                  const file = await fetchFile(url);
+                  const blob = new Blob([file as any], { 
+                    type: url.endsWith('.wasm') ? 'application/wasm' : 'text/javascript' 
+                  });
+                  const blobURL = URL.createObjectURL(blob);
+                  clearTimeout(downloadTimer);
+                  resolve(blobURL);
+                } catch (err) {
+                  clearTimeout(downloadTimer);
+                  reject(err);
+                }
               });
-              
-              // 成功，替换实例并重新设置事件监听
-              ffmpeg = ffmpegCDN;
-              ffmpeg.on("log", ({ message }) => {
-                console.log(`[FFmpeg]:`, message);
-                setLoadingProgress(`${message.substring(0, 80)}`);
+            };
+
+            // 辅助函数：带超时的 FFmpeg.load
+            const loadFFmpegInstance = async (
+              ffmpegInstance: FFmpeg,
+              coreURL: string,
+              wasmURL: string,
+              timeout: number = 60000
+            ): Promise<void> => {
+              return new Promise((resolve, reject) => {
+                const loadTimer = setTimeout(() => {
+                  reject(new Error(`FFmpeg.load timeout after ${timeout / 1000}s`));
+                }, timeout);
+
+                ffmpegInstance.load({
+                  coreURL,
+                  wasmURL,
+                })
+                  .then(() => {
+                    clearTimeout(loadTimer);
+                    resolve();
+                  })
+                  .catch((err) => {
+                    clearTimeout(loadTimer);
+                    reject(err);
+                  });
               });
-              console.log("✅ FFmpeg loaded successfully with toBlobURL from CDN");
-            } catch (blobErr) {
-              console.log("⚠️ toBlobURL from CDN failed, trying direct URL...");
-              console.error("toBlobURL error:", blobErr);
-              
+            };
+
+            for (const source of cdnSources) {
               try {
-                // 方法2：回退到直接 URL
-                console.log("🔄 Attempting direct CDN URL load...");
+                const coreCDN = `${source.base}/ffmpeg-core.js`;
+                const wasmCDN = `${source.base}/ffmpeg-core.wasm`;
+                
+                console.log(`📦 Trying ${source.name}...`);
                 setLoadingProgress(
-                  language === "zh-CN" ? "正在使用直接 CDN URL 加载..." : "Loading with direct CDN URL...",
+                  language === "zh-CN" 
+                    ? `正在从 ${source.name} 下载文件（约 30MB）...` 
+                    : `Downloading from ${source.name} (~30MB)...`,
                 );
                 
-                await ffmpegCDN.load({
-                  coreURL: coreCDN,
-                  wasmURL: wasmCDN,
-                });
-                console.log("✅ FFmpeg loaded with direct CDN URLs");
+                // 下载文件（带超时控制）
+                const coreBlobURL = await downloadWithTimeout(coreCDN, 45000); // 45秒超时
+                console.log(`✅ Core file downloaded from ${source.name}`);
                 
-                // 成功，替换实例
-                ffmpeg = ffmpegCDN;
-                ffmpeg.on("log", ({ message }) => {
-                  console.log(`[FFmpeg]:`, message);
-                  setLoadingProgress(`${message.substring(0, 80)}`);
-                });
-              } catch (directErr) {
-                console.log("⚠️ Direct CDN URL also failed, trying fetchFile...");
-                console.error("Direct URL error:", directErr);
-                
-                // 方法3：最后尝试 fetchFile
                 setLoadingProgress(
-                  language === "zh-CN" ? "正在从 CDN 下载文件..." : "Downloading files from CDN...",
+                  language === "zh-CN" 
+                    ? `正在下载 WASM 文件（${source.name}）...` 
+                    : `Downloading WASM file (${source.name})...`,
                 );
                 
-                const coreFile = await fetchFile(coreCDN);
-                const wasmFile = await fetchFile(wasmCDN);
+                const wasmBlobURL = await downloadWithTimeout(wasmCDN, 90000); // 90秒超时（WASM 文件较大）
+                console.log(`✅ WASM file downloaded from ${source.name}`);
                 
-                console.log("✅ CDN files fetched, creating Blob URLs manually...");
-                const coreBlobURL = URL.createObjectURL(new Blob([coreFile as any], { type: "text/javascript" }));
-                const wasmBlobURL = URL.createObjectURL(new Blob([wasmFile as any], { type: "application/wasm" }));
-                
+                console.log(`✅ All files downloaded from ${source.name}`);
                 setLoadingProgress(
-                  language === "zh-CN" ? "正在初始化 FFmpeg..." : "Initializing FFmpeg...",
+                  language === "zh-CN" ? "正在初始化 FFmpeg（这可能需要 10-20 秒）..." : "Initializing FFmpeg (may take 10-20 seconds)...",
                 );
 
-                await ffmpegCDN.load({
-                  coreURL: coreBlobURL,
-                  wasmURL: wasmBlobURL,
-                });
+                // 加载 FFmpeg（带超时控制）
+                await loadFFmpegInstance(ffmpegCDN, coreBlobURL, wasmBlobURL, 60000); // 60秒超时
                 
                 // 成功，替换实例并重新设置事件监听
                 ffmpeg = ffmpegCDN;
                 ffmpeg.on("log", ({ message }) => {
                   console.log(`[FFmpeg]:`, message);
-                  setLoadingProgress(`${message.substring(0, 80)}`);
                 });
-                console.log("✅ FFmpeg loaded with fetchFile from CDN");
+                console.log(`✅ FFmpeg loaded successfully from ${source.name}`);
+                loaded = true;
+                break; // 成功，退出循环
+              } catch (cdnErr) {
+                console.warn(`⚠️ ${source.name} failed:`, cdnErr);
+                lastError = cdnErr instanceof Error ? cdnErr : new Error(String(cdnErr));
+                setLoadingProgress(
+                  language === "zh-CN" 
+                    ? `${source.name} 加载失败，尝试下一个源...` 
+                    : `${source.name} failed, trying next source...`,
+                );
+                // 继续尝试下一个源
               }
+            }
+
+            if (!loaded) {
+              const errorMsg = lastError?.message || "All CDN sources failed";
+              console.error("❌ All CDN sources failed:", errorMsg);
+              throw lastError || new Error("All CDN sources failed");
             }
           }
 
@@ -435,7 +509,24 @@ export default function VideoCompression() {
                 ? err.message
                 : String(err);
           
-          // 收集完整的错误信息
+          // 检查是否是文件大小为 0 的问题
+          if (errorMsg.includes("Local files invalid") || errorMsg.includes("0 B") || errorMsg.includes("0B")) {
+            console.error("❌ 检测到本地文件无效（大小为 0 B）");
+            console.error("   解决方案：系统已自动切换到 CDN 加载");
+            // 不设置错误状态，因为已经尝试了 CDN
+          }
+          
+          // 检查是否是超时问题
+          if (errorMsg.includes("timeout") || errorMsg.includes("Timeout")) {
+            console.error("❌ 加载超时");
+            setLoadingProgress(
+              language === "zh-CN" 
+                ? "加载超时。可能原因：网络较慢或 CDN 不可用。\n\n建议：\n1. 检查网络连接\n2. 刷新页面重试\n3. 使用 VPN 或更换网络" 
+                : "Load timeout. Possible causes: slow network or CDN unavailable.\n\nSuggestions:\n1. Check network connection\n2. Refresh page and retry\n3. Use VPN or change network"
+            );
+          }
+          
+          // 收集完整的错误信息（仅用于调试）
           const errorDetails: any = {
             type: typeof err,
             message: errorMsg,
@@ -624,22 +715,22 @@ export default function VideoCompression() {
   // }, [language, checkEnvironment])
 
   // 初始化 FFmpeg（使用本地文件 + 超时控制）
-  const loadFFmpeg = useCallback(async () => {
+  const loadFFmpeg = useCallback(async (showAlert: boolean = true) => {
     if (ffmpegLoaded || ffmpegLoading) return true
     
     setFfmpegLoading(true)
     setLoadingProgress(language === 'zh-CN' ? '正在加载视频处理引擎...' : 'Loading video processing engine...')
 
-    // 尝试加载（30秒超时）
-    const success = await loadFFmpegWithTimeout(30000)
+    // 尝试加载（线上环境需要更长时间，120秒超时）
+    const success = await loadFFmpegWithTimeout(120000)
     
     setFfmpegLoading(false)
     setLoadingProgress('')
     
-    if (!success) {
+    if (!success && showAlert) {
       const errorMessage = language === 'zh-CN'
-        ? 'FFmpeg 加载失败或超时（30秒）。\n\n这是 FFmpeg.wasm 的已知问题，初始化可能会卡住。\n\n建议方案：\n1. 刷新页面重试\n2. 使用较小的视频文件测试\n3. 如需处理大文件，建议使用桌面软件\n\n技术限制：\n- FFmpeg.wasm 无硬件加速\n- 浏览器环境性能受限\n- 大文件处理可能不稳定'
-        : 'FFmpeg loading failed or timeout (30s).\n\nThis is a known issue with FFmpeg.wasm initialization.\n\nSuggestions:\n1. Refresh and retry\n2. Try smaller video files\n3. For large files, use desktop software\n\nTechnical limitations:\n- No hardware acceleration\n- Browser performance limits\n- Large file processing may be unstable'
+        ? '视频处理引擎加载失败\n\n可能原因：\n• 网络连接较慢（CDN 下载超时）\n• 本地文件无效（已自动切换到 CDN）\n• 浏览器兼容性问题\n• CDN 服务暂时不可用\n\n解决方案（按优先级）：\n1. 刷新页面重试（Ctrl + F5）\n2. 检查网络连接，确保可以访问 CDN\n3. 使用 Chrome/Edge 最新版本\n4. 清除浏览器缓存后重试\n5. 如果持续失败，请稍后再试\n\n技术说明：\n系统已尝试从多个 CDN 源加载（jsDelivr、UNPKG），\n每个源都有超时保护（45-90秒）。\n如果所有源都失败，可能是网络问题。'
+        : 'Video processing engine failed to load\n\nPossible causes:\n• Slow network connection (CDN download timeout)\n• Local files invalid (auto-switched to CDN)\n• Browser compatibility issue\n• CDN service temporarily unavailable\n\nSolutions (by priority):\n1. Refresh page (Ctrl + F5)\n2. Check network connection, ensure CDN access\n3. Use latest Chrome/Edge\n4. Clear browser cache and retry\n5. If persists, try again later\n\nTechnical note:\nSystem tried multiple CDN sources (jsDelivr, UNPKG),\neach with timeout protection (45-90s).\nIf all sources fail, it may be a network issue.'
       
       alert(errorMessage)
     }
@@ -793,40 +884,173 @@ export default function VideoCompression() {
     const ffmpeg = ffmpegRef.current
     currentTaskRef.current = task.id
 
+    // 进度更新相关变量（需要在 try-catch 外部定义，以便在 catch 中访问）
+    let lastProgressUpdate = 0
+    const PROGRESS_UPDATE_INTERVAL = 200 // 每 200ms 更新一次
+    let isTaskCompleted = false // 标记任务是否已完成
+    
+    // 进度处理器（需要在 try-catch 外部定义，以便在 catch 中移除）
+    const progressHandler = ({ progress: prog }: { progress: number }) => {
+      // 如果任务已完成，不再更新进度
+      if (isTaskCompleted) {
+        return
+      }
+      
+      const now = Date.now()
+      if (now - lastProgressUpdate < PROGRESS_UPDATE_INTERVAL) return
+      
+      lastProgressUpdate = now
+      const progressValue = Math.round(prog * 100)
+      
+      setTasks(prev => {
+        // 检查任务是否已经完成（防止覆盖完成状态）
+        const currentTask = prev.find(t => t.id === task.id)
+        if (currentTask?.status === 'completed') {
+          isTaskCompleted = true
+          return prev // 不更新已完成的任务
+        }
+        
+        const newTasks = prev.map(t => 
+          t.id === task.id 
+            ? { ...t, progress: progressValue, status: 'processing' as TaskStatus }
+            : t
+        )
+        tasksRef.current = newTasks
+        return newTasks
+      })
+    }
+
     try {
       // 读取文件
       const fileData = await fetchFile(task.file)
       await ffmpeg.writeFile('input.mp4', fileData)
 
-      // 构建 FFmpeg 命令
-      const args = buildFFmpegArgs(task.options, task.videoInfo)
+      // 自动性能优化：根据文件大小和分辨率调整参数
+      const optimizedOptions = { ...task.options }
       
-      // 设置进度监听
-      ffmpeg.on('progress', ({ progress: prog }) => {
-        const progressValue = Math.round(prog * 100)
-        setTasks(prev => {
-          const newTasks = prev.map(t => 
-            t.id === task.id 
-              ? { ...t, progress: progressValue, status: 'processing' as TaskStatus }
-              : t
-          )
-          tasksRef.current = newTasks
-          return newTasks
+      // 如果文件较大（> 50MB）或分辨率较高（> 1080p），自动优化
+      if (task.originalSize > 50 * 1024 * 1024 || (task.videoInfo && task.videoInfo.width > 1920)) {
+        if (!optimizedOptions.resolution || optimizedOptions.resolution === 'original') {
+          optimizedOptions.resolution = '1080p'
+        }
+        if (!optimizedOptions.fps && task.videoInfo && task.videoInfo.fps > 30) {
+          optimizedOptions.fps = 30
+        }
+        console.log('⚡ Auto-optimizing for large video:', {
+          originalSize: (task.originalSize / 1024 / 1024).toFixed(1) + ' MB',
+          resolution: optimizedOptions.resolution,
+          fps: optimizedOptions.fps || 'auto'
         })
+      }
+      
+      // 构建 FFmpeg 命令（使用优化后的选项）
+      const args = buildFFmpegArgs(optimizedOptions, task.videoInfo)
+      console.log('🚀 FFmpeg args (optimized for speed):', args.join(' '))
+      
+      // 设置日志监听（捕获错误和警告）
+      ffmpeg.on('log', ({ message, type }) => {
+        if (type === 'error' || message.toLowerCase().includes('error')) {
+          console.error('❌ FFmpeg error:', message)
+        } else if (message.toLowerCase().includes('warning')) {
+          console.warn('⚠️ FFmpeg warning:', message)
+        } else {
+          console.log('📝 FFmpeg log:', message)
+        }
       })
+      
+      // 注册进度监听器
+      ffmpeg.on('progress', progressHandler)
 
       // 执行压缩
+      console.log('🔄 Executing FFmpeg compression...')
       await ffmpeg.exec(args)
+      console.log('✅ FFmpeg execution completed')
+
+      // 检查输出文件是否存在
+      try {
+        const fileList = await ffmpeg.listDir('/')
+        console.log('📁 Files in FFmpeg FS:', fileList)
+        
+        const outputExists = fileList.some((file: any) => file.name === 'output.mp4')
+        if (!outputExists) {
+          throw new Error('Output file output.mp4 was not created')
+        }
+      } catch (listErr) {
+        console.warn('⚠️ Could not list FFmpeg filesystem:', listErr)
+      }
 
       // 读取输出文件
+      console.log('📖 Reading output file...')
       const data = await ffmpeg.readFile('output.mp4')
-      // 创建 Blob（FFmpeg 返回 Uint8Array）
-      // @ts-ignore - FFmpeg FileData type compatibility
-      const blob = new Blob([data], { type: 'video/mp4' })
+      
+      // 验证输出文件
+      if (!data) {
+        throw new Error('Output file data is null or undefined')
+      }
+      
+      // 确保 data 是 Uint8Array
+      let uint8Data: Uint8Array
+      if (data instanceof Uint8Array) {
+        uint8Data = data
+      } else if (data && typeof data === 'object' && 'buffer' in data) {
+        // 处理 ArrayBuffer 或类似对象
+        const buffer = (data as any).buffer || data
+        uint8Data = buffer instanceof ArrayBuffer ? new Uint8Array(buffer) : new Uint8Array(data as any)
+      } else if (typeof data === 'string') {
+        // 如果是字符串，转换为 Uint8Array
+        uint8Data = new TextEncoder().encode(data)
+      } else {
+        // 尝试转换为 Uint8Array
+        uint8Data = new Uint8Array(data as any)
+      }
+      
+      if (uint8Data.length === 0) {
+        throw new Error(`Output file size is 0 bytes. Original file size: ${task.originalSize} bytes`)
+      }
+      
+      const compressedSize = uint8Data.length
+      const compressionRatio = ((task.originalSize - compressedSize) / task.originalSize * 100).toFixed(1)
+      
+      console.log(`✅ Output file size: ${(compressedSize / 1024 / 1024).toFixed(2)} MB (original: ${(task.originalSize / 1024 / 1024).toFixed(2)} MB)`)
+      console.log(`📊 Compression ratio: ${compressionRatio}%`)
+      
+      // 检查压缩效果
+      if (compressedSize > task.originalSize) {
+        console.warn(`⚠️ Compressed file is LARGER than original! (${((compressedSize - task.originalSize) / task.originalSize * 100).toFixed(1)}% larger)`)
+        console.warn('   This usually means:')
+        console.warn('   1. CRF value is too low (quality too high)')
+        console.warn('   2. Original video is already well compressed')
+        console.warn('   3. Preset is too fast (low compression ratio)')
+      }
+      
+      // 创建 Blob（使用类型断言避免类型错误）
+      const blob = new Blob([uint8Data as any], { type: 'video/mp4' })
+      
+      if (blob.size === 0) {
+        throw new Error('Blob size is 0 bytes after creation')
+      }
+      
       const compressedPreview = URL.createObjectURL(blob)
 
-      // 更新任务状态
+      // 标记任务已完成，防止进度更新覆盖状态
+      isTaskCompleted = true
+      
+      // 移除进度监听器（防止后续进度更新覆盖完成状态）
+      try {
+        ffmpeg.off('progress', progressHandler)
+      } catch (err) {
+        console.warn('Failed to remove progress handler:', err)
+      }
+
+      // 更新任务状态（使用函数式更新确保原子性）
       setTasks(prev => {
+        // 双重检查：确保任务确实还在处理中（防止并发问题）
+        const currentTask = prev.find(t => t.id === task.id)
+        if (currentTask?.status === 'completed') {
+          // 任务已经完成，不重复更新
+          return prev
+        }
+        
         const newTasks = prev.map(t => 
           t.id === task.id 
             ? {
@@ -851,6 +1075,16 @@ export default function VideoCompression() {
       }
 
     } catch (error) {
+      // 标记任务已完成（失败也算完成），防止进度更新覆盖状态
+      isTaskCompleted = true
+      
+      // 移除进度监听器
+      try {
+        ffmpeg.off('progress', progressHandler)
+      } catch (err) {
+        console.warn('Failed to remove progress handler on error:', err)
+      }
+      
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       setTasks(prev => {
         const newTasks = prev.map(t => 
@@ -871,29 +1105,57 @@ export default function VideoCompression() {
     }
   }, [])
 
-  // 构建 FFmpeg 参数
+  // 构建 FFmpeg 参数（性能优化版本）
   const buildFFmpegArgs = useCallback((options: CompressionOptions, videoInfo?: CompressionTask['videoInfo']): string[] => {
     const args = ['-i', 'input.mp4']
 
     // 编码器
     if (options.codec === 'h264') {
       args.push('-c:v', 'libx264')
+      // 性能优化：使用 faster 预设（平衡速度和压缩率，veryfast 压缩率仍然偏低）
+      // faster 比 veryfast 稍慢但压缩率更好，比 fast 快很多
+      args.push('-preset', 'faster')
+      // 性能优化：自动使用所有 CPU 核心
+      args.push('-threads', '0')
+      // 性能优化：适中的参考帧（平衡速度和压缩率）
+      args.push('-refs', '3')
+      // 性能优化：使用 B-frames 提升压缩率
+      args.push('-bf', '3')
     } else {
       args.push('-c:v', 'libvpx-vp9')
+      // VP9 性能优化：最快速度
+      args.push('-speed', '4')
+      args.push('-threads', '0')
+      // 注意：-quality 和 -row-mt 可能在某些 FFmpeg 版本不支持，先移除
+      // args.push('-quality', 'realtime')
+      // args.push('-row-mt', '1')
     }
 
     // 压缩模式
     if (options.mode === 'crf') {
-      args.push('-crf', options.crf.toString())
+      // CRF 模式：值越大文件越小（18-28 是常用范围，28 压缩更激进）
+      // 确保 CRF 值在合理范围内（18-32），默认 28 确保压缩效果
+      const crfValue = Math.max(18, Math.min(32, options.crf || 28))
+      args.push('-crf', crfValue.toString())
+      // CRF 模式：添加最大码率限制，防止文件过大
+      if (videoInfo && videoInfo.bitrate) {
+        // 目标码率约为原始的 60-70%，确保压缩
+        const targetBitrate = Math.floor(videoInfo.bitrate * 0.65)
+        args.push('-maxrate', `${targetBitrate}k`)
+        args.push('-bufsize', `${targetBitrate * 2}k`)
+      }
     } else if (options.mode === 'bitrate' && options.bitrate) {
       args.push('-b:v', `${options.bitrate}k`)
+      args.push('-maxrate', `${options.bitrate * 1.2}k`)
+      args.push('-bufsize', `${options.bitrate * 2}k`)
     } else if (options.mode === 'size' && options.targetSize && videoInfo?.duration) {
-      // 计算目标码率
       const targetBitrate = Math.floor((options.targetSize * 8 * 1024) / videoInfo.duration)
       args.push('-b:v', `${targetBitrate}k`)
+      args.push('-maxrate', `${targetBitrate * 1.2}k`)
+      args.push('-bufsize', `${targetBitrate * 2}k`)
     }
 
-    // 分辨率
+    // 分辨率（使用快速缩放算法）
     if (options.resolution && options.resolution !== 'original' && videoInfo) {
       const resMap: Record<string, string> = {
         '1080p': '1920:-2',
@@ -901,20 +1163,34 @@ export default function VideoCompression() {
         '480p': '854:-2'
       }
       if (resMap[options.resolution]) {
-        args.push('-vf', `scale=${resMap[options.resolution]}`)
+        args.push('-vf', `scale=${resMap[options.resolution]}:flags=fast_bilinear`)
       }
     }
 
-    // 帧率
+    // 帧率（降低帧率可提升速度）
     if (options.fps) {
       args.push('-r', options.fps.toString())
+    } else if (videoInfo && videoInfo.fps > 30) {
+      // 自动降低高帧率到 30fps 以提升速度
+      args.push('-r', '30')
     }
 
-    // 音频
-    args.push('-c:a', 'aac', '-b:a', '128k')
+    // 音频（降低码率以减小文件大小）
+    args.push('-c:a', 'aac', '-b:a', '96k')  // 从 128k 降到 96k，文件更小
+    args.push('-ac', '2')  // 立体声
+    args.push('-ar', '44100')  // 采样率
 
-    // 输出
-    args.push('output.mp4')
+    // 性能优化：较小的 GOP 大小（提升速度）
+    args.push('-g', '30')
+
+    // 性能优化：快速启动（适合流媒体）
+    args.push('-movflags', '+faststart')
+
+    // 明确指定输出格式
+    args.push('-f', 'mp4')
+
+    // 输出（添加 -y 参数自动覆盖输出文件）
+    args.push('-y', 'output.mp4')
 
     return args
   }, [])
@@ -1049,6 +1325,23 @@ export default function VideoCompression() {
   // 切换任务选中状态
   const handleToggleTaskSelection = useCallback((taskId: string) => {
     setSelectedTasks(prev => {
+      // 使用最新的 tasks 状态验证任务
+      const currentTasks = tasksRef.current
+      const task = currentTasks.find(t => t.id === taskId)
+      
+      // 验证任务是否已完成
+      if (!task || task.status !== 'completed' || !task.compressedPreview) {
+        console.warn('Cannot select task that is not completed:', taskId)
+        // 如果任务未完成但已被选中，移除它
+        if (prev.has(taskId)) {
+          const newSet = new Set(prev)
+          newSet.delete(taskId)
+          return newSet
+        }
+        return prev
+      }
+
+      // 切换选中状态
       const newSet = new Set(prev)
       if (newSet.has(taskId)) {
         newSet.delete(taskId)
@@ -1059,14 +1352,33 @@ export default function VideoCompression() {
     })
   }, [])
 
-  // 全选/取消全选
+  // 全选/取消全选（只选择已完成的任务）
   const handleToggleSelectAll = useCallback(() => {
-    if (selectedTasks.size === tasks.length) {
-      setSelectedTasks(new Set())
-    } else {
-      setSelectedTasks(new Set(tasks.map(t => t.id)))
-    }
-  }, [selectedTasks, tasks])
+    setSelectedTasks(prev => {
+      // 使用最新的 tasks 状态
+      const currentTasks = tasksRef.current
+      const completedTaskIds = currentTasks
+        .filter(t => t.status === 'completed' && t.compressedPreview)
+        .map(t => t.id)
+      
+      if (completedTaskIds.length === 0) {
+        // 没有已完成的任务，清空选择
+        return new Set()
+      }
+      
+      // 检查是否所有已完成的任务都被选中
+      const allCompletedSelected = completedTaskIds.length > 0 && 
+        completedTaskIds.every(id => prev.has(id))
+      
+      if (allCompletedSelected) {
+        // 取消全选
+        return new Set()
+      } else {
+        // 全选所有已完成的任务
+        return new Set(completedTaskIds)
+      }
+    })
+  }, [])
 
   // 拖拽排序
   const handleDragStart = useCallback((index: number) => {
@@ -1112,38 +1424,179 @@ export default function VideoCompression() {
   }, [tasks])
 
   // 下载单个文件
-  const handleDownloadSingle = useCallback((task: CompressionTask) => {
-    if (!task.compressedPreview) return
-    fetch(task.compressedPreview)
-      .then(res => res.blob())
-      .then(blob => {
-        const fileName = task.file.name.replace(/\.[^/.]+$/, '') + '_compressed.mp4'
-        saveAs(blob, fileName)
-      })
-  }, [])
-
-  // 下载全部
-  const handleDownloadAll = useCallback(async () => {
-    const completedTasks = tasks.filter(t => t.status === 'completed')
-    if (completedTasks.length === 0) return
-
-    if (completedTasks.length === 1) {
-      handleDownloadSingle(completedTasks[0])
+  // 下载单个视频
+  const handleDownloadSingle = useCallback(async (task: CompressionTask) => {
+    if (!task.compressedPreview) {
+      console.warn('No compressed preview available for download')
       return
     }
 
-    const zip = new JSZip()
+    try {
+      // 从 Blob URL 获取 Blob 对象
+      const response = await fetch(task.compressedPreview)
+      if (!response.ok) {
+        throw new Error(`Failed to fetch compressed video: ${response.statusText}`)
+      }
+      
+      const blob = await response.blob()
+      if (blob.size === 0) {
+        throw new Error('Compressed video file is empty')
+      }
+
+      // 生成文件名（保留原文件名，添加 _compressed 后缀）
+      const originalName = task.file.name.replace(/\.[^/.]+$/, '')
+      const extension = task.file.name.match(/\.[^/.]+$/)?.[0] || '.mp4'
+      const fileName = `${originalName}_compressed${extension}`
+
+      // 下载文件
+      saveAs(blob, fileName)
+      console.log(`✅ Downloaded: ${fileName} (${(blob.size / 1024 / 1024).toFixed(2)} MB)`)
+    } catch (error) {
+      console.error('❌ Download failed:', error)
+      alert(
+        language === 'zh-CN' 
+          ? `下载失败：${error instanceof Error ? error.message : String(error)}`
+          : `Download failed: ${error instanceof Error ? error.message : String(error)}`
+      )
+    }
+  }, [language])
+
+  // 下载全部视频（打包为 ZIP）
+  // 如果用户选择了任务，只下载选中的已完成任务
+  // 如果用户没有选择任务，下载所有已完成的任务
+  const handleDownloadAll = useCallback(async () => {
+    // 使用最新的 tasks 状态
+    const currentTasks = tasksRef.current
+    const currentSelectedTasks = selectedTasks
     
-    for (const task of completedTasks) {
-      if (!task.compressedPreview) continue
-      const blob = await fetch(task.compressedPreview).then(r => r.blob())
-      const fileName = task.file.name.replace(/\.[^/.]+$/, '') + '_compressed.mp4'
-      zip.file(fileName, blob)
+    // 获取所有已完成的任务
+    const allCompletedTasks = currentTasks.filter(t => t.status === 'completed' && t.compressedPreview)
+    
+    if (allCompletedTasks.length === 0) {
+      alert(
+        language === 'zh-CN' 
+          ? '没有可下载的压缩视频'
+          : 'No compressed videos available for download'
+      )
+      return
     }
 
-    const zipBlob = await zip.generateAsync({ type: 'blob' })
-    saveAs(zipBlob, 'compressed_videos.zip')
-  }, [tasks, handleDownloadSingle])
+    // 确定要下载的任务列表
+    let tasksToDownload: CompressionTask[]
+    
+    if (currentSelectedTasks.size > 0) {
+      // 用户选择了任务，只下载选中的已完成任务
+      // 确保只包含已完成的任务
+      const selectedCompletedTasks = allCompletedTasks.filter(t => currentSelectedTasks.has(t.id))
+      
+      if (selectedCompletedTasks.length === 0) {
+        alert(
+          language === 'zh-CN' 
+            ? '选中的任务中没有已完成的视频'
+            : 'No completed videos in selected tasks'
+        )
+        return
+      }
+      
+      tasksToDownload = selectedCompletedTasks
+    } else {
+      // 用户没有选择任务，下载所有已完成的任务
+      tasksToDownload = allCompletedTasks
+    }
+
+    // 如果只有一个文件，直接下载单个文件
+    if (tasksToDownload.length === 1) {
+      await handleDownloadSingle(tasksToDownload[0])
+      return
+    }
+
+    try {
+      setLoadingProgress(
+        language === 'zh-CN' 
+          ? `正在打包 ${tasksToDownload.length} 个视频...` 
+          : `Packaging ${tasksToDownload.length} videos...`
+      )
+
+      const zip = new JSZip()
+      let successCount = 0
+      let failCount = 0
+      
+      // 并行下载所有文件（提高速度）
+      const downloadPromises = tasksToDownload.map(async (task) => {
+        try {
+          const response = await fetch(task.compressedPreview!)
+          if (!response.ok) {
+            throw new Error(`Failed to fetch: ${response.statusText}`)
+          }
+          
+          const blob = await response.blob()
+          if (blob.size === 0) {
+            throw new Error('File is empty')
+          }
+
+          // 生成文件名
+          const originalName = task.file.name.replace(/\.[^/.]+$/, '')
+          const extension = task.file.name.match(/\.[^/.]+$/)?.[0] || '.mp4'
+          const fileName = `${originalName}_compressed${extension}`
+
+          // 添加到 ZIP
+          zip.file(fileName, blob)
+          successCount++
+          
+          console.log(`✅ Added to ZIP: ${fileName} (${(blob.size / 1024 / 1024).toFixed(2)} MB)`)
+        } catch (error) {
+          failCount++
+          console.error(`❌ Failed to add ${task.file.name} to ZIP:`, error)
+        }
+      })
+
+      // 等待所有下载完成
+      await Promise.all(downloadPromises)
+
+      if (successCount === 0) {
+        throw new Error('All files failed to download')
+      }
+
+      setLoadingProgress(
+        language === 'zh-CN' 
+          ? '正在生成 ZIP 文件...' 
+          : 'Generating ZIP file...'
+      )
+
+      // 生成 ZIP 文件
+      const zipBlob = await zip.generateAsync({ 
+        type: 'blob',
+        compression: 'DEFLATE',
+        compressionOptions: { level: 6 }
+      })
+
+      // 下载 ZIP 文件
+      const zipFileName = `compressed_videos_${new Date().toISOString().split('T')[0]}.zip`
+      saveAs(zipBlob, zipFileName)
+      
+      console.log(`✅ Downloaded ZIP: ${zipFileName} (${(zipBlob.size / 1024 / 1024).toFixed(2)} MB)`)
+      console.log(`   Success: ${successCount}, Failed: ${failCount}`)
+
+      setLoadingProgress('')
+
+      // 如果有失败的文件，提示用户
+      if (failCount > 0) {
+        alert(
+          language === 'zh-CN' 
+            ? `已下载 ${successCount} 个视频，${failCount} 个失败。请查看控制台了解详情。`
+            : `Downloaded ${successCount} videos, ${failCount} failed. Check console for details.`
+        )
+      }
+    } catch (error) {
+      console.error('❌ ZIP download failed:', error)
+      setLoadingProgress('')
+      alert(
+        language === 'zh-CN' 
+          ? `打包下载失败：${error instanceof Error ? error.message : String(error)}`
+          : `ZIP download failed: ${error instanceof Error ? error.message : String(error)}`
+      )
+    }
+  }, [selectedTasks, handleDownloadSingle, language])
 
   // 播放完成音效
   const playSuccessSound = useCallback(() => {
@@ -1392,18 +1845,27 @@ export default function VideoCompression() {
                 {language === 'zh-CN' ? '处理队列' : 'Processing Queue'} 
                 <span className="task-count">({tasks.length}/{MAX_FILES})</span>
               </h3>
-              {tasks.length > 0 && (
-                <button 
-                  className="btn-link"
-                  onClick={handleToggleSelectAll}
-                  title={language === 'zh-CN' ? '全选/取消全选' : 'Select All / Deselect All'}
-                >
-                  {selectedTasks.size === tasks.length ? <CheckSquare size={18} /> : <Square size={18} />}
-                  {language === 'zh-CN' 
-                    ? selectedTasks.size === tasks.length ? '取消全选' : '全选'
-                    : selectedTasks.size === tasks.length ? 'Deselect All' : 'Select All'}
-                </button>
-              )}
+              {tasks.length > 0 && (() => {
+                const completedTaskIds = tasks
+                  .filter(t => t.status === 'completed' && t.compressedPreview)
+                  .map(t => t.id)
+                const allCompletedSelected = completedTaskIds.length > 0 && 
+                  completedTaskIds.every(id => selectedTasks.has(id))
+                
+                return (
+                  <button 
+                    className="btn-link"
+                    onClick={handleToggleSelectAll}
+                    title={language === 'zh-CN' ? '全选/取消全选（仅已完成）' : 'Select All / Deselect All (Completed Only)'}
+                    disabled={completedTaskIds.length === 0}
+                  >
+                    {allCompletedSelected ? <CheckSquare size={18} /> : <Square size={18} />}
+                    {language === 'zh-CN' 
+                      ? allCompletedSelected ? '取消全选' : `全选 (${completedTaskIds.length})`
+                      : allCompletedSelected ? 'Deselect All' : `Select All (${completedTaskIds.length})`}
+                  </button>
+                )
+              })()}
             </div>
             <div className="action-buttons">
               {!isProcessing && (
@@ -1451,9 +1913,19 @@ export default function VideoCompression() {
                 onDragEnd={handleDragEnd}
               >
                 <button
-                  className="task-checkbox"
-                  onClick={() => handleToggleTaskSelection(task.id)}
-                  title={language === 'zh-CN' ? '选择/取消选择' : 'Select / Deselect'}
+                  className={`task-checkbox ${task.status === 'completed' && task.compressedPreview ? '' : 'disabled'}`}
+                  onClick={() => {
+                    // 只有已完成的任务才能被选中
+                    if (task.status === 'completed' && task.compressedPreview) {
+                      handleToggleTaskSelection(task.id)
+                    }
+                  }}
+                  disabled={task.status !== 'completed' || !task.compressedPreview}
+                  title={
+                    task.status === 'completed' && task.compressedPreview
+                      ? (language === 'zh-CN' ? '选择/取消选择' : 'Select / Deselect')
+                      : (language === 'zh-CN' ? '仅已完成的任务可选择' : 'Only completed tasks can be selected')
+                  }
                 >
                   {selectedTasks.has(task.id) ? <CheckSquare size={18} /> : <Square size={18} />}
                 </button>
@@ -1529,11 +2001,12 @@ export default function VideoCompression() {
                 </div>
 
                 <div className="task-actions">
-                  {task.status === 'completed' && (
+                  {task.status === 'completed' && task.compressedPreview && (
                     <button 
                       className="btn-icon"
                       onClick={() => handleDownloadSingle(task)}
                       title={language === 'zh-CN' ? '下载' : 'Download'}
+                      disabled={!task.compressedPreview}
                     >
                       <Download size={16} />
                     </button>
@@ -1575,7 +2048,27 @@ export default function VideoCompression() {
           <div className="stats-actions">
             <button className="btn-primary" onClick={handleDownloadAll}>
               <Download size={20} />
-              {language === 'zh-CN' ? '下载全部' : 'Download All'}
+              {(() => {
+                // 计算实际可下载的数量
+                const currentTasks = tasksRef.current
+                const allCompletedTasks = currentTasks.filter(t => t.status === 'completed' && t.compressedPreview)
+                
+                if (selectedTasks.size > 0) {
+                  // 计算选中的已完成任务数量
+                  const selectedCompletedCount = allCompletedTasks.filter(t => selectedTasks.has(t.id)).length
+                  return selectedCompletedCount > 0
+                    ? (language === 'zh-CN' 
+                        ? `下载选中 (${selectedCompletedCount})` 
+                        : `Download Selected (${selectedCompletedCount})`)
+                    : (language === 'zh-CN' 
+                        ? `下载全部 (${stats.completedFiles})` 
+                        : `Download All (${stats.completedFiles})`)
+                } else {
+                  return language === 'zh-CN' 
+                    ? `下载全部 (${stats.completedFiles})` 
+                    : `Download All (${stats.completedFiles})`
+                }
+              })()}
             </button>
           </div>
         </div>

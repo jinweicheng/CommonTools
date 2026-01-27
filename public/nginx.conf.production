@@ -68,6 +68,30 @@ server {
         add_header Cross-Origin-Embedder-Policy "require-corp" always;
         add_header Cross-Origin-Resource-Policy "cross-origin" always;
         
+        # FFmpeg WASM 文件（必须在 /tools/ 下，确保 COOP/COEP 头部）
+        location ~ \.wasm$ {
+            add_header Content-Type "application/wasm" always;
+            add_header Cross-Origin-Opener-Policy "same-origin" always;
+            add_header Cross-Origin-Embedder-Policy "require-corp" always;
+            add_header Cross-Origin-Resource-Policy "cross-origin" always;
+            add_header Access-Control-Allow-Origin "*" always;
+            expires 1y;
+            add_header Cache-Control "public, immutable" always;
+        }
+        
+        # FFmpeg JS 文件（必须在 /tools/ 下，确保 COOP/COEP 头部）
+        location ~ ffmpeg-core\.js$ {
+            types { }
+            default_type application/javascript;
+            add_header Content-Type "application/javascript; charset=utf-8" always;
+            add_header Cross-Origin-Opener-Policy "same-origin" always;
+            add_header Cross-Origin-Embedder-Policy "require-corp" always;
+            add_header Cross-Origin-Resource-Policy "cross-origin" always;
+            add_header Access-Control-Allow-Origin "*" always;
+            expires 1y;
+            add_header Cache-Control "public, immutable" always;
+        }
+        
         # 确保 HTML 文件不缓存
         location ~ \.html$ {
             expires -1;
