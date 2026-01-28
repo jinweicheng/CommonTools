@@ -123,6 +123,14 @@
     <changefreq>weekly</changefreq>
     <priority>0.95</priority>
   </url>
+
+  <!-- 老照片修复 -->
+  <url>
+    <loc>https://commontools.top/tools/old-photo-restoration</loc>
+    <lastmod>2026-01-22</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.95</priority>
+  </url>
   
   <!-- 支持页面 -->
   <url>

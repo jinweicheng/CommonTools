@@ -58,6 +58,7 @@ export default {
     modernImageConverter: '现代格式',
     prorawConverter: 'ProRAW/HEIF',
     imageCompression: '图片压缩',
+    oldPhotoRestoration: '老照片修复',
     // 视频转换子菜单
     screenRecording: '屏幕录像',
     videoCompression: '视频压缩',

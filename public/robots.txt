@@ -15,6 +15,9 @@ Allow: /tools/video-compression
 # Image Compression - 🔥 重点功能（新增）
 Allow: /tools/image-compression
 
+# Old Photo Restoration - 🔥 重点功能（新增）
+Allow: /tools/old-photo-restoration
+
 # iPhone Screen Recording Processor - 🔥 重点功能
 Allow: /tools/screen-recording
 

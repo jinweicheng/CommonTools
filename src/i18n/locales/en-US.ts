@@ -58,6 +58,7 @@ export default {
     modernImageConverter: 'Modern Format',
     prorawConverter: 'ProRAW/HEIF',
     imageCompression: 'Image Compression',
+    oldPhotoRestoration: 'Old Photo Restoration',
     // Video conversion submenu
     screenRecording: 'Screen Recording',
     videoCompression: 'Video Compression',

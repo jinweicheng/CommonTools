@@ -47,6 +47,7 @@ export default function Layout({ children }: LayoutProps) {
         { path: '/modern-image-converter', icon: <Layers size={18} />, label: t('nav.modernImageConverter') },
         { path: '/proraw-converter', icon: <CameraIcon size={18} />, label: t('nav.prorawConverter') },
         { path: '/image-compression', icon: <Minimize2 size={18} />, label: t('nav.imageCompression') },
+        { path: '/old-photo-restoration', icon: <ImageIcon size={18} />, label: t('nav.oldPhotoRestoration') },
       ],
     },
     {
