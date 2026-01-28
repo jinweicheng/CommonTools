@@ -161,7 +161,7 @@
 
 .task-item {
   display: grid;
-  grid-template-columns: 300px 1fr auto;
+  grid-template-columns: 600px 1fr auto;
   gap: 1.5rem;
   padding: 1.5rem;
   background: rgba(30, 41, 59, 0.5);

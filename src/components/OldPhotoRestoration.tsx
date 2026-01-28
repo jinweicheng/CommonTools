@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { Upload, Download, X, Image, Settings, Loader2, AlertCircle, CheckCircle2, Sparkles } from 'lucide-react'
+import { Upload, Download, X, Image as ImageIcon, Settings, Loader2, AlertCircle, CheckCircle2, Sparkles } from 'lucide-react'
 import { useI18n } from '../i18n/I18nContext'
 import { saveAs } from 'file-saver'
 import './OldPhotoRestoration.css'
@@ -89,60 +89,123 @@ export default function OldPhotoRestoration() {
         return
       }
 
-      // 动态加载 OpenCV.js
-      const script = document.createElement('script')
-      script.src = 'https://docs.opencv.org/4.10.0/opencv.js'
-      script.async = true
-      
-      // OpenCV.js 加载完成后的处理
-      script.onload = () => {
-        const cv = (window as any).cv
-        if (!cv) {
-          setOpencvLoading(false)
-          reject(new Error('OpenCV.js loaded but cv object not found'))
-          return
-        }
+      // 动态加载 OpenCV.js（优先使用本地文件，然后尝试 CDN）
+      const loadScript = (src: string): Promise<void> => {
+        return new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+          script.src = src
+          script.async = true
+          script.crossOrigin = 'anonymous'
+          
+          script.onload = () => {
+            const cv = (window as any).cv
+            if (!cv) {
+              reject(new Error('OpenCV.js loaded but cv object not found'))
+              return
+            }
 
-        // 检查是否已经初始化
-        if (cv.Mat) {
-          // 已经初始化完成
-          opencvRef.current = cv
-          setOpencvLoaded(true)
-          setOpencvLoading(false)
-          resolve(true)
-        } else {
-          // 等待运行时初始化
-          cv.onRuntimeInitialized = () => {
-            opencvRef.current = cv
-            setOpencvLoaded(true)
-            setOpencvLoading(false)
-            resolve(true)
+            // 检查是否已经初始化
+            // OpenCV.js 加载后，cv 对象可能立即可用，也可能需要等待 onRuntimeInitialized
+            const checkInitialized = () => {
+              // 检查关键函数是否可用
+              if (cv && typeof cv.Mat === 'function' && typeof cv.matFromImageData === 'function') {
+                opencvRef.current = cv
+                setOpencvLoaded(true)
+                setOpencvLoading(false)
+                resolve()
+                return true
+              }
+              return false
+            }
+
+            // 立即检查
+            if (checkInitialized()) {
+              return
+            }
+
+            // 如果未初始化，等待运行时初始化
+            if (cv.onRuntimeInitialized) {
+              // 已经设置了回调，等待即可
+              const originalCallback = cv.onRuntimeInitialized
+              cv.onRuntimeInitialized = () => {
+                if (originalCallback) originalCallback()
+                if (checkInitialized()) {
+                  return
+                }
+                // 如果检查失败，等待一下再检查
+                setTimeout(() => {
+                  if (!checkInitialized()) {
+                    setOpencvLoading(false)
+                    reject(new Error('OpenCV.js initialized but core functions not available'))
+                  }
+                }, 1000)
+              }
+            } else {
+              // 设置初始化回调
+              cv.onRuntimeInitialized = () => {
+                setTimeout(() => {
+                  if (!checkInitialized()) {
+                    setOpencvLoading(false)
+                    reject(new Error('OpenCV.js initialized but core functions not available'))
+                  }
+                }, 100)
+              }
+            }
+            
+            // 超时处理
+            setTimeout(() => {
+              if (!opencvLoaded) {
+                setOpencvLoading(false)
+                reject(new Error('OpenCV.js initialization timeout'))
+              }
+            }, 30000)
           }
           
-          // 超时处理
-          setTimeout(() => {
-            if (!opencvLoaded) {
-              setOpencvLoading(false)
-              reject(new Error('OpenCV.js initialization timeout'))
-            }
-          }, 30000)
-        }
+          script.onerror = () => {
+            reject(new Error(`Failed to load OpenCV.js from ${src}`))
+          }
+          
+          document.head.appendChild(script)
+        })
       }
+
+      // 尝试加载顺序：本地文件 -> jsDelivr CDN -> docs.opencv.org
+      const isDev = import.meta.env.DEV
+      const baseURL = isDev ? window.location.origin : (window.location.origin + import.meta.env.BASE_URL)
+      const localPath = `${baseURL.replace(/\/+$/, '')}/opencv.js`
       
-      script.onerror = () => {
-        setOpencvLoading(false)
-        reject(new Error('Failed to load OpenCV.js'))
-      }
-      
-      document.head.appendChild(script)
+      // 先尝试本地文件
+      loadScript(localPath)
+        .catch(() => {
+          // 本地文件失败，尝试 jsDelivr CDN
+          console.log('Local OpenCV.js not found, trying jsDelivr CDN...')
+          return loadScript('https://cdn.jsdelivr.net/npm/opencv-js@4.10.0/dist/opencv.js')
+        })
+        .catch(() => {
+          // jsDelivr 失败，尝试 docs.opencv.org
+          console.log('jsDelivr CDN failed, trying docs.opencv.org...')
+          return loadScript('https://docs.opencv.org/4.10.0/opencv.js')
+        })
+        .then(() => {
+          resolve(true)
+        })
+        .catch((err) => {
+          setOpencvLoading(false)
+          reject(new Error(`Failed to load OpenCV.js from all sources: ${err.message}`))
+        })
     })
   }, [opencvLoaded, opencvLoading])
 
-  // 预加载 OpenCV
+  // 预加载 OpenCV（延迟加载，避免阻塞页面）
   useEffect(() => {
-    loadOpenCV().catch(() => {
-      console.warn('OpenCV preload failed, will retry on user action')
-    })
+    // 延迟 1 秒后预加载，避免影响页面初始加载
+    const timer = setTimeout(() => {
+      loadOpenCV().catch(() => {
+        console.warn('OpenCV preload failed, will retry on user action')
+      })
+    }, 1000)
+    
+    return () => clearTimeout(timer)
   }, [loadOpenCV])
 
 
@@ -208,9 +271,18 @@ export default function OldPhotoRestoration() {
   // 处理图像（使用 OpenCV.js 在主线程，但分块处理）
   const processImage = useCallback(async (task: RestorationTask): Promise<void> => {
     if (!opencvRef.current) {
-      const loaded = await loadOpenCV()
-      if (!loaded || !opencvRef.current) {
-        throw new Error('OpenCV not loaded')
+      try {
+        const loaded = await loadOpenCV()
+        if (!loaded || !opencvRef.current) {
+          throw new Error(language === 'zh-CN' 
+            ? 'OpenCV 加载失败，请检查网络连接或刷新页面重试'
+            : 'OpenCV failed to load, please check your network connection or refresh the page')
+        }
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : String(err)
+        throw new Error(language === 'zh-CN' 
+          ? `OpenCV 加载失败: ${errorMessage}`
+          : `OpenCV loading failed: ${errorMessage}`)
       }
     }
 
@@ -257,13 +329,39 @@ export default function OldPhotoRestoration() {
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
 
       // 创建 OpenCV Mat
-      let src = cv.matFromImageData(imageData)
-      let processed = src.clone()
+      let src: any = null
+      let processed: any = null
+      
+      try {
+        src = cv.matFromImageData(imageData)
+        if (!src || src.empty()) {
+          throw new Error(language === 'zh-CN' 
+            ? '无法创建图像矩阵'
+            : 'Failed to create image matrix')
+        }
+        
+        processed = src.clone()
+        if (!processed || processed.empty()) {
+          throw new Error(language === 'zh-CN' 
+            ? '无法克隆图像矩阵'
+            : 'Failed to clone image matrix')
+        }
+      } catch (err) {
+        if (src) src.delete()
+        if (processed) processed.delete()
+        throw err
+      }
 
       // 使用异步操作避免 UI 卡死
       const yieldToUI = () => new Promise(resolve => setTimeout(resolve, 0))
 
       try {
+        // 验证 OpenCV 函数可用性
+        if (!cv.Mat || typeof cv.matFromImageData !== 'function') {
+          throw new Error(language === 'zh-CN' 
+            ? 'OpenCV 核心函数不可用，请刷新页面重试'
+            : 'OpenCV core functions not available, please refresh the page')
+        }
 
         // 1. 去噪
         if (options.denoise) {
@@ -277,16 +375,52 @@ export default function OldPhotoRestoration() {
 
           await yieldToUI() // 让出控制权
 
+          // 验证 src Mat 是否有效
+          if (src.empty() || src.cols === 0 || src.rows === 0) {
+            throw new Error('Source Mat is empty or invalid')
+          }
+          
           const dst = new cv.Mat()
-          const h = (options.denoiseStrength / 100) * 10
-          cv.fastNlMeansDenoisingColored(src, dst, h, 10, 7, 21)
-          processed.delete()
-          processed = dst
+          const h = Math.max(1, Math.min(10, (options.denoiseStrength / 100) * 10)) // 限制范围 1-10
+          
+          try {
+            // 检查函数是否存在，如果不存在则使用替代方法
+            if (typeof cv.fastNlMeansDenoisingColored === 'function') {
+              cv.fastNlMeansDenoisingColored(src, dst, h, 10, 7, 21)
+            } else if (typeof cv.fastNlMeansDenoising === 'function') {
+              // 降级到灰度去噪（需要先转换）
+              const gray = new cv.Mat()
+              try {
+                cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY)
+                cv.fastNlMeansDenoising(gray, gray, h, 7, 21)
+                cv.cvtColor(gray, dst, cv.COLOR_GRAY2RGBA)
+              } finally {
+                gray.delete()
+              }
+            } else {
+              // 如果去噪函数都不存在，使用高斯模糊作为替代
+              console.warn('fastNlMeansDenoisingColored not available, using Gaussian blur instead')
+              const kernelSize = Math.max(3, Math.floor(h / 2) * 2 + 1) // 确保是奇数
+              cv.GaussianBlur(src, dst, new cv.Size(kernelSize, kernelSize), 0, 0, cv.BORDER_DEFAULT)
+            }
+            
+            // 验证结果
+            if (dst.empty() || dst.cols === 0 || dst.rows === 0) {
+              dst.delete()
+              throw new Error('Denoising result is invalid')
+            }
+            
+            processed.delete()
+            processed = dst
+          } catch (err) {
+            dst.delete()
+            throw err
+          }
           
           await yieldToUI() // 让出控制权
         }
 
-        // 2. 自动对比度
+        // 2. 自动对比度（简化版本，避免 LAB 转换问题）
         if (options.autoContrast) {
           setTasks(prev => prev.map(t => 
             t.id === task.id ? { 
@@ -298,37 +432,84 @@ export default function OldPhotoRestoration() {
 
           await yieldToUI() // 让出控制权
 
-          // 转换为 LAB 颜色空间进行对比度调整
-          // 先转换为 RGB（去除 Alpha 通道）
-          const rgb = new cv.Mat()
-          cv.cvtColor(processed, rgb, cv.COLOR_RGBA2RGB)
+          // 验证 processed Mat 是否有效
+          if (processed.empty() || processed.cols === 0 || processed.rows === 0) {
+            throw new Error('Processed Mat is empty or invalid before contrast adjustment')
+          }
+
+          // 使用更简单的方法：转换为灰度 -> 直方图均衡化 -> 转换回彩色
+          // 这样可以避免 LAB 颜色空间转换可能的问题
+          // 先备份 processed，以防出错
+          const processedBackup = processed.clone()
+          const gray = new cv.Mat()
+          let enhanced: any = new cv.Mat()
+          let blended: any = null
           
-          // 转换为 LAB
-          const lab = new cv.Mat()
-          cv.cvtColor(rgb, lab, cv.COLOR_RGB2Lab)
-          
-          // 分离通道
-          const channels = new cv.MatVector()
-          cv.split(lab, channels)
-          
-          // 对 L 通道应用 CLAHE
-          const clahe = new cv.CLAHE(2.0, new cv.Size(8, 8))
-          clahe.apply(channels.get(0), channels.get(0))
-          
-          // 合并通道
-          cv.merge(channels, lab)
-          
-          // 转换回 RGB
-          cv.cvtColor(lab, rgb, cv.COLOR_Lab2RGB)
-          
-          // 转换回 RGBA
-          cv.cvtColor(rgb, processed, cv.COLOR_RGB2RGBA)
-          
-          // 清理
-          rgb.delete()
-          channels.delete()
-          lab.delete()
-          clahe.delete()
+          try {
+            // 转换为灰度
+            cv.cvtColor(processed, gray, cv.COLOR_RGBA2GRAY)
+            
+            // 应用直方图均衡化
+            cv.equalizeHist(gray, gray)
+            
+            // 转换回 RGBA（使用灰度作为所有通道）
+            cv.cvtColor(gray, enhanced, cv.COLOR_GRAY2RGBA)
+            
+            // 确保两个 Mat 尺寸相同
+            if (processed.cols !== enhanced.cols || processed.rows !== enhanced.rows) {
+              // 如果尺寸不同，先调整 enhanced 的尺寸
+              const resizedEnhanced = new cv.Mat()
+              cv.resize(enhanced, resizedEnhanced, new cv.Size(processed.cols, processed.rows), 0, 0, cv.INTER_LINEAR)
+              enhanced.delete()
+              enhanced = resizedEnhanced
+            }
+            
+            // 混合原图和增强图（保留颜色信息）
+            // 使用加权混合：70% 原图 + 30% 增强图
+            blended = new cv.Mat()
+            cv.addWeighted(processed, 0.7, enhanced, 0.3, 0, blended)
+            
+            // 验证结果
+            if (blended.empty() || blended.cols === 0 || blended.rows === 0) {
+              if (blended && !blended.empty) blended.delete()
+              throw new Error('Blended Mat is invalid')
+            }
+            
+            // 只有在成功后才删除原 processed 和备份
+            processed.delete()
+            processedBackup.delete()
+            processed = blended
+            blended = null // 标记已转移
+            
+            gray.delete()
+            enhanced.delete()
+          } catch (err) {
+            // 清理所有临时 Mat
+            try {
+              if (gray && !gray.empty && !gray.empty()) gray.delete()
+            } catch (e) {}
+            try {
+              if (enhanced && !enhanced.empty && !enhanced.empty()) enhanced.delete()
+            } catch (e) {}
+            try {
+              if (blended && !blended.empty && !blended.empty()) blended.delete()
+            } catch (e) {}
+            
+            // 如果对比度调整失败，恢复备份（processed 保持不变或使用备份）
+            try {
+              if (processed && !processed.empty && !processed.empty() && processed.cols > 0 && processed.rows > 0) {
+                // processed 仍然有效，继续使用
+                processedBackup.delete()
+              } else {
+                // processed 已损坏，使用备份
+                processed = processedBackup
+              }
+            } catch (e) {
+              // 如果检查失败，直接使用备份
+              processed = processedBackup
+            }
+            console.warn('Contrast adjustment failed, continuing with original:', err)
+          }
           
           await yieldToUI() // 让出控制权
         }
@@ -345,19 +526,41 @@ export default function OldPhotoRestoration() {
 
           await yieldToUI() // 让出控制权
 
+          // 验证 processed Mat 是否有效
+          if (processed.empty() || processed.cols === 0 || processed.rows === 0) {
+            throw new Error('Processed Mat is empty or invalid before sharpening')
+          }
+
           const kernel = new cv.Mat(3, 3, cv.CV_32F)
-          const center = -0.5 * (options.sharpenStrength / 100)
-          const others = center / 8
-          kernel.data32F.set([
-            others, others, others,
-            others, 1 - center, others,
-            others, others, others
-          ])
-          
           const dst = new cv.Mat()
-          cv.filter2D(processed, dst, cv.CV_8U, kernel, new cv.Point(-1, -1), 0, cv.BORDER_DEFAULT)
-          processed.delete()
-          processed = dst
+          
+          try {
+            const center = -0.5 * (options.sharpenStrength / 100)
+            const others = center / 8
+            
+            // 确保 kernel 数据有效
+            const kernelData = new Float32Array([
+              others, others, others,
+              others, 1 - center, others,
+              others, others, others
+            ])
+            kernel.data32F.set(kernelData)
+            
+            cv.filter2D(processed, dst, cv.CV_8U, kernel, new cv.Point(-1, -1), 0, cv.BORDER_DEFAULT)
+            
+            // 验证结果
+            if (dst.empty() || dst.cols === 0 || dst.rows === 0) {
+              throw new Error('Sharpening result is invalid')
+            }
+            
+            processed.delete()
+            processed = dst
+          } catch (err) {
+            dst.delete()
+            kernel.delete()
+            throw err
+          }
+          
           kernel.delete()
           
           await yieldToUI() // 让出控制权
@@ -375,26 +578,72 @@ export default function OldPhotoRestoration() {
 
           await yieldToUI() // 让出控制权
 
-          const gray = new cv.Mat()
-          cv.cvtColor(processed, gray, cv.COLOR_RGBA2GRAY)
-          
-          const edges = new cv.Mat()
-          const threshold = Math.floor((options.scratchRepairStrength / 100) * 50) + 50
-          cv.Canny(gray, edges, threshold, threshold * 2)
-          
-          const kernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(3, 3))
-          const dilated = new cv.Mat()
-          cv.dilate(edges, dilated, kernel, new cv.Point(-1, -1), 2)
-          
-          const dst = new cv.Mat()
-          cv.inpaint(processed, dilated, dst, 3, cv.INPAINT_TELEA)
-          processed.delete()
-          processed = dst
-          
-          gray.delete()
-          edges.delete()
-          dilated.delete()
-          kernel.delete()
+          // 验证 processed Mat 是否有效
+          if (processed.empty() || processed.cols === 0 || processed.rows === 0) {
+            throw new Error('Processed Mat is empty or invalid before scratch repair')
+          }
+
+          // 检查 inpaint 函数是否可用
+          if (typeof cv.inpaint === 'function') {
+            const gray = new cv.Mat()
+            const edges = new cv.Mat()
+            const dilated = new cv.Mat()
+            const dst = new cv.Mat()
+            let kernel: any = null
+            
+            try {
+              cv.cvtColor(processed, gray, cv.COLOR_RGBA2GRAY)
+              
+              const threshold = Math.max(50, Math.min(200, Math.floor((options.scratchRepairStrength / 100) * 50) + 50))
+              cv.Canny(gray, edges, threshold, threshold * 2)
+              
+              kernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(3, 3))
+              cv.dilate(edges, dilated, kernel, new cv.Point(-1, -1), 2)
+              
+              cv.inpaint(processed, dilated, dst, 3, cv.INPAINT_TELEA)
+              
+              // 验证结果
+              if (dst.empty() || dst.cols === 0 || dst.rows === 0) {
+                throw new Error('Inpainting result is invalid')
+              }
+              
+              processed.delete()
+              processed = dst
+            } catch (err) {
+              gray.delete()
+              edges.delete()
+              dilated.delete()
+              dst.delete()
+              if (kernel) kernel.delete()
+              // 如果 inpaint 失败，使用中值滤波作为替代
+              console.warn('inpaint failed, using medianBlur instead:', err)
+              const fallbackDst = new cv.Mat()
+              cv.medianBlur(processed, fallbackDst, 5)
+              processed.delete()
+              processed = fallbackDst
+            } finally {
+              if (gray && !gray.isDeleted()) gray.delete()
+              if (edges && !edges.isDeleted()) edges.delete()
+              if (dilated && !dilated.isDeleted()) dilated.delete()
+              if (kernel && !kernel.isDeleted()) kernel.delete()
+            }
+          } else {
+            // 如果 inpaint 不可用，使用中值滤波作为替代
+            console.warn('inpaint not available, using medianBlur instead')
+            const dst = new cv.Mat()
+            try {
+              cv.medianBlur(processed, dst, 5)
+              if (dst.empty() || dst.cols === 0 || dst.rows === 0) {
+                dst.delete()
+                throw new Error('Median blur result is invalid')
+              }
+              processed.delete()
+              processed = dst
+            } catch (err) {
+              dst.delete()
+              throw err
+            }
+          }
           
           await yieldToUI() // 让出控制权
         }
@@ -410,16 +659,77 @@ export default function OldPhotoRestoration() {
 
         await yieldToUI() // 让出控制权
 
+        // 验证 processed Mat 是否有效
+        // 注意：OpenCV.js Mat 对象可能没有 isDeleted 属性，使用 try-catch 更安全
+        let isValid = false
+        try {
+          isValid = processed && 
+                   !processed.empty() && 
+                   processed.cols > 0 && 
+                   processed.rows > 0 &&
+                   typeof processed.cols === 'number' &&
+                   typeof processed.rows === 'number'
+        } catch (err) {
+          isValid = false
+        }
+        
+        if (!isValid) {
+          throw new Error(language === 'zh-CN' 
+            ? '处理后的图像无效，请重试或使用其他图片'
+            : 'Processed image is invalid, please try again or use a different image')
+        }
+        
+        // 限制 Canvas 大小，避免内存问题
+        const maxDimension = 4096
+        let outputWidth = processed.cols
+        let outputHeight = processed.rows
+        
+        if (outputWidth > maxDimension || outputHeight > maxDimension) {
+          const scale = Math.min(maxDimension / outputWidth, maxDimension / outputHeight)
+          outputWidth = Math.floor(outputWidth * scale)
+          outputHeight = Math.floor(outputHeight * scale)
+          
+          // 缩放 Mat
+          const resized = new cv.Mat()
+          cv.resize(processed, resized, new cv.Size(outputWidth, outputHeight), 0, 0, cv.INTER_LINEAR)
+          processed.delete()
+          processed = resized
+        }
+        
         const resultCanvas = document.createElement('canvas')
         resultCanvas.width = processed.cols
         resultCanvas.height = processed.rows
-        const resultCtx = resultCanvas.getContext('2d')!
-        const resultImageData = resultCtx.createImageData(resultCanvas.width, resultCanvas.height)
-        cv.imshow(resultImageData, processed)
-
-        // 转换为 Blob
-        resultCtx.putImageData(resultImageData, 0, 0)
         
+        // cv.imshow 需要 Canvas 元素，而不是 ImageData
+        // 将 Mat 绘制到 Canvas 上
+        try {
+          // 确保 Canvas 已添加到 DOM（某些浏览器需要）
+          if (!resultCanvas.parentElement) {
+            document.body.appendChild(resultCanvas)
+            resultCanvas.style.display = 'none'
+          }
+          
+          cv.imshow(resultCanvas, processed)
+          
+          // 从 DOM 中移除（如果之前添加了）
+          if (resultCanvas.parentElement && resultCanvas.parentElement === document.body) {
+            document.body.removeChild(resultCanvas)
+          }
+        } catch (err) {
+          // 如果 imshow 失败，提供更详细的错误信息
+          const errorMsg = err instanceof Error ? err.message : String(err)
+          console.error('cv.imshow failed:', errorMsg, 'Mat info:', {
+            cols: processed.cols,
+            rows: processed.rows,
+            empty: processed.empty(),
+            type: processed.type ? processed.type() : 'unknown'
+          })
+          throw new Error(language === 'zh-CN' 
+            ? `无法将处理结果绘制到画布: ${errorMsg}`
+            : `Failed to draw result to canvas: ${errorMsg}`)
+        }
+        
+        // 直接使用 Canvas 转换为 Blob（cv.imshow 已经将 Mat 绘制到 Canvas 上了）
         resultCanvas.toBlob((blob) => {
           if (blob) {
             const resultUrl = URL.createObjectURL(blob)
@@ -454,15 +764,47 @@ export default function OldPhotoRestoration() {
           }
         }, `image/${options.outputFormat}`, options.outputQuality / 100)
 
-        src.delete()
-        processed.delete()
+        // 清理 Mat 对象（安全删除）
+        try {
+          if (src && !src.empty && !src.empty()) src.delete()
+        } catch (e) {
+          console.warn('Error deleting src Mat:', e)
+        }
+        try {
+          if (processed && !processed.empty && !processed.empty()) processed.delete()
+        } catch (e) {
+          console.warn('Error deleting processed Mat:', e)
+        }
       } catch (err) {
-        src.delete()
-        if (processed) processed.delete()
+        // 确保清理所有 Mat 对象
+        try {
+          if (src && !src.empty && !src.empty()) src.delete()
+        } catch (e) {
+          console.warn('Error deleting src Mat:', e)
+        }
+        try {
+          if (processed && !processed.empty && !processed.empty()) processed.delete()
+        } catch (e) {
+          console.warn('Error deleting processed Mat:', e)
+        }
         throw err
       }
     } catch (err) {
       console.error('Processing failed:', err)
+      
+      // 提供更友好的错误消息
+      let errorMessage = 'Unknown error'
+      if (err instanceof Error) {
+        errorMessage = err.message
+      } else if (typeof err === 'number') {
+        // OpenCV 错误代码
+        errorMessage = language === 'zh-CN' 
+          ? `OpenCV 错误代码: ${err}。请尝试刷新页面或使用其他图片。`
+          : `OpenCV error code: ${err}. Please try refreshing the page or using a different image.`
+      } else {
+        errorMessage = String(err)
+      }
+      
       setTasks(prev => prev.map(t => 
         t.id === task.id 
           ? { 
@@ -470,7 +812,7 @@ export default function OldPhotoRestoration() {
               status: 'failed' as const,
               progress: 0,
               progressMessage: undefined,
-              error: err instanceof Error ? err.message : String(err)
+              error: errorMessage
             } 
           : t
       ))
@@ -543,7 +885,7 @@ export default function OldPhotoRestoration() {
       <div className="restoration-header">
         <div className="header-content">
           <h1 className="tool-title">
-            <Image />
+            <ImageIcon />
             {language === 'zh-CN' ? '老照片修复' : 'Old Photo Restoration'}
           </h1>
           <p className="tool-description">
