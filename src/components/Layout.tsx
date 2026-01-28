@@ -29,10 +29,10 @@ export default function Layout({ children }: LayoutProps) {
   
   // 独立菜单项（不在分类下）
   const standaloneNavItems: NavItem[] = [
-    { path: '/', icon: <Shield size={18} />, label: t('nav.encryption') },
-    { path: '/conversion', icon: <Repeat size={18} />, label: t('nav.conversion') },
-    { path: '/watermark', icon: <Droplet size={18} />, label: t('nav.watermark') },
-    { path: '/signature', icon: <PenTool size={18} />, label: t('nav.signature') },
+    // { path: '/', icon: <Shield size={18} />, label: t('nav.encryption') },
+    // { path: '/conversion', icon: <Repeat size={18} />, label: t('nav.conversion') },
+    // { path: '/watermark', icon: <Droplet size={18} />, label: t('nav.watermark') },
+    // { path: '/signature', icon: <PenTool size={18} />, label: t('nav.signature') },
   ]
   
   // 分类导航
@@ -65,6 +65,10 @@ export default function Layout({ children }: LayoutProps) {
       label: t('nav.fileTools'),
       icon: <Archive size={18} />,
       items: [
+        { path: '/', icon: <Shield size={18} />, label: t('nav.encryption') },
+        { path: '/conversion', icon: <Repeat size={18} />, label: t('nav.conversion') },
+        { path: '/watermark', icon: <Droplet size={18} />, label: t('nav.watermark') },
+        { path: '/signature', icon: <PenTool size={18} />, label: t('nav.signature') },
         { path: '/compression', icon: <Archive size={18} />, label: t('nav.archiveCompression') },
       ],
     },
