@@ -25,12 +25,14 @@ interface RestorationTask {
 }
 
 interface RestorationOptions {
-  denoise: boolean
+  autoEnhance: boolean // 自动增强 ⭐⭐⭐⭐⭐
+  denoise: boolean // 去噪 ⭐⭐⭐⭐⭐
   denoiseStrength: number // 0-100
-  sharpen: boolean
+  sharpen: boolean // 锐化 ⭐⭐⭐⭐⭐
   sharpenStrength: number // 0-100
-  autoContrast: boolean
-  scratchRepair: boolean
+  grayBackgroundFix: boolean // 灰底修复 ⭐⭐⭐⭐
+  grayBackgroundFixStrength: number // 0-100
+  scratchRepair: boolean // 划痕淡化 ⭐⭐⭐
   scratchRepairStrength: number // 0-100
   superResolution: boolean
   outputFormat: OutputFormat
@@ -45,14 +47,16 @@ export default function OldPhotoRestoration() {
   const [opencvLoading, setOpencvLoading] = useState(false)
   const [deviceWarning, setDeviceWarning] = useState(false)
   
-  // 默认设置
+  // 默认设置（强烈推荐的功能组合）
   const [options, setOptions] = useState<RestorationOptions>({
-    denoise: true,
-    denoiseStrength: 50,
-    sharpen: true,
-    sharpenStrength: 50,
-    autoContrast: true,
-    scratchRepair: false,
+    autoEnhance: true, // ⭐⭐⭐⭐⭐ 自动增强
+    denoise: true, // ⭐⭐⭐⭐⭐ 去噪
+    denoiseStrength: 40, // 降低强度，避免过度模糊
+    sharpen: true, // ⭐⭐⭐⭐⭐ 锐化
+    sharpenStrength: 30, // 降低强度，避免过度锐化
+    grayBackgroundFix: true, // ⭐⭐⭐⭐ 灰底修复
+    grayBackgroundFixStrength: 60,
+    scratchRepair: false, // ⭐⭐⭐ 划痕淡化（默认关闭，需要时开启）
     scratchRepairStrength: 50,
     superResolution: false,
     outputFormat: 'jpg',
@@ -333,201 +337,400 @@ export default function OldPhotoRestoration() {
       let processed: any = null
       
       try {
-        src = cv.matFromImageData(imageData)
-        if (!src || src.empty()) {
+        // 验证 ImageData
+        if (!imageData || !imageData.data || imageData.width === 0 || imageData.height === 0) {
           throw new Error(language === 'zh-CN' 
-            ? '无法创建图像矩阵'
-            : 'Failed to create image matrix')
+            ? '图像数据无效'
+            : 'Invalid image data')
+        }
+        
+        // 检查图像尺寸是否过大
+        const maxDimension = 8192
+        if (imageData.width > maxDimension || imageData.height > maxDimension) {
+          throw new Error(language === 'zh-CN' 
+            ? `图像尺寸过大（最大 ${maxDimension}x${maxDimension}）`
+            : `Image size too large (max ${maxDimension}x${maxDimension})`)
+        }
+        
+        src = cv.matFromImageData(imageData)
+        if (!src || src.empty() || src.cols === 0 || src.rows === 0) {
+          throw new Error(language === 'zh-CN' 
+            ? `无法创建图像矩阵 (${imageData.width}x${imageData.height})`
+            : `Failed to create image matrix (${imageData.width}x${imageData.height})`)
         }
         
         processed = src.clone()
-        if (!processed || processed.empty()) {
+        if (!processed || processed.empty() || processed.cols === 0 || processed.rows === 0) {
           throw new Error(language === 'zh-CN' 
-            ? '无法克隆图像矩阵'
-            : 'Failed to clone image matrix')
+            ? `无法克隆图像矩阵 (${src.cols}x${src.rows})`
+            : `Failed to clone image matrix (${src.cols}x${src.rows})`)
         }
+        
+        console.log('Mat created successfully:', {
+          srcSize: `${src.cols}x${src.rows}`,
+          processedSize: `${processed.cols}x${processed.rows}`,
+          imageDataSize: `${imageData.width}x${imageData.height}`
+        })
       } catch (err) {
-        if (src) src.delete()
-        if (processed) processed.delete()
+        const errorMsg = err instanceof Error ? err.message : String(err)
+        console.error('Mat creation error:', errorMsg, {
+          imageDataValid: !!imageData,
+          imageDataSize: imageData ? `${imageData.width}x${imageData.height}` : 'null',
+          srcValid: src && !src.empty(),
+          processedValid: processed && !processed.empty()
+        })
+        try { if (src && !src.empty()) src.delete() } catch (e) {}
+        try { if (processed && !processed.empty()) processed.delete() } catch (e) {}
         throw err
       }
 
       // 使用异步操作避免 UI 卡死
       const yieldToUI = () => new Promise(resolve => setTimeout(resolve, 0))
 
+      // ========== 处理流程（按推荐顺序） ==========
       try {
         // 验证 OpenCV 函数可用性
         if (!cv.Mat || typeof cv.matFromImageData !== 'function') {
-          throw new Error(language === 'zh-CN' 
-            ? 'OpenCV 核心函数不可用，请刷新页面重试'
-            : 'OpenCV core functions not available, please refresh the page')
+          throw new Error(language === 'zh-CN' ? 'OpenCV 核心函数不可用，请刷新页面重试' : 'OpenCV core functions not available, please refresh the page')
+        }
+        
+        // 验证初始 processed Mat
+        if (!processed || processed.empty() || processed.cols === 0 || processed.rows === 0) {
+          throw new Error(`Initial processed Mat is invalid: cols=${processed?.cols}, rows=${processed?.rows}, empty=${processed?.empty()}`)
+        }
+        
+        console.log('Processing started:', {
+          imageSize: `${processed.cols}x${processed.rows}`,
+          options: {
+            autoEnhance: options.autoEnhance,
+            denoise: options.denoise,
+            sharpen: options.sharpen,
+            grayBackgroundFix: options.grayBackgroundFix,
+            scratchRepair: options.scratchRepair
+          }
+        })
+        // 1. 自动增强 ⭐⭐⭐⭐⭐（第一步，提升整体质量）
+        if (options.autoEnhance) {
+          setTasks(prev => prev.map(t => 
+            t.id === task.id ? { 
+              ...t, 
+              progress: 15,
+              progressMessage: language === 'zh-CN' ? '自动增强...' : 'Auto enhancing...'
+            } : t
+          ))
+
+          await yieldToUI()
+
+          if (processed.empty() || processed.cols === 0 || processed.rows === 0) {
+            throw new Error('Processed Mat is empty or invalid before auto enhance')
+          }
+
+          // 使用 CLAHE (Contrast Limited Adaptive Histogram Equalization) 进行自适应对比度增强
+          // 这是专业照片修复的标准方法
+          // 验证 processed Mat 是否有效
+          if (!processed || processed.empty() || processed.cols === 0 || processed.rows === 0) {
+            throw new Error('Processed Mat is invalid before auto enhance')
+          }
+          
+          const processedBackup = processed.clone()
+          let rgb: any = null
+          let lab: any = null
+          let channels: any = null
+          let enhanced: any = null
+          
+          try {
+            // 转换为 RGB（去除 Alpha）
+            rgb = new cv.Mat()
+            // 验证 processed 仍然有效
+            if (processed.empty() || processed.cols === 0 || processed.rows === 0) {
+              throw new Error('Processed Mat became invalid before RGB conversion')
+            }
+            cv.cvtColor(processed, rgb, cv.COLOR_RGBA2RGB)
+            
+            // 验证 RGB Mat
+            if (rgb.empty() || rgb.cols === 0 || rgb.rows === 0) {
+              throw new Error('RGB Mat conversion failed')
+            }
+            
+            // 转换为 LAB 颜色空间（L 通道包含亮度信息）
+            lab = new cv.Mat()
+            cv.cvtColor(rgb, lab, cv.COLOR_RGB2Lab)
+            
+            // 验证 LAB Mat
+            if (lab.empty() || lab.cols === 0 || lab.rows === 0) {
+              throw new Error('LAB Mat conversion failed')
+            }
+            
+            // 分离通道
+            channels = new cv.MatVector()
+            cv.split(lab, channels)
+            
+            // 验证通道数量
+            if (channels.size() < 3) {
+              throw new Error('Failed to split LAB channels')
+            }
+            
+            // 对 L 通道应用 CLAHE（如果可用）
+            const lChannel = channels.get(0)
+            if (lChannel.empty() || lChannel.cols === 0 || lChannel.rows === 0) {
+              throw new Error('L channel is invalid')
+            }
+            
+            if (typeof cv.CLAHE === 'function') {
+              const clahe = new cv.CLAHE(3.0, new cv.Size(8, 8)) // 提高对比度限制
+              clahe.apply(lChannel, lChannel)
+              clahe.delete()
+            } else {
+              // 降级方案：使用直方图均衡化
+              cv.equalizeHist(lChannel, lChannel)
+            }
+            
+            // 合并通道
+            cv.merge(channels, lab)
+            
+            // 验证合并后的 LAB Mat
+            if (lab.empty() || lab.cols === 0 || lab.rows === 0) {
+              throw new Error('LAB Mat merge failed')
+            }
+            
+            // 转换回 RGB
+            cv.cvtColor(lab, rgb, cv.COLOR_Lab2RGB)
+            
+            // 验证 RGB Mat
+            if (rgb.empty() || rgb.cols === 0 || rgb.rows === 0) {
+              throw new Error('RGB Mat conversion from LAB failed')
+            }
+            
+            // 转换回 RGBA
+            enhanced = new cv.Mat()
+            cv.cvtColor(rgb, enhanced, cv.COLOR_RGB2RGBA)
+            
+            // 验证结果
+            if (enhanced.empty() || enhanced.cols === 0 || enhanced.rows === 0) {
+              throw new Error('Auto enhance result is invalid')
+            }
+            
+            // 确保尺寸匹配
+            if (enhanced.cols !== processed.cols || enhanced.rows !== processed.rows) {
+              throw new Error(`Size mismatch: processed(${processed.cols}x${processed.rows}) vs enhanced(${enhanced.cols}x${enhanced.rows})`)
+            }
+            
+            processed.delete()
+            processedBackup.delete()
+            processed = enhanced
+            
+            // 清理
+            if (rgb) rgb.delete()
+            if (lab) lab.delete()
+            if (channels) channels.delete()
+          } catch (err) {
+            // 记录错误详情
+            const errorMsg = err instanceof Error ? err.message : String(err)
+            console.error('Auto enhance error:', errorMsg, {
+              processedValid: processed && !processed.empty() && processed.cols > 0 && processed.rows > 0,
+              processedSize: processed ? `${processed.cols}x${processed.rows}` : 'null',
+              rgbValid: rgb && !rgb.empty(),
+              labValid: lab && !lab.empty(),
+              enhancedValid: enhanced && !enhanced.empty()
+            })
+            
+            // 清理
+            try { if (rgb && !rgb.empty()) rgb.delete() } catch (e) {}
+            try { if (lab && !lab.empty()) lab.delete() } catch (e) {}
+            try { if (channels) channels.delete() } catch (e) {}
+            try { if (enhanced && !enhanced.empty()) enhanced.delete() } catch (e) {}
+            
+            // 如果失败，使用备份
+            if (processed && !processed.empty() && processed.cols > 0 && processed.rows > 0) {
+              processedBackup.delete()
+            } else {
+              if (processedBackup && !processedBackup.empty()) {
+                processed = processedBackup
+              } else {
+                throw new Error('Both processed and backup are invalid')
+              }
+            }
+            console.warn('Auto enhance failed, continuing with original:', err)
+          }
+          
+          await yieldToUI()
         }
 
-        // 1. 去噪
+        // 2. 去噪 ⭐⭐⭐⭐⭐（在增强后进行，效果更好）
         if (options.denoise) {
           setTasks(prev => prev.map(t => 
             t.id === task.id ? { 
               ...t, 
-              progress: 20,
+              progress: 35,
               progressMessage: language === 'zh-CN' ? '去噪处理...' : 'Denoising...'
             } : t
           ))
 
-          await yieldToUI() // 让出控制权
+          await yieldToUI()
 
-          // 验证 src Mat 是否有效
-          if (src.empty() || src.cols === 0 || src.rows === 0) {
-            throw new Error('Source Mat is empty or invalid')
+          // 验证 processed Mat 是否有效
+          if (!processed || processed.empty() || processed.cols === 0 || processed.rows === 0) {
+            throw new Error('Processed Mat is empty or invalid before denoising')
           }
           
+          // 调整去噪强度：降低默认值，避免过度模糊
+          const h = Math.max(1, Math.min(8, (options.denoiseStrength / 100) * 8))
+          
+          // 创建备份
+          const processedBackup = processed.clone()
           const dst = new cv.Mat()
-          const h = Math.max(1, Math.min(10, (options.denoiseStrength / 100) * 10)) // 限制范围 1-10
+          let rgb: any = null
+          let denoisedRgb: any = null
           
           try {
-            // 检查函数是否存在，如果不存在则使用替代方法
+            // 验证 processed 仍然有效
+            if (processed.empty() || processed.cols === 0 || processed.rows === 0) {
+              throw new Error('Processed Mat became invalid before denoising')
+            }
+            
+            // fastNlMeansDenoisingColored 需要 RGB 格式（CV_8UC3），不是 RGBA（CV_8UC4）
+            // 所以需要先转换为 RGB，去噪后再转换回 RGBA
+            rgb = new cv.Mat()
+            cv.cvtColor(processed, rgb, cv.COLOR_RGBA2RGB)
+            
+            // 验证 RGB Mat
+            if (rgb.empty() || rgb.cols === 0 || rgb.rows === 0) {
+              throw new Error('RGB conversion failed for denoising')
+            }
+            
+            denoisedRgb = new cv.Mat()
+            
+            // 优先使用 fastNlMeansDenoisingColored（彩色去噪，效果最好）
             if (typeof cv.fastNlMeansDenoisingColored === 'function') {
-              cv.fastNlMeansDenoisingColored(src, dst, h, 10, 7, 21)
+              // 使用更温和的参数：h 值较小，模板窗口和搜索窗口适中
+              // 注意：fastNlMeansDenoisingColored 需要 RGB 格式
+              cv.fastNlMeansDenoisingColored(rgb, denoisedRgb, h, 7, 7, 21)
             } else if (typeof cv.fastNlMeansDenoising === 'function') {
-              // 降级到灰度去噪（需要先转换）
+              // 降级到灰度去噪
               const gray = new cv.Mat()
               try {
-                cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY)
+                cv.cvtColor(rgb, gray, cv.COLOR_RGB2GRAY)
+                if (gray.empty() || gray.cols === 0 || gray.rows === 0) {
+                  throw new Error('Gray conversion failed')
+                }
                 cv.fastNlMeansDenoising(gray, gray, h, 7, 21)
-                cv.cvtColor(gray, dst, cv.COLOR_GRAY2RGBA)
+                cv.cvtColor(gray, denoisedRgb, cv.COLOR_GRAY2RGB)
               } finally {
-                gray.delete()
+                if (gray && !gray.empty()) gray.delete()
               }
             } else {
-              // 如果去噪函数都不存在，使用高斯模糊作为替代
-              console.warn('fastNlMeansDenoisingColored not available, using Gaussian blur instead')
-              const kernelSize = Math.max(3, Math.floor(h / 2) * 2 + 1) // 确保是奇数
-              cv.GaussianBlur(src, dst, new cv.Size(kernelSize, kernelSize), 0, 0, cv.BORDER_DEFAULT)
+              // 降级方案：使用双边滤波（保留边缘的去噪）
+              cv.bilateralFilter(rgb, denoisedRgb, 9, 75, 75)
             }
+            
+            // 验证去噪后的 RGB Mat
+            if (denoisedRgb.empty() || denoisedRgb.cols === 0 || denoisedRgb.rows === 0) {
+              throw new Error('Denoised RGB Mat is invalid')
+            }
+            
+            // 转换回 RGBA
+            cv.cvtColor(denoisedRgb, dst, cv.COLOR_RGB2RGBA)
             
             // 验证结果
             if (dst.empty() || dst.cols === 0 || dst.rows === 0) {
-              dst.delete()
               throw new Error('Denoising result is invalid')
             }
             
-            processed.delete()
-            processed = dst
-          } catch (err) {
-            dst.delete()
-            throw err
-          }
-          
-          await yieldToUI() // 让出控制权
-        }
-
-        // 2. 自动对比度（简化版本，避免 LAB 转换问题）
-        if (options.autoContrast) {
-          setTasks(prev => prev.map(t => 
-            t.id === task.id ? { 
-              ...t, 
-              progress: 40,
-              progressMessage: language === 'zh-CN' ? '调整对比度...' : 'Adjusting contrast...'
-            } : t
-          ))
-
-          await yieldToUI() // 让出控制权
-
-          // 验证 processed Mat 是否有效
-          if (processed.empty() || processed.cols === 0 || processed.rows === 0) {
-            throw new Error('Processed Mat is empty or invalid before contrast adjustment')
-          }
-
-          // 使用更简单的方法：转换为灰度 -> 直方图均衡化 -> 转换回彩色
-          // 这样可以避免 LAB 颜色空间转换可能的问题
-          // 先备份 processed，以防出错
-          const processedBackup = processed.clone()
-          const gray = new cv.Mat()
-          let enhanced: any = new cv.Mat()
-          let blended: any = null
-          
-          try {
-            // 转换为灰度
-            cv.cvtColor(processed, gray, cv.COLOR_RGBA2GRAY)
-            
-            // 应用直方图均衡化
-            cv.equalizeHist(gray, gray)
-            
-            // 转换回 RGBA（使用灰度作为所有通道）
-            cv.cvtColor(gray, enhanced, cv.COLOR_GRAY2RGBA)
-            
-            // 确保两个 Mat 尺寸相同
-            if (processed.cols !== enhanced.cols || processed.rows !== enhanced.rows) {
-              // 如果尺寸不同，先调整 enhanced 的尺寸
-              const resizedEnhanced = new cv.Mat()
-              cv.resize(enhanced, resizedEnhanced, new cv.Size(processed.cols, processed.rows), 0, 0, cv.INTER_LINEAR)
-              enhanced.delete()
-              enhanced = resizedEnhanced
+            // 确保尺寸匹配
+            if (dst.cols !== processed.cols || dst.rows !== processed.rows) {
+              throw new Error(`Size mismatch: processed(${processed.cols}x${processed.rows}) vs dst(${dst.cols}x${dst.rows})`)
             }
             
-            // 混合原图和增强图（保留颜色信息）
-            // 使用加权混合：70% 原图 + 30% 增强图
-            blended = new cv.Mat()
-            cv.addWeighted(processed, 0.7, enhanced, 0.3, 0, blended)
-            
-            // 验证结果
-            if (blended.empty() || blended.cols === 0 || blended.rows === 0) {
-              if (blended && !blended.empty) blended.delete()
-              throw new Error('Blended Mat is invalid')
-            }
-            
-            // 只有在成功后才删除原 processed 和备份
             processed.delete()
             processedBackup.delete()
-            processed = blended
-            blended = null // 标记已转移
+            processed = dst
             
-            gray.delete()
-            enhanced.delete()
+            // 清理
+            if (rgb) rgb.delete()
+            if (denoisedRgb) denoisedRgb.delete()
           } catch (err) {
-            // 清理所有临时 Mat
-            try {
-              if (gray && !gray.empty && !gray.empty()) gray.delete()
-            } catch (e) {}
-            try {
-              if (enhanced && !enhanced.empty && !enhanced.empty()) enhanced.delete()
-            } catch (e) {}
-            try {
-              if (blended && !blended.empty && !blended.empty()) blended.delete()
-            } catch (e) {}
+            const errorMsg = err instanceof Error ? err.message : String(err)
+            const errorCode = typeof err === 'number' ? err : undefined
             
-            // 如果对比度调整失败，恢复备份（processed 保持不变或使用备份）
-            try {
-              if (processed && !processed.empty && !processed.empty() && processed.cols > 0 && processed.rows > 0) {
-                // processed 仍然有效，继续使用
-                processedBackup.delete()
-              } else {
-                // processed 已损坏，使用备份
+            console.error('Denoising error:', errorMsg, {
+              errorCode: errorCode,
+              processedValid: processed && !processed.empty() && processed.cols > 0 && processed.rows > 0,
+              processedSize: processed ? `${processed.cols}x${processed.rows}` : 'null',
+              processedType: processed ? processed.type ? processed.type() : 'unknown' : 'null',
+              rgbValid: rgb && !rgb.empty(),
+              denoisedRgbValid: denoisedRgb && !denoisedRgb.empty(),
+              dstValid: dst && !dst.empty(),
+              h: h
+            })
+            
+            // 清理
+            try { if (rgb && !rgb.empty()) rgb.delete() } catch (e) {}
+            try { if (denoisedRgb && !denoisedRgb.empty()) denoisedRgb.delete() } catch (e) {}
+            try { if (dst && !dst.empty()) dst.delete() } catch (e) {}
+            
+            // 如果失败，使用备份
+            if (processed && !processed.empty() && processed.cols > 0 && processed.rows > 0) {
+              processedBackup.delete()
+            } else {
+              if (processedBackup && !processedBackup.empty()) {
                 processed = processedBackup
+              } else {
+                throw new Error('Both processed and backup are invalid after denoising error')
               }
-            } catch (e) {
-              // 如果检查失败，直接使用备份
-              processed = processedBackup
             }
-            console.warn('Contrast adjustment failed, continuing with original:', err)
+            
+            // 如果是 OpenCV 错误代码，尝试使用降级方案
+            let fallbackSucceeded = false
+            if (typeof err === 'number' && (err === 6981192 || err === 6981448)) {
+              console.warn('OpenCV denoising failed, trying fallback method...')
+              
+              // 使用双边滤波作为降级方案
+              try {
+                // 确保 processed 仍然有效（此时应该是备份）
+                if (processed && !processed.empty() && processed.cols > 0 && processed.rows > 0) {
+                  const fallbackDst = new cv.Mat()
+                  cv.bilateralFilter(processed, fallbackDst, 9, 75, 75)
+                  
+                  if (!fallbackDst.empty() && fallbackDst.cols > 0 && fallbackDst.rows > 0 && 
+                      fallbackDst.cols === processed.cols && fallbackDst.rows === processed.rows) {
+                    processed.delete()
+                    processedBackup.delete()
+                    processed = fallbackDst
+                    fallbackSucceeded = true
+                    console.log('Fallback denoising (bilateral filter) succeeded')
+                  } else {
+                    fallbackDst.delete()
+                    console.warn('Fallback denoising result is invalid')
+                  }
+                }
+              } catch (fallbackErr) {
+                console.warn('Fallback denoising also failed:', fallbackErr)
+              }
+            }
+            
+            // 如果降级方案也失败，继续使用原图（processed 已经是备份）
+            if (!fallbackSucceeded && processed && !processed.empty() && processed.cols > 0 && processed.rows > 0) {
+              console.warn('Denoising failed, continuing with original image:', err)
+            }
           }
           
-          await yieldToUI() // 让出控制权
+          await yieldToUI()
         }
 
-        // 3. 锐化
+        // 3. 锐化 ⭐⭐⭐⭐⭐（在去噪后进行，恢复细节）
         if (options.sharpen) {
           setTasks(prev => prev.map(t => 
             t.id === task.id ? { 
               ...t, 
-              progress: 60,
+              progress: 50,
               progressMessage: language === 'zh-CN' ? '锐化处理...' : 'Sharpening...'
             } : t
           ))
 
-          await yieldToUI() // 让出控制权
+          await yieldToUI()
 
           // 验证 processed Mat 是否有效
-          if (processed.empty() || processed.cols === 0 || processed.rows === 0) {
+          if (!processed || processed.empty() || processed.cols === 0 || processed.rows === 0) {
             throw new Error('Processed Mat is empty or invalid before sharpening')
           }
 
@@ -535,10 +738,17 @@ export default function OldPhotoRestoration() {
           const dst = new cv.Mat()
           
           try {
-            const center = -0.5 * (options.sharpenStrength / 100)
+            // 验证 processed 仍然有效
+            if (processed.empty() || processed.cols === 0 || processed.rows === 0) {
+              throw new Error('Processed Mat became invalid before sharpening')
+            }
+            
+            // 使用 Unsharp Mask 算法（专业锐化方法）
+            // 调整强度：降低默认值，避免过度锐化产生伪影
+            const strength = options.sharpenStrength / 100
+            const center = -0.3 * strength // 降低锐化强度
             const others = center / 8
             
-            // 确保 kernel 数据有效
             const kernelData = new Float32Array([
               others, others, others,
               others, 1 - center, others,
@@ -553,99 +763,243 @@ export default function OldPhotoRestoration() {
               throw new Error('Sharpening result is invalid')
             }
             
+            // 确保尺寸匹配
+            if (dst.cols !== processed.cols || dst.rows !== processed.rows) {
+              throw new Error(`Size mismatch: processed(${processed.cols}x${processed.rows}) vs dst(${dst.cols}x${dst.rows})`)
+            }
+            
             processed.delete()
             processed = dst
           } catch (err) {
-            dst.delete()
-            kernel.delete()
+            const errorMsg = err instanceof Error ? err.message : String(err)
+            console.error('Sharpening error:', errorMsg, {
+              processedValid: processed && !processed.empty() && processed.cols > 0 && processed.rows > 0,
+              processedSize: processed ? `${processed.cols}x${processed.rows}` : 'null',
+              dstValid: dst && !dst.empty()
+            })
+            if (dst && !dst.empty()) dst.delete()
+            if (kernel && !kernel.empty()) kernel.delete()
             throw err
           }
           
-          kernel.delete()
-          
-          await yieldToUI() // 让出控制权
+          if (kernel && !kernel.empty()) kernel.delete()
+          await yieldToUI()
         }
 
-        // 4. 划痕修复
+        // 4. 灰底修复 ⭐⭐⭐⭐（修复老照片常见的灰底问题）
+        if (options.grayBackgroundFix) {
+          setTasks(prev => prev.map(t => 
+            t.id === task.id ? { 
+              ...t, 
+              progress: 65,
+              progressMessage: language === 'zh-CN' ? '修复灰底...' : 'Fixing gray background...'
+            } : t
+          ))
+
+          await yieldToUI()
+
+          if (processed.empty() || processed.cols === 0 || processed.rows === 0) {
+            throw new Error('Processed Mat is empty or invalid before gray background fix')
+          }
+
+          // 验证 processed Mat 是否有效
+          if (!processed || processed.empty() || processed.cols === 0 || processed.rows === 0) {
+            throw new Error('Processed Mat is invalid before gray background fix')
+          }
+          
+          const processedBackup = processed.clone()
+          const dst = new cv.Mat()
+          let rgb: any = null
+          let hsv: any = null
+          let hsvChannels: any = null
+          
+          try {
+            // 灰底修复策略：
+            // 1. 转换为 HSV 颜色空间
+            // 2. 对 V (Value/Brightness) 通道进行 CLAHE 增强
+            // 3. 提升灰底区域的亮度和对比度
+            
+            // 转换为 RGB（去除 Alpha）
+            rgb = new cv.Mat()
+            // 验证 processed 仍然有效
+            if (processed.empty() || processed.cols === 0 || processed.rows === 0) {
+              throw new Error('Processed Mat became invalid before RGB conversion')
+            }
+            cv.cvtColor(processed, rgb, cv.COLOR_RGBA2RGB)
+            
+            // 验证 RGB Mat
+            if (rgb.empty() || rgb.cols === 0 || rgb.rows === 0) {
+              throw new Error('RGB Mat conversion failed')
+            }
+            
+            // 转换为 HSV
+            hsv = new cv.Mat()
+            cv.cvtColor(rgb, hsv, cv.COLOR_RGB2HSV)
+            
+            // 验证 HSV Mat
+            if (hsv.empty() || hsv.cols === 0 || hsv.rows === 0) {
+              throw new Error('HSV Mat conversion failed')
+            }
+            
+            // 分离通道
+            hsvChannels = new cv.MatVector()
+            cv.split(hsv, hsvChannels)
+            
+            // 验证通道数量
+            if (hsvChannels.size() < 3) {
+              throw new Error('Failed to split HSV channels')
+            }
+            
+            // 对 V (Value/Brightness) 通道进行增强
+            const vChannel = hsvChannels.get(2)
+            if (vChannel.empty() || vChannel.cols === 0 || vChannel.rows === 0) {
+              throw new Error('V channel is invalid')
+            }
+            
+            // 使用 CLAHE 增强亮度通道（专门针对灰底）
+            if (typeof cv.CLAHE === 'function') {
+              const clahe = new cv.CLAHE(4.0, new cv.Size(8, 8)) // 更高的对比度限制
+              clahe.apply(vChannel, vChannel)
+              clahe.delete()
+            } else {
+              // 降级：使用直方图均衡化
+              cv.equalizeHist(vChannel, vChannel)
+            }
+            
+            // 合并通道
+            cv.merge(hsvChannels, hsv)
+            
+            // 验证合并后的 HSV Mat
+            if (hsv.empty() || hsv.cols === 0 || hsv.rows === 0) {
+              throw new Error('HSV Mat merge failed')
+            }
+            
+            // 转换回 RGB
+            cv.cvtColor(hsv, rgb, cv.COLOR_HSV2RGB)
+            
+            // 验证 RGB Mat
+            if (rgb.empty() || rgb.cols === 0 || rgb.rows === 0) {
+              throw new Error('RGB Mat conversion from HSV failed')
+            }
+            
+            // 转换回 RGBA
+            cv.cvtColor(rgb, dst, cv.COLOR_RGB2RGBA)
+            
+            // 验证结果
+            if (dst.empty() || dst.cols === 0 || dst.rows === 0) {
+              throw new Error('Gray background fix result is invalid')
+            }
+            
+            // 确保尺寸匹配
+            if (dst.cols !== processed.cols || dst.rows !== processed.rows) {
+              throw new Error(`Size mismatch: processed(${processed.cols}x${processed.rows}) vs dst(${dst.cols}x${dst.rows})`)
+            }
+            
+            processed.delete()
+            processedBackup.delete()
+            processed = dst
+            
+            // 清理
+            if (rgb) rgb.delete()
+            if (hsv) hsv.delete()
+            if (hsvChannels) hsvChannels.delete()
+          } catch (err) {
+            // 记录错误详情
+            const errorMsg = err instanceof Error ? err.message : String(err)
+            console.error('Gray background fix error:', errorMsg, {
+              processedValid: processed && !processed.empty() && processed.cols > 0 && processed.rows > 0,
+              processedSize: processed ? `${processed.cols}x${processed.rows}` : 'null',
+              rgbValid: rgb && !rgb.empty(),
+              hsvValid: hsv && !hsv.empty(),
+              dstValid: dst && !dst.empty()
+            })
+            
+            // 清理
+            try { if (rgb && !rgb.empty()) rgb.delete() } catch (e) {}
+            try { if (hsv && !hsv.empty()) hsv.delete() } catch (e) {}
+            try { if (hsvChannels) hsvChannels.delete() } catch (e) {}
+            try { if (dst && !dst.empty()) dst.delete() } catch (e) {}
+            
+            // 如果失败，恢复备份
+            if (processed && !processed.empty() && processed.cols > 0 && processed.rows > 0) {
+              processedBackup.delete()
+            } else {
+              if (processedBackup && !processedBackup.empty()) {
+                processed = processedBackup
+              } else {
+                throw new Error('Both processed and backup are invalid')
+              }
+            }
+            console.warn('Gray background fix failed, continuing with original:', err)
+          }
+          
+          await yieldToUI()
+        }
+
+        // 5. 划痕淡化 ⭐⭐⭐（最后处理，修复细节瑕疵）
         if (options.scratchRepair) {
           setTasks(prev => prev.map(t => 
             t.id === task.id ? { 
               ...t, 
               progress: 80,
-              progressMessage: language === 'zh-CN' ? '修复划痕...' : 'Repairing scratches...'
+              progressMessage: language === 'zh-CN' ? '淡化划痕...' : 'Fading scratches...'
             } : t
           ))
 
-          await yieldToUI() // 让出控制权
+          await yieldToUI()
 
-          // 验证 processed Mat 是否有效
           if (processed.empty() || processed.cols === 0 || processed.rows === 0) {
             throw new Error('Processed Mat is empty or invalid before scratch repair')
           }
 
-          // 检查 inpaint 函数是否可用
-          if (typeof cv.inpaint === 'function') {
+          // 划痕淡化：使用更温和的方法
+          // 1. 检测细线（划痕通常是细线）
+          // 2. 使用形态学操作淡化
+          // 3. 使用中值滤波平滑
+          const dst = new cv.Mat()
+          
+          try {
+            // 转换为灰度
             const gray = new cv.Mat()
-            const edges = new cv.Mat()
-            const dilated = new cv.Mat()
-            const dst = new cv.Mat()
-            let kernel: any = null
+            cv.cvtColor(processed, gray, cv.COLOR_RGBA2GRAY)
             
-            try {
-              cv.cvtColor(processed, gray, cv.COLOR_RGBA2GRAY)
-              
-              const threshold = Math.max(50, Math.min(200, Math.floor((options.scratchRepairStrength / 100) * 50) + 50))
-              cv.Canny(gray, edges, threshold, threshold * 2)
-              
-              kernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(3, 3))
-              cv.dilate(edges, dilated, kernel, new cv.Point(-1, -1), 2)
-              
-              cv.inpaint(processed, dilated, dst, 3, cv.INPAINT_TELEA)
-              
-              // 验证结果
-              if (dst.empty() || dst.cols === 0 || dst.rows === 0) {
-                throw new Error('Inpainting result is invalid')
-              }
-              
-              processed.delete()
-              processed = dst
-            } catch (err) {
-              gray.delete()
-              edges.delete()
-              dilated.delete()
-              dst.delete()
-              if (kernel) kernel.delete()
-              // 如果 inpaint 失败，使用中值滤波作为替代
-              console.warn('inpaint failed, using medianBlur instead:', err)
-              const fallbackDst = new cv.Mat()
-              cv.medianBlur(processed, fallbackDst, 5)
-              processed.delete()
-              processed = fallbackDst
-            } finally {
-              if (gray && !gray.isDeleted()) gray.delete()
-              if (edges && !edges.isDeleted()) edges.delete()
-              if (dilated && !dilated.isDeleted()) dilated.delete()
-              if (kernel && !kernel.isDeleted()) kernel.delete()
+            // 检测细线（划痕）
+            const edges = new cv.Mat()
+            const threshold = Math.max(30, Math.min(100, Math.floor((options.scratchRepairStrength / 100) * 70) + 30))
+            cv.Canny(gray, edges, threshold, threshold * 2)
+            
+            // 使用形态学操作：开运算（先腐蚀后膨胀）来淡化细线
+            const kernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(3, 3))
+            const opened = new cv.Mat()
+            cv.morphologyEx(edges, opened, cv.MORPH_OPEN, kernel)
+            
+            // 如果 inpaint 可用，使用它修复
+            if (typeof cv.inpaint === 'function') {
+              cv.inpaint(processed, opened, dst, 2, cv.INPAINT_TELEA) // 降低修复半径
+            } else {
+              // 降级：使用中值滤波（对细线有效）
+              cv.medianBlur(processed, dst, 3) // 使用较小的核，避免过度模糊
             }
-          } else {
-            // 如果 inpaint 不可用，使用中值滤波作为替代
-            console.warn('inpaint not available, using medianBlur instead')
-            const dst = new cv.Mat()
-            try {
-              cv.medianBlur(processed, dst, 5)
-              if (dst.empty() || dst.cols === 0 || dst.rows === 0) {
-                dst.delete()
-                throw new Error('Median blur result is invalid')
-              }
-              processed.delete()
-              processed = dst
-            } catch (err) {
-              dst.delete()
-              throw err
+            
+            if (dst.empty() || dst.cols === 0 || dst.rows === 0) {
+              throw new Error('Scratch repair result is invalid')
             }
+            
+            processed.delete()
+            processed = dst
+            
+            // 清理
+            gray.delete()
+            edges.delete()
+            opened.delete()
+            kernel.delete()
+          } catch (err) {
+            dst.delete()
+            console.warn('Scratch repair failed, continuing:', err)
+            // 如果失败，继续使用原图
           }
           
-          await yieldToUI() // 让出控制权
+          await yieldToUI()
         }
 
         // 转换为 ImageData
@@ -730,39 +1084,52 @@ export default function OldPhotoRestoration() {
         }
         
         // 直接使用 Canvas 转换为 Blob（cv.imshow 已经将 Mat 绘制到 Canvas 上了）
-        resultCanvas.toBlob((blob) => {
-          if (blob) {
-            const resultUrl = URL.createObjectURL(blob)
-            const endTime = Date.now()
-            const duration = ((endTime - startTime) / 1000).toFixed(1)
+        // 将 toBlob 转换为 Promise 以便正确处理错误
+        await new Promise<void>((resolve, reject) => {
+          try {
+            resultCanvas.toBlob((blob) => {
+              if (blob) {
+                const resultUrl = URL.createObjectURL(blob)
+                const endTime = Date.now()
+                const duration = ((endTime - startTime) / 1000).toFixed(1)
 
-            setTasks(prev => prev.map(t => 
-              t.id === task.id
-                ? {
-                    ...t,
-                    status: 'completed' as const,
-                    progress: 100,
-                    progressMessage: language === 'zh-CN' 
-                      ? `完成！用时 ${duration}秒` 
-                      : `Completed! ${duration}s`,
-                    result: blob,
-                    resultUrl,
-                    restoredPreview: resultUrl,
-                    endTime
-                  }
-                : t
-            ))
+                setTasks(prev => prev.map(t => 
+                  t.id === task.id
+                    ? {
+                        ...t,
+                        status: 'completed' as const,
+                        progress: 100,
+                        progressMessage: language === 'zh-CN' 
+                          ? `完成！用时 ${duration}秒` 
+                          : `Completed! ${duration}s`,
+                        result: blob,
+                        resultUrl,
+                        restoredPreview: resultUrl,
+                        endTime
+                      }
+                    : t
+                ))
 
-            // 播放完成音效
-            try {
-              const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OSfTQ8MT6bj8LZjHAY4kdfyzHksBSR3x/DdkEAKFF606euoVRQKRp/g8r5sIQUrgc7y2Yk2CBtpvfDkn00PDE+m4/C2YxwGOJHX8sx5LAUkd8fw3ZBAC')
-              audio.volume = 0.3
-              audio.play().catch(() => {})
-            } catch (err) {
-              // 忽略音效错误
-            }
+                // 播放完成音效
+                try {
+                  const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OSfTQ8MT6bj8LZjHAY4kdfyzHksBSR3x/DdkEAKFF606euoVRQKRp/g8r5sIQUrgc7y2Yk2CBtpvfDkn00PDE+m4/C2YxwGOJHX8sx5LAUkd8fw3ZBAC')
+                  audio.volume = 0.3
+                  audio.play().catch(() => {})
+                } catch (err) {
+                  // 忽略音效错误
+                }
+                
+                resolve()
+              } else {
+                reject(new Error(language === 'zh-CN' 
+                  ? '无法生成图像 Blob' 
+                  : 'Failed to generate image Blob'))
+              }
+            }, `image/${options.outputFormat}`, options.outputQuality / 100)
+          } catch (err) {
+            reject(err)
           }
-        }, `image/${options.outputFormat}`, options.outputQuality / 100)
+        })
 
         // 清理 Mat 对象（安全删除）
         try {
@@ -792,6 +1159,28 @@ export default function OldPhotoRestoration() {
     } catch (err) {
       console.error('Processing failed:', err)
       
+      // 记录详细的错误信息
+      const errorDetails: any = {
+        error: err instanceof Error ? err.message : String(err),
+        errorCode: typeof err === 'number' ? err : undefined,
+        taskId: task.id,
+        fileName: task.file.name,
+        fileSize: task.file.size
+      }
+      
+      // 如果错误是数字（OpenCV 错误代码），添加更多信息
+      if (typeof err === 'number') {
+        errorDetails.opencvErrorCode = err
+        errorDetails.suggestions = [
+          'Try refreshing the page',
+          'Try using a different image',
+          'Check if the image is corrupted',
+          'Try reducing image size'
+        ]
+      }
+      
+      console.error('Error details:', errorDetails)
+      
       // 提供更友好的错误消息
       let errorMessage = 'Unknown error'
       if (err instanceof Error) {
@@ -799,8 +1188,8 @@ export default function OldPhotoRestoration() {
       } else if (typeof err === 'number') {
         // OpenCV 错误代码
         errorMessage = language === 'zh-CN' 
-          ? `OpenCV 错误代码: ${err}。请尝试刷新页面或使用其他图片。`
-          : `OpenCV error code: ${err}. Please try refreshing the page or using a different image.`
+          ? `OpenCV 错误代码: ${err}。请尝试刷新页面或使用其他图片。如果问题持续，请尝试使用较小的图片。`
+          : `OpenCV error code: ${err}. Please try refreshing the page or using a different image. If the problem persists, try using a smaller image.`
       } else {
         errorMessage = String(err)
       }
@@ -890,8 +1279,8 @@ export default function OldPhotoRestoration() {
           </h1>
           <p className="tool-description">
             {language === 'zh-CN'
-              ? '使用 AI 技术修复老照片：去噪、锐化、自动对比度、划痕修补。支持超分辨率清晰化。100% 本地处理，保护隐私安全。'
-              : 'Restore old photos with AI: denoise, sharpen, auto contrast, scratch repair. Supports super resolution. 100% local processing, privacy protected.'}
+              ? '使用专业算法修复老照片：自动增强、去噪、锐化、灰底修复、划痕淡化。100% 本地处理，保护隐私安全。'
+              : 'Restore old photos with professional algorithms: auto enhance, denoise, sharpen, gray background fix, scratch fading. 100% local processing, privacy protected.'}
           </p>
           <div className="expectation-warning">
             <AlertCircle size={16} />
@@ -1035,18 +1424,20 @@ export default function OldPhotoRestoration() {
                     <button 
                       className="download-btn"
                       onClick={() => handleDownload(task)}
-                      title={language === 'zh-CN' ? '下载' : 'Download'}
+                      title={language === 'zh-CN' ? '下载修复后的照片' : 'Download restored photo'}
                     >
                       <Download size={16} />
+                      <span>{language === 'zh-CN' ? '下载' : 'Download'}</span>
                     </button>
                   )}
                   <button 
                     className="remove-btn"
                     onClick={() => handleRemoveTask(task.id)}
                     disabled={isProcessing}
-                    title={language === 'zh-CN' ? '删除' : 'Remove'}
+                    title={language === 'zh-CN' ? '删除任务' : 'Remove task'}
                   >
                     <X size={16} />
+                    <span>{language === 'zh-CN' ? '删除' : 'Remove'}</span>
                   </button>
                 </div>
               </div>
@@ -1061,13 +1452,13 @@ export default function OldPhotoRestoration() {
           <h3><Settings /> {language === 'zh-CN' ? '修复设置' : 'Restoration Settings'}</h3>
           
           <div className="settings-grid">
-            {/* 自动增强 */}
+            {/* 自动增强 ⭐⭐⭐⭐⭐ */}
             <div className="setting-group">
               <label className="setting-toggle">
                 <input
                   type="checkbox"
-                  checked={options.autoContrast}
-                  onChange={(e) => setOptions(prev => ({ ...prev, autoContrast: e.target.checked }))}
+                  checked={options.autoEnhance}
+                  onChange={(e) => setOptions(prev => ({ ...prev, autoEnhance: e.target.checked }))}
                   disabled={isProcessing}
                 />
                 <span>{language === 'zh-CN' ? '自动增强' : 'Auto Enhance'}</span>
@@ -1075,8 +1466,8 @@ export default function OldPhotoRestoration() {
               </label>
               <small>
                 {language === 'zh-CN' 
-                  ? '自动调整对比度和亮度'
-                  : 'Auto adjust contrast and brightness'}
+                  ? '使用 CLAHE 自适应对比度增强，提升整体质量'
+                  : 'Use CLAHE adaptive contrast enhancement to improve overall quality'}
               </small>
             </div>
 
@@ -1138,7 +1529,36 @@ export default function OldPhotoRestoration() {
               </small>
             </div>
 
-            {/* 划痕修复 */}
+            {/* 灰底修复 ⭐⭐⭐⭐ */}
+            <div className="setting-group">
+              <label className="setting-toggle">
+                <input
+                  type="checkbox"
+                  checked={options.grayBackgroundFix}
+                  onChange={(e) => setOptions(prev => ({ ...prev, grayBackgroundFix: e.target.checked }))}
+                  disabled={isProcessing}
+                />
+                <span>{language === 'zh-CN' ? '灰底修复' : 'Gray Background Fix'}</span>
+                <span className="setting-badge">⭐⭐⭐⭐</span>
+              </label>
+              {options.grayBackgroundFix && (
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={options.grayBackgroundFixStrength}
+                  onChange={(e) => setOptions(prev => ({ ...prev, grayBackgroundFixStrength: Number(e.target.value) }))}
+                  disabled={isProcessing}
+                />
+              )}
+              <small>
+                {language === 'zh-CN' 
+                  ? '修复老照片常见的灰底问题，提升亮度和对比度'
+                  : 'Fix gray background issues common in old photos, enhance brightness and contrast'}
+              </small>
+            </div>
+
+            {/* 划痕淡化 ⭐⭐⭐ */}
             <div className="setting-group">
               <label className="setting-toggle">
                 <input
@@ -1147,7 +1567,7 @@ export default function OldPhotoRestoration() {
                   onChange={(e) => setOptions(prev => ({ ...prev, scratchRepair: e.target.checked }))}
                   disabled={isProcessing}
                 />
-                <span>{language === 'zh-CN' ? '划痕修复' : 'Scratch Repair'}</span>
+                <span>{language === 'zh-CN' ? '划痕淡化' : 'Scratch Fading'}</span>
                 <span className="setting-badge">⭐⭐⭐</span>
               </label>
               {options.scratchRepair && (
@@ -1162,8 +1582,8 @@ export default function OldPhotoRestoration() {
               )}
               <small>
                 {language === 'zh-CN' 
-                  ? '修复照片上的划痕和瑕疵'
-                  : 'Repair scratches and blemishes'}
+                  ? '淡化照片上的划痕和细线瑕疵'
+                  : 'Fade scratches and fine line blemishes'}
               </small>
             </div>
 
