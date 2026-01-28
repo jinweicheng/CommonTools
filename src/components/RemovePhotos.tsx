@@ -96,14 +96,10 @@ export default function RemovePhotos() {
   // 画笔设置
   const [brushSize, setBrushSize] = useState(20)
   const [brushMode, setBrushMode] = useState<'add' | 'remove'>('remove')
-  const [isDrawing, setIsDrawing] = useState(false)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const backgroundInputRef = useRef<HTMLInputElement>(null)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
   const maskCanvasRef = useRef<HTMLCanvasElement>(null)
-  const resultCanvasRef = useRef<HTMLCanvasElement>(null)
-  const brushCanvasRef = useRef<HTMLCanvasElement>(null)
   const inpaintCanvasRef = useRef<HTMLCanvasElement>(null)
 
   // 批量文件上传
@@ -750,10 +746,6 @@ export default function RemovePhotos() {
 
     // 生成遮罩
     for (let i = 0; i < data.length; i += 4) {
-      const x = (i / 4) % width
-      const y = Math.floor((i / 4) / width)
-      const idx = i / 4
-
       const r = data[i]
       const g = data[i + 1]
       const b = data[i + 2]
@@ -773,7 +765,7 @@ export default function RemovePhotos() {
         isBackground = true
       } 
       // 如果颜色相似（阈值 80）且不在边缘上，也认为是背景
-      else if (colorDiff < 80 && !edges[idx]) {
+      else if (colorDiff < 80 && !edges[i / 4]) {
         isBackground = true
       }
 
@@ -1302,7 +1294,7 @@ export default function RemovePhotos() {
                         } else {
                           // 多个文件打包下载
                           const zip = new JSZip()
-                          completedTasks.forEach((task, index) => {
+                          completedTasks.forEach((task) => {
                             if (task.result) {
                               const ext = outputFormat
                               const fileName = task.file.name.replace(/\.[^/.]+$/, '') + `_removed.${ext}`

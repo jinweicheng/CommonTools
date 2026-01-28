@@ -124,6 +124,30 @@
           "sizes": "192x192"
         }
       ]
+    },
+    {
+      "name": "Old Photo Restoration",
+      "short_name": "Photo Restore",
+      "description": "Restore and enhance old photos with AI tools",
+      "url": "/tools/old-photo-restoration",
+      "icons": [
+        {
+          "src": "/favicon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Remove Background",
+      "short_name": "Remove BG",
+      "description": "Remove backgrounds from images intelligently",
+      "url": "/tools/remove-photos",
+      "icons": [
+        {
+          "src": "/favicon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
     }
   ],
   "prefer_related_applications": false,

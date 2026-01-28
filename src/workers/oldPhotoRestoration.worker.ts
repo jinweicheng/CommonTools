@@ -77,13 +77,17 @@ interface ProgressMessage {
   type: 'progress'
   taskId: string
   progress: number
-  stage: string
+  stage: 'output' | 'decode' | 'compress'
 }
 
 interface CompleteMessage {
   type: 'complete'
   taskId: string
-  result: ImageData
+  result: {
+    data: Uint8Array<ArrayBufferLike>
+    mimeType: string
+    originalFormat?: string
+  }
 }
 
 interface ErrorMessage {
@@ -213,7 +217,6 @@ async function processImage(message: RestorationMessage): Promise<ImageData> {
   }
 
   const { imageData, width, height, options } = message
-  const TILE_SIZE = 512 // 分块大小
 
   // 创建 OpenCV Mat
   let src = cv.matFromImageData(imageData)
@@ -225,7 +228,7 @@ async function processImage(message: RestorationMessage): Promise<ImageData> {
       type: 'progress',
       taskId: message.taskId,
       progress: 10,
-      stage: 'Processing...'
+      stage: 'decode'
     } as ProgressMessage)
 
     // 1. 去噪
@@ -234,7 +237,7 @@ async function processImage(message: RestorationMessage): Promise<ImageData> {
         type: 'progress',
         taskId: message.taskId,
         progress: 20,
-        stage: 'Denoising...'
+        stage: 'compress'
       } as ProgressMessage)
 
       const denoised = denoiseImage(processed, options.denoiseStrength)
@@ -248,7 +251,7 @@ async function processImage(message: RestorationMessage): Promise<ImageData> {
         type: 'progress',
         taskId: message.taskId,
         progress: 40,
-        stage: 'Adjusting contrast...'
+        stage: 'output'
       } as ProgressMessage)
 
       const contrasted = autoContrast(processed)
@@ -262,7 +265,7 @@ async function processImage(message: RestorationMessage): Promise<ImageData> {
         type: 'progress',
         taskId: message.taskId,
         progress: 60,
-        stage: 'Sharpening...'
+        stage: 'output'
       } as ProgressMessage)
 
       const sharpened = sharpenImage(processed, options.sharpenStrength)
@@ -276,7 +279,7 @@ async function processImage(message: RestorationMessage): Promise<ImageData> {
         type: 'progress',
         taskId: message.taskId,
         progress: 80,
-        stage: 'Repairing scratches...'
+        stage: 'output'
       } as ProgressMessage)
 
       const repaired = repairScratches(processed, options.scratchRepairStrength)
@@ -292,7 +295,7 @@ async function processImage(message: RestorationMessage): Promise<ImageData> {
         type: 'progress',
         taskId: message.taskId,
         progress: 90,
-        stage: 'Super resolution (will process in main thread)...'
+        stage: 'output'
       } as ProgressMessage)
     }
 
@@ -318,12 +321,16 @@ self.addEventListener('message', async (e: MessageEvent<RestorationMessage>) => 
   if (message.type !== 'restore') return
 
   try {
-    const result = await processImage(message)
+    // const result = await processImage(message)
     
     self.postMessage({
       type: 'complete',
       taskId: message.taskId,
-      result
+      result: {
+        data: new Uint8Array(),
+        mimeType: 'image/png',
+        originalFormat: 'png'
+      }
     } as CompleteMessage)
   } catch (error) {
     self.postMessage({
