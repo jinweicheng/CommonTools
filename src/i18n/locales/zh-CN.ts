@@ -59,6 +59,7 @@ export default {
     prorawConverter: 'ProRAW/HEIF',
     imageCompression: '图片压缩',
     oldPhotoRestoration: '老照片修复',
+    removePhotos: '智能去背景',
     // 视频转换子菜单
     screenRecording: '屏幕录像',
     videoCompression: '视频压缩',

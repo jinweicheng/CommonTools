@@ -18,6 +18,9 @@ Allow: /tools/image-compression
 # Old Photo Restoration - 🔥 重点功能（新增）
 Allow: /tools/old-photo-restoration
 
+# Remove Background - 🔥 重点功能（新增）
+Allow: /tools/remove-photos
+
 # iPhone Screen Recording Processor - 🔥 重点功能
 Allow: /tools/screen-recording
 

@@ -131,6 +131,14 @@
     <changefreq>weekly</changefreq>
     <priority>0.95</priority>
   </url>
+
+  <!-- 智能去背景 -->
+  <url>
+    <loc>https://commontools.top/tools/remove-photos</loc>
+    <lastmod>2026-01-22</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.95</priority>
+  </url>
   
   <!-- 支持页面 -->
   <url>

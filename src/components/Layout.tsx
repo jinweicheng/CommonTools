@@ -1,6 +1,6 @@
 import { ReactNode, useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Shield, Repeat, Droplet, PenTool, Archive, Image as ImageIcon, Camera as CameraIcon, FileImage, Layers, Video, Menu, X, Globe, ChevronDown, ChevronRight, Minimize2, Film } from 'lucide-react'
+import { Shield, Repeat, Droplet, PenTool, Archive, Image as ImageIcon, Camera as CameraIcon, FileImage, Layers, Video, Menu, X, Globe, ChevronDown, ChevronRight, Minimize2, Film, Wand2 } from 'lucide-react'
 import { useI18n } from '../i18n/I18nContext'
 import './Layout.css'
 
@@ -48,6 +48,7 @@ export default function Layout({ children }: LayoutProps) {
         { path: '/proraw-converter', icon: <CameraIcon size={18} />, label: t('nav.prorawConverter') },
         { path: '/image-compression', icon: <Minimize2 size={18} />, label: t('nav.imageCompression') },
         { path: '/old-photo-restoration', icon: <ImageIcon size={18} />, label: t('nav.oldPhotoRestoration') },
+        { path: '/remove-photos', icon: <Wand2 size={18} />, label: t('nav.removePhotos') },
       ],
     },
     {

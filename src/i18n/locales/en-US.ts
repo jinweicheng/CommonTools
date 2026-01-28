@@ -59,6 +59,7 @@ export default {
     prorawConverter: 'ProRAW/HEIF',
     imageCompression: 'Image Compression',
     oldPhotoRestoration: 'Old Photo Restoration',
+    removePhotos: 'Remove Background',
     // Video conversion submenu
     screenRecording: 'Screen Recording',
     videoCompression: 'Video Compression',
