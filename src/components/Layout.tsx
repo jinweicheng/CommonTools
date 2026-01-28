@@ -25,7 +25,7 @@ export default function Layout({ children }: LayoutProps) {
   const location = useLocation()
   const { t, language, setLanguage } = useI18n()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['imageConversion', 'videoConversion', 'fileCompression']))
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['imageTools', 'videoTools', 'fileTools']))
   
   // 独立菜单项（不在分类下）
   const standaloneNavItems: NavItem[] = [
@@ -38,8 +38,8 @@ export default function Layout({ children }: LayoutProps) {
   // 分类导航
   const navCategories: NavCategory[] = [
     {
-      id: 'imageConversion',
-      label: t('nav.imageConversion'),
+      id: 'imageTools',
+      label: t('nav.imageTools'),
       icon: <ImageIcon size={18} />,
       items: [
         { path: '/heic-to-jpg', icon: <ImageIcon size={18} />, label: t('nav.heicToJpg') },
@@ -50,8 +50,8 @@ export default function Layout({ children }: LayoutProps) {
       ],
     },
     {
-      id: 'videoConversion',
-      label: t('nav.videoConversion'),
+      id: 'videoTools',
+      label: t('nav.videoTools'),
       icon: <Video size={18} />,
       items: [
         { path: '/screen-recording', icon: <Video size={18} />, label: t('nav.screenRecording') },
@@ -61,8 +61,8 @@ export default function Layout({ children }: LayoutProps) {
       ],
     },
     {
-      id: 'fileCompression',
-      label: t('nav.fileCompression'),
+      id: 'fileTools',
+      label: t('nav.fileTools'),
       icon: <Archive size={18} />,
       items: [
         { path: '/compression', icon: <Archive size={18} />, label: t('nav.archiveCompression') },

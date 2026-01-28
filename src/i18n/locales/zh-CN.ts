@@ -47,8 +47,11 @@ export default {
     passwordManager: '密码管理器',
     // 分类标题
     imageConversion: '图片转换',
+    imageTools: '图片工具',
     videoConversion: '视频转换',
+    videoTools: '视频工具',
     fileCompression: '文件压缩',
+    fileTools: '文件工具',
     // 图片转换子菜单
     heicToJpg: 'HEIC转JPG',
     legacyImageConverter: '老旧格式',

@@ -47,8 +47,11 @@ export default {
     passwordManager: 'Password Manager',
     // Category titles
     imageConversion: 'Image Conversion',
+    imageTools: 'Image Tools',
     videoConversion: 'Video Conversion',
+    videoTools: 'Video Tools',
     fileCompression: 'File Compression',
+    fileTools: 'File Tools',
     // Image conversion submenu
     heicToJpg: 'HEIC to JPG',
     legacyImageConverter: 'Legacy Format',
