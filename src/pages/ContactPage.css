@@ -113,6 +113,18 @@
   color: #ef4444;
 }
 
+.error-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.error-details {
+  font-size: 0.85rem;
+  opacity: 0.9;
+  font-weight: normal;
+}
+
 .submit-button {
   display: flex;
   align-items: center;

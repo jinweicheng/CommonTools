@@ -943,7 +943,7 @@ export default {
     email: 'chengjinweigoole@gmail.com',
     form: {
       title: '发送消息',
-      description: '请填写下面的表单，我们会尽快回复您。',
+      description: '请填写下面的表单，邮件将直接发送到我们的邮箱，无需配置您的邮件客户端。我们会尽快回复您。',
       name: '姓名',
       namePlaceholder: '请输入您的姓名',
       email: '邮箱',

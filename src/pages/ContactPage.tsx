@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useI18n } from '../i18n/I18nContext'
 import { Mail, Send, CheckCircle2, AlertCircle } from 'lucide-react'
+import { sendEmail } from '../utils/emailService'
 import './PageStyles.css'
 import './ContactPage.css'
 
@@ -13,29 +14,50 @@ export default function ContactPage() {
     message: ''
   })
   const [status, setStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle')
+  const [errorMessage, setErrorMessage] = useState<string>('')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setStatus('sending')
+    setErrorMessage('')
 
-    // 构建邮件链接
-    const subject = encodeURIComponent(formData.subject || 'Contact from CommonTools')
-    const body = encodeURIComponent(
-      `Name: ${formData.name}\nEmail: ${formData.email}\n\nMessage:\n${formData.message}`
-    )
-    const mailtoLink = `mailto:${t('contact.email')}?subject=${subject}&body=${body}`
+    try {
+      // 获取主题选项的显示文本
+      const subjectOptions: Record<string, string> = {
+        general: t('contact.form.subjectOptions.general'),
+        bug: t('contact.form.subjectOptions.bug'),
+        feature: t('contact.form.subjectOptions.feature'),
+        security: t('contact.form.subjectOptions.security'),
+        other: t('contact.form.subjectOptions.other'),
+      }
+      
+      const subjectText = subjectOptions[formData.subject] || formData.subject || 'Contact from CommonTools'
+      
+      // 构建完整的邮件主题
+      const fullSubject = `[${subjectText}] Contact from CommonTools`
 
-    // 打开邮件客户端
-    window.location.href = mailtoLink
+      const result = await sendEmail({
+        name: formData.name,
+        email: formData.email,
+        subject: fullSubject,
+        message: formData.message,
+      })
 
-    // 模拟发送状态
-    setTimeout(() => {
-      setStatus('success')
-      setTimeout(() => {
-        setStatus('idle')
-        setFormData({ name: '', email: '', subject: '', message: '' })
-      }, 3000)
-    }, 1000)
+      if (result.success) {
+        setStatus('success')
+        // 3秒后重置表单
+        setTimeout(() => {
+          setStatus('idle')
+          setFormData({ name: '', email: '', subject: '', message: '' })
+        }, 3000)
+      } else {
+        setStatus('error')
+        setErrorMessage(result.error || t('contact.form.error'))
+      }
+    } catch (error) {
+      setStatus('error')
+      setErrorMessage(error instanceof Error ? error.message : t('contact.form.error'))
+    }
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -127,7 +149,12 @@ export default function ContactPage() {
               {status === 'error' && (
                 <div className="form-status error">
                   <AlertCircle size={20} />
-                  <span>{t('contact.form.error')}</span>
+                  <div className="error-content">
+                    <span>{t('contact.form.error')}</span>
+                    {errorMessage && (
+                      <span className="error-details">{errorMessage}</span>
+                    )}
+                  </div>
                 </div>
               )}
 

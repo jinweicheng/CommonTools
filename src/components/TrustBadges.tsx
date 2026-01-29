@@ -23,13 +23,13 @@ export default function TrustBadges() {
         </div>
       </div>
       
-      <div className="trust-badge">
+      {/* <div className="trust-badge">
         <Globe className="badge-icon" size={20} />
         <div className="badge-content">
           <span className="badge-title">{t('trustBadges.free.title')}</span>
           <span className="badge-description">{t('trustBadges.free.description')}</span>
         </div>
-      </div>
+      </div> */}
       
       <div className="trust-badge">
         <CheckCircle2 className="badge-icon" size={20} />
