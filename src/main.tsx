@@ -2,7 +2,10 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { HelmetProvider } from 'react-helmet-async'
 import App from './App.tsx'
+import { initErrorReporting } from './utils/errorReporting'
 import './index.css'
+
+initErrorReporting()
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

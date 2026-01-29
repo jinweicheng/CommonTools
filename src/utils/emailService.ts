@@ -12,41 +12,10 @@ interface EmailData {
   message: string
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
+// const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
 const EMAILJS_SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID || ''
 const EMAILJS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID || ''
 const EMAILJS_PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY || ''
-
-/**
- * 通过后端API发送邮件
- */
-async function sendEmailViaAPI(data: EmailData): Promise<{ success: boolean; error?: string }> {
-  try {
-    const response = await fetch(`${API_BASE_URL}/contact`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      return {
-        success: false,
-        error: `API Error: ${response.status} ${errorText || response.statusText}`,
-      }
-    }
-
-    const result = await response.json()
-    return { success: true }
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    }
-  }
-}
 
 /**
  * 通过EmailJS发送邮件
@@ -85,6 +54,14 @@ async function sendEmailViaEmailJS(data: EmailData): Promise<{ success: boolean;
     }
   }
 
+  // Fixing potential undefined `window.emailjs` in `sendEmailViaEmailJS`.
+  if (!window.emailjs) {
+    return {
+      success: false,
+      error: 'EmailJS library is not loaded. Please check your configuration.',
+    }
+  }
+
   try {
     const result = await window.emailjs.send(
       EMAILJS_SERVICE_ID,
@@ -120,15 +97,15 @@ async function sendEmailViaEmailJS(data: EmailData): Promise<{ success: boolean;
  */
 export async function sendEmail(data: EmailData): Promise<{ success: boolean; error?: string }> {
   // 首先尝试使用后端API
-  const apiResult = await sendEmailViaAPI(data)
+  // const apiResult = await sendEmailViaAPI(data)
   
-  // 如果API成功，直接返回
-  if (apiResult.success) {
-    return apiResult
-  }
+  // // 如果API成功，直接返回
+  // if (apiResult.success) {
+  //   return apiResult
+  // }
 
   // 如果API失败（404或网络错误），尝试使用EmailJS
-  console.log('API unavailable, trying EmailJS...', apiResult.error)
+  // console.log('API unavailable, trying EmailJS...', apiResult.error)
   
   const emailjsResult = await sendEmailViaEmailJS(data)
   
@@ -139,7 +116,8 @@ export async function sendEmail(data: EmailData): Promise<{ success: boolean; er
   // 如果两种方式都失败，返回错误
   return {
     success: false,
-    error: apiResult.error || emailjsResult.error || 'Failed to send email',
+    error: emailjsResult.error || 'Failed to send email',
+    // error: apiResult.error || emailjsResult.error || 'Failed to send email',
   }
 }
 
