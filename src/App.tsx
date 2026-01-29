@@ -28,6 +28,8 @@ import PrivacyPolicyPage from './pages/PrivacyPolicyPage'
 import TermsOfServicePage from './pages/TermsOfServicePage'
 import RefundPolicyPage from './pages/RefundPolicyPage'
 import PricingPage from './pages/PricingPage'
+import AboutPage from './pages/AboutPage'
+import ContactPage from './pages/ContactPage'
 import './App.css'
 
 function App() {
@@ -102,6 +104,10 @@ function App() {
               <Route path="/terms-of-service" element={<TermsOfServicePage />} />
               <Route path="/refund-policy" element={<RefundPolicyPage />} />
               <Route path="/pricing" element={<PricingPage />} />
+              
+              {/* About and Contact Pages */}
+              <Route path="/about" element={<AboutPage />} />
+              <Route path="/contact" element={<ContactPage />} />
               
               {/* 重定向未知路由到首页 */}
               <Route path="*" element={<Navigate to="/" replace />} />

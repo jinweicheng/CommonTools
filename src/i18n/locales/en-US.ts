@@ -75,6 +75,31 @@ export default {
     description: 'Pure frontend encryption / Local processing / No server upload',
   },
 
+  // Trust Badges
+  trustBadges: {
+    https: {
+      title: 'HTTPS Encrypted',
+      description: 'SSL/TLS secure connection',
+    },
+    local: {
+      title: '100% Local Processing',
+      description: 'Files never upload to servers',
+    },
+    free: {
+      title: 'Completely Free',
+      description: 'No registration or payment',
+    },
+    verified: {
+      title: 'Security Verified',
+      description: 'Regular security scans',
+    },
+  },
+
+  // Footer
+  footer: {
+    securityNote: 'All processing happens locally in your browser. Your files never leave your device',
+  },
+
   // General File Encryption
   fileEncryption: {
     title: 'General File Encryption',
@@ -852,5 +877,112 @@ export default {
     tip4: 'Enabling frame deduplication in MP4 mode can significantly reduce file size, recommended.',
     tip5Label: '🔐 Privacy Protected:',
     tip5: 'All conversions are done locally in your browser, files are not uploaded to any server.',
+  },
+
+  // About Page
+  about: {
+    title: 'About Us',
+    subtitle: 'Learn about CommonTools mission, values, and team',
+    mission: {
+      title: 'Our Mission',
+      text: 'CommonTools is committed to providing secure, efficient, and free online tools for users. We believe privacy is a fundamental right, so all processing happens locally in your browser, and your files never leave your device.',
+    },
+    values: {
+      title: 'Core Values',
+      privacy: {
+        title: 'Privacy First',
+        text: '100% local processing - your data never uploads to servers',
+      },
+      performance: {
+        title: 'High Performance',
+        text: 'Using WebAssembly and modern browser technologies for professional-grade performance',
+      },
+      accessibility: {
+        title: 'Easy Access',
+        text: 'Completely free, no registration required, use anytime, anywhere',
+      },
+      transparency: {
+        title: 'Transparent & Open',
+        text: 'Open source code, clear policies, transparent data processing',
+      },
+    },
+    technology: {
+      title: 'Technical Advantages',
+      localProcessing: {
+        title: 'Local Processing',
+        text: 'All file processing happens in your browser, no uploads required',
+      },
+      encryption: {
+        title: 'Military-Grade Encryption',
+        text: 'Using AES-256-GCM standard to ensure data security',
+      },
+      performance: {
+        title: 'High-Performance Processing',
+        text: 'Based on WebAssembly and Web Workers for professional-grade performance',
+      },
+    },
+    team: {
+      title: 'Team Information',
+      text: 'CommonTools is created and maintained by a development team focused on privacy and user experience. We are committed to continuously improving our tools to provide the best experience for users.',
+      founded: 'Founded',
+      tools: 'Tools Available',
+      local: 'Local Processing',
+    },
+    contact: {
+      title: 'Contact Us',
+      text: 'If you have any questions, suggestions, or feedback, please feel free to contact us.',
+      email: 'chengjinweigoole@gmail.com',
+      button: 'Go to Contact Page',
+    },
+  },
+
+  // Contact Page
+  contact: {
+    title: 'Contact Us',
+    subtitle: 'We\'d love to hear from you',
+    email: 'chengjinweigoole@gmail.com',
+    form: {
+      title: 'Send a Message',
+      description: 'Please fill out the form below and we will get back to you as soon as possible.',
+      name: 'Name',
+      namePlaceholder: 'Enter your name',
+      email: 'Email',
+      emailPlaceholder: 'your.email@example.com',
+      subject: 'Subject',
+      subjectPlaceholder: 'Select a subject',
+      subjectOptions: {
+        general: 'General Inquiry',
+        bug: 'Bug Report',
+        feature: 'Feature Request',
+        security: 'Security Issue',
+        other: 'Other',
+      },
+      message: 'Message',
+      messagePlaceholder: 'Please describe your question or suggestion in detail...',
+      submit: 'Send Message',
+      sending: 'Sending...',
+      success: 'Message sent! We will reply to you as soon as possible.',
+      error: 'Failed to send. Please try again later.',
+    },
+    info: {
+      title: 'Contact Information',
+      email: {
+        title: 'Email Address',
+        description: 'Send an email to our support address, we will reply within 24-48 hours.',
+      },
+      security: {
+        title: 'Security Reports',
+        description: 'If you discover a security issue, please contact us through the security email.',
+        link: 'View Security Policy',
+      },
+      response: {
+        title: 'Response Time',
+        description: 'We typically respond to all inquiries within 24-48 hours. Urgent security issues are handled within 24 hours.',
+      },
+      language: {
+        title: 'Language Support',
+        description: 'We support Chinese and English. You can contact us in either language.',
+      },
+    },
   },
 }

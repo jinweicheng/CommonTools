@@ -1,7 +1,7 @@
 {
   "name": "CommonTools - Professional Online Tools",
   "short_name": "CommonTools",
-  "description": "Top 100 Free Online Tools 2026: Video format converter (MP4/MOV/MKV/WebM), video to GIF converter, image compression, video compression, HEIC to JPG, ProRAW converter, PDF encryption, watermark, e-signature. Everything locally in your web browser, 100% privacy protected, no upload.",
+  "description": "Top Free Online Tools 2026: Video format converter (MP4/MOV/MKV/WebM), video to GIF converter, image compression, video compression, HEIC to JPG, ProRAW converter, PDF encryption, watermark, e-signature. Everything locally in your web browser, 100% privacy protected, no upload.",
   "start_url": "/tools/",
   "scope": "/tools/",
   "display": "standalone",

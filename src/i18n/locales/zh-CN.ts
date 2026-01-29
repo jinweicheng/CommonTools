@@ -75,6 +75,31 @@ export default {
     description: '纯前端加密 / 本地处理 / 不上传服务器',
   },
 
+  // 信任徽章
+  trustBadges: {
+    https: {
+      title: 'HTTPS 加密',
+      description: 'SSL/TLS 安全连接',
+    },
+    local: {
+      title: '100% 本地处理',
+      description: '文件不上传服务器',
+    },
+    free: {
+      title: '完全免费',
+      description: '无需注册或付费',
+    },
+    verified: {
+      title: '已验证安全',
+      description: '定期安全扫描',
+    },
+  },
+
+  // 页脚
+  footer: {
+    securityNote: '所有处理均在您的浏览器本地完成，您的文件永远不会离开您的设备',
+  },
+
   // 通用文件加密
   fileEncryption: {
     title: '通用文件加密',
@@ -852,5 +877,112 @@ export default {
     tip4: 'MP4模式下启用帧去重可显著减小文件大小，推荐开启。',
     tip5Label: '🔐 隐私保护：',
     tip5: '所有转换均在浏览器本地完成，文件不会上传到服务器。',
+  },
+
+  // About Page
+  about: {
+    title: '关于我们',
+    subtitle: '了解 CommonTools 的使命、价值和团队',
+    mission: {
+      title: '我们的使命',
+      text: 'CommonTools 致力于为用户提供安全、高效、免费的在线工具。我们相信隐私是基本权利，因此所有处理都在您的浏览器本地完成，您的文件永远不会离开您的设备。',
+    },
+    values: {
+      title: '核心价值',
+      privacy: {
+        title: '隐私优先',
+        text: '100% 本地处理，您的数据永远不会上传到服务器',
+      },
+      performance: {
+        title: '高性能',
+        text: '使用 WebAssembly 和现代浏览器技术，提供专业级性能',
+      },
+      accessibility: {
+        title: '易于访问',
+        text: '完全免费，无需注册，随时随地使用',
+      },
+      transparency: {
+        title: '透明开放',
+        text: '开源代码，清晰的政策，透明的数据处理方式',
+      },
+    },
+    technology: {
+      title: '技术优势',
+      localProcessing: {
+        title: '本地处理',
+        text: '所有文件处理都在您的浏览器中完成，无需上传',
+      },
+      encryption: {
+        title: '军用级加密',
+        text: '使用 AES-256-GCM 标准，确保数据安全',
+      },
+      performance: {
+        title: '高性能处理',
+        text: '基于 WebAssembly 和 Web Workers，提供专业级性能',
+      },
+    },
+    team: {
+      title: '团队信息',
+      text: 'CommonTools 由一支专注于隐私和用户体验的开发团队创建和维护。我们致力于持续改进工具，为用户提供最佳体验。',
+      founded: '成立年份',
+      tools: '工具数量',
+      local: '本地处理',
+    },
+    contact: {
+      title: '联系我们',
+      text: '如果您有任何问题、建议或反馈，欢迎随时联系我们。',
+      email: 'chengjinweigoole@gmail.com',
+      button: '前往联系页面',
+    },
+  },
+
+  // Contact Page
+  contact: {
+    title: '联系我们',
+    subtitle: '我们很乐意听到您的声音',
+    email: 'chengjinweigoole@gmail.com',
+    form: {
+      title: '发送消息',
+      description: '请填写下面的表单，我们会尽快回复您。',
+      name: '姓名',
+      namePlaceholder: '请输入您的姓名',
+      email: '邮箱',
+      emailPlaceholder: 'your.email@example.com',
+      subject: '主题',
+      subjectPlaceholder: '请选择主题',
+      subjectOptions: {
+        general: '一般咨询',
+        bug: '错误报告',
+        feature: '功能建议',
+        security: '安全问题',
+        other: '其他',
+      },
+      message: '消息内容',
+      messagePlaceholder: '请详细描述您的问题或建议...',
+      submit: '发送消息',
+      sending: '发送中...',
+      success: '消息已发送！我们将尽快回复您。',
+      error: '发送失败，请稍后重试。',
+    },
+    info: {
+      title: '联系信息',
+      email: {
+        title: '邮箱地址',
+        description: '发送邮件到我们的支持邮箱，我们会在 24-48 小时内回复。',
+      },
+      security: {
+        title: '安全报告',
+        description: '如果您发现了安全问题，请通过安全邮箱联系我们。',
+        link: '查看安全政策',
+      },
+      response: {
+        title: '响应时间',
+        description: '我们通常在 24-48 小时内回复所有咨询。紧急安全问题会在 24 小时内处理。',
+      },
+      language: {
+        title: '语言支持',
+        description: '我们支持中文和英文。您可以使用任何一种语言与我们联系。',
+      },
+    },
   },
 }

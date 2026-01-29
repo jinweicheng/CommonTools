@@ -2,6 +2,7 @@ import { ReactNode, useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { Shield, Repeat, Droplet, PenTool, Archive, Image as ImageIcon, Camera as CameraIcon, FileImage, Layers, Video, Menu, X, Globe, ChevronDown, ChevronRight, Minimize2, Film, Wand2 } from 'lucide-react'
 import { useI18n } from '../i18n/I18nContext'
+import TrustBadges from './TrustBadges'
 import './Layout.css'
 
 interface LayoutProps {
@@ -235,6 +236,12 @@ export default function Layout({ children }: LayoutProps) {
         <div className="footer-container">
           <div className="footer-content">
             <div className="footer-links">
+              <Link to="/about" className="footer-link">
+                {t('about.title')}
+              </Link>
+              <Link to="/contact" className="footer-link">
+                {t('contact.title')}
+              </Link>
               <Link to="/support" className="footer-link">
                 {t('support.title')}
               </Link>
@@ -254,8 +261,12 @@ export default function Layout({ children }: LayoutProps) {
                 {t('refundPolicy.title')}
               </Link>
             </div>
+            <TrustBadges />
             <div className="footer-copyright">
               <p>&copy; {new Date().getFullYear()} CommonTools. All rights reserved.</p>
+              <p className="footer-security-note">
+                🔒 {t('footer.securityNote')}
+              </p>
             </div>
           </div>
         </div>
