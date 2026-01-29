@@ -31,20 +31,20 @@ const FLUSH_INTERVAL_MS = 1500
 const DEDUPE_WINDOW_MS = 10_000
 const recentFingerprints = new Map<string, number>()
 
-function agentLog(hypothesisId: string, location: string, message: string, data: AnyRecord = {}) {
+// function agentLog(hypothesisId: string, location: string, message: string, data: AnyRecord = {}) {
   // #region agent log
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 5000) // Set a timeout of 5 seconds
+  // const controller = new AbortController()
+  // const timeoutId = setTimeout(() => controller.abort(), 5000) // Set a timeout of 5 seconds
 
   // Skip fetch entirely if the URL violates CSP
-  const isCSPViolated =
-    !document ||
-    !document.querySelector ||
-    !document.querySelector('meta[http-equiv="Content-Security-Policy"]')
-  if (isCSPViolated) {
-    console.error('CSP violation detected. Fetch call skipped.')
-    return
-  }
+  // const isCSPViolated =
+  //   !document ||
+  //   !document.querySelector ||
+  //   !document.querySelector('meta[http-equiv="Content-Security-Policy"]')
+  // if (isCSPViolated) {
+  //   console.error('CSP violation detected. Fetch call skipped.')
+  //   return
+  // }
 
   // fetch('http://127.0.0.1:7242/ingest/71098a2f-f0c4-4d65-806e-3b09d5bdb25f', {
   //   method: 'POST',
@@ -74,7 +74,7 @@ function agentLog(hypothesisId: string, location: string, message: string, data:
   //     clearTimeout(timeoutId) // Ensure timeout is cleared in all cases
   //   })
   // #endregion agent log
-}
+// }
 
 function safeStringify(value: unknown): string {
   try {
@@ -159,21 +159,21 @@ async function postReports(batch: FrontendErrorReport[]): Promise<boolean> {
       body: JSON.stringify({ userId, module, errorMessage }),
       keepalive: true,
     })
-    agentLog('H4', 'errorReporting.ts:postReports', 'post result', { ok: res.ok, status: res.status })
+    // agentLog('H4', 'errorReporting.ts:postReports', 'post result', { ok: res.ok, status: res.status })
     return res.ok
   } catch (e) {
-    agentLog('H4', 'errorReporting.ts:postReports', 'post failed', { error: safeStringify(e) })
+    // agentLog('H4', 'errorReporting.ts:postReports', 'post failed', { error: safeStringify(e) })
     return false
   }
 }
 
-async function flushQueue(reason: string) {
+async function flushQueue() {
   if (inReporting) return
   if (queue.length === 0) return
   inReporting = true
 
   const batch = queue.splice(0, Math.min(queue.length, 10))
-  agentLog('H3', 'errorReporting.ts:flushQueue', 'flushing batch', { reason, batchSize: batch.length })
+  // agentLog('H3', 'errorReporting.ts:flushQueue', 'flushing batch', { reason, batchSize: batch.length })
 
   const ok = await postReports(batch)
   if (!ok) {
@@ -184,11 +184,11 @@ async function flushQueue(reason: string) {
   inReporting = false
 }
 
-function scheduleFlush(reason: string) {
+function scheduleFlush() {
   if (flushTimer !== null) return
   flushTimer = window.setTimeout(() => {
     flushTimer = null
-    flushQueue(reason).catch(() => {})
+    flushQueue().catch(() => {})
   }, FLUSH_INTERVAL_MS)
 }
 
@@ -198,7 +198,7 @@ function enqueue(report: FrontendErrorReport) {
 
   queue.push(report)
   if (queue.length > MAX_QUEUE) queue = queue.slice(queue.length - MAX_QUEUE)
-  scheduleFlush('scheduled')
+  scheduleFlush()
 }
 
 function buildBaseReport(): Pick<FrontendErrorReport, 'userId' | 'url' | 'path' | 'userAgent' | 'timestamp'> {
@@ -234,11 +234,11 @@ function reportError(
       },
     }
 
-    agentLog('H2', 'errorReporting.ts:reportError', 'captured', {
-      source,
-      name: report.name,
-      message: report.message,
-    })
+    // agentLog('H2', 'errorReporting.ts:reportError', 'captured', {
+    //   source,
+    //   name: report.name,
+    //   message: report.message,
+    // })
 
     enqueue(report)
   }
@@ -281,9 +281,9 @@ export function initErrorReporting() {
 
   // 4) beforeunload flush（尽量把队列发出去）
   window.addEventListener('beforeunload', () => {
-    flushQueue('beforeunload').catch(() => {})
+    flushQueue().catch(() => {})
   })
 
-  agentLog('H1', 'errorReporting.ts:initErrorReporting', 'installed', { endpoint: REPORT_ENDPOINT })
+  // agentLog('H1', 'errorReporting.ts:initErrorReporting', 'installed', { endpoint: REPORT_ENDPOINT })
 }
 

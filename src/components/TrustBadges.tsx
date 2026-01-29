@@ -1,4 +1,4 @@
-import { Shield, Lock, Globe, CheckCircle2 } from 'lucide-react'
+import { Shield, Lock, CheckCircle2 } from 'lucide-react'
 import { useI18n } from '../i18n/I18nContext'
 import './TrustBadges.css'
 
