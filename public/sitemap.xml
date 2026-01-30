@@ -188,4 +188,20 @@
     <priority>0.7</priority>
   </url>
   
+  <!-- 联系我们 -->
+  <url>
+    <loc>https://commontools.top/tools/contact</loc>
+    <lastmod>2026-01-30</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  
+  <!-- 关于我们 -->
+  <url>
+    <loc>https://commontools.top/tools/about</loc>
+    <lastmod>2026-01-30</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  
 </urlset>

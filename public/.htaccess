@@ -32,6 +32,17 @@
     
     # 否则重定向到 index.html（SPA 路由）
     RewriteRule ^ index.html [L]
+
+    # 新增页面路由支持
+    RewriteCond %{REQUEST_URI} ^/tools/contact/?$ [NC]
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^ index.html [L]
+
+    RewriteCond %{REQUEST_URI} ^/tools/about/?$ [NC]
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^ index.html [L]
 </IfModule>
 
 # ========================================

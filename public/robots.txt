@@ -55,6 +55,10 @@ Allow: /tools/terms-of-service
 Allow: /tools/refund-policy
 Allow: /tools/pricing
 
+# ===== 新增页面 =====
+Allow: /tools/contact
+Allow: /tools/about
+
 # ===== 禁止爬取 =====
 # 构建产物和资源文件
 Disallow: /tools/assets/

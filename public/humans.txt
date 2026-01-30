@@ -17,12 +17,13 @@
     Libraries: FFmpeg.wasm, PDF.js, JSZip, heic2any, GIF.js, file-saver
 
 # SITE
-    Last update: 2026-01-22
+    Last update: 2026-01-30
     Language: English, Chinese (Simplified)
     Standards: HTML5, CSS3, ES2022, WebAssembly
     Components: React 18.2+, TypeScript 5.0+, Vite 4.0+
     IDE: VS Code, WebStorm
     Version: 2.0
+    Pages: Contact Us, About Us
 
 # TECHNOLOGY COLOPHON
 
@@ -116,6 +117,7 @@
     batch processing, format conversion, image optimization
     web tools, productivity tools, utility tools, online image tools
     online video tools, online file tools, free online tools 2026
+    contact us, about us
 
 # VALUES
     Privacy First - Your data never leaves your browser
@@ -186,4 +188,4 @@
     Automated deployment via CI/CD
 
 # LAST UPDATE
-    2026-01-22
+    2026-01-30
