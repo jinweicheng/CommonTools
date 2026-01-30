@@ -103,7 +103,6 @@ Crawl-delay: 1
 
 # ===== Sitemap 位置 =====
 Sitemap: https://commontools.top/tools/sitemap.xml
-Sitemap: https://commontools.top/sitemap.xml
 
 # ===== 主机声明 =====
 Host: https://commontools.top

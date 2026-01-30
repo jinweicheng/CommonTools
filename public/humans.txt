@@ -7,7 +7,7 @@
     Contact: support [at] commontools.top
     Location: International
     Twitter: @CommonTools
-    GitHub: https://github.com/CommonTools
+    GitHub: https://github.com/jinweicheng
 
 # THANKS
     Thanks to all users who provide feedback and suggestions
