@@ -15,6 +15,7 @@
     "@ffmpeg/core": "^0.12.10",
     "@ffmpeg/ffmpeg": "^0.12.10",
     "@ffmpeg/util": "^0.12.2",
+    "@imgly/background-removal": "^1.7.0",
     "@zip.js/zip.js": "^2.8.11",
     "date-fns": "^3.6.0",
     "docx": "^9.5.1",

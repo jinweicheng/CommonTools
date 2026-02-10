@@ -1,8 +1,9 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
-import { Upload, Download, X, Settings, Loader2, Sparkles, RotateCcw, RotateCw, Wand2, Eraser, Paintbrush, Trash2, CheckSquare, Zap } from 'lucide-react'
+import { Upload, Download, X, Settings, Loader2, Sparkles, RotateCcw, RotateCw, Wand2, Eraser, Paintbrush, Trash2, CheckSquare } from 'lucide-react'
 import { useI18n } from '../i18n/I18nContext'
 import { saveAs } from 'file-saver'
 import JSZip from 'jszip'
+import { removeBackground, type Config as RemBgConfig } from '@imgly/background-removal'
 import './RemovePhotos.css'
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024 // 20MB
@@ -10,7 +11,6 @@ const MAX_BATCH_FILES = 10 // 批量处理最大文件数
 
 type OutputFormat = 'png' | 'webp' | 'jpg'
 type BackgroundType = 'transparent' | 'color' | 'image' | 'blur'
-type ProcessingMode = 'auto' | 'manual' | 'ai' // 处理模式：自动、手动、AI
 
 interface ImageTask {
   id: string
@@ -55,18 +55,18 @@ export default function RemovePhotos() {
   const [tasks, setTasks] = useState<ImageTask[]>([])
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
-  const [processingMode, setProcessingMode] = useState<ProcessingMode>('auto')
   
-  // ONNX Runtime 状态
-  const [onnxLoaded, setOnnxLoaded] = useState(false)
-  const [onnxLoading, setOnnxLoading] = useState(false)
-  const onnxSessionRef = useRef<any>(null)
+  // AI 模型状态
+  const [modelReady, setModelReady] = useState(false)
+  const [modelProgress, setModelProgress] = useState('')
   
   // 当前选中任务的状态
   const currentTask = useMemo(() => tasks.find(t => t.id === selectedTaskId), [tasks, selectedTaskId])
   const [compareSlider, setCompareSlider] = useState(50)
   const [showBrushTool, setShowBrushTool] = useState(false)
   const [showInpaintTool, setShowInpaintTool] = useState(false)
+  const [inpaintMode, setInpaintMode] = useState<'erase' | 'blur'>('erase')
+  const [inpaintBlur, setInpaintBlur] = useState(25)
 
   // 处理状态（每个任务独立）
   const stateRef = useRef<ProcessingState>({
@@ -92,6 +92,7 @@ export default function RemovePhotos() {
     imageFile: null,
     blurAmount: 50
   })
+  const [defringeEdges, setDefringeEdges] = useState(true)
 
   // 画笔设置
   const [brushSize, setBrushSize] = useState(20)
@@ -101,6 +102,7 @@ export default function RemovePhotos() {
   const backgroundInputRef = useRef<HTMLInputElement>(null)
   const maskCanvasRef = useRef<HTMLCanvasElement>(null)
   const inpaintCanvasRef = useRef<HTMLCanvasElement>(null)
+  const inpaintStateRef = useRef({ isDrawing: false, lastPoint: null as { x: number; y: number } | null })
 
   // 批量文件上传
   const handleFileUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
@@ -190,120 +192,187 @@ export default function RemovePhotos() {
     setCompareSlider(50)
   }, [])
 
-  // ========== ONNX Runtime Web 加载 ==========
-  const loadONNXRuntime = useCallback(async (): Promise<boolean> => {
-    if (onnxLoaded || onnxLoading) return onnxLoaded
+  // 应用背景到任务（前置以避免 TDZ）
+  const applyBackgroundToTask = useCallback(async (task: ImageTask, mask: ImageData): Promise<{ blob: Blob; url: string }> => {
+    if (!task.originalImage) throw new Error('Original image not found')
 
-    setOnnxLoading(true)
+    const img = task.originalImage
+    const canvas = document.createElement('canvas')
+    canvas.width = img.width
+    canvas.height = img.height
+    const ctx = canvas.getContext('2d')!
 
-    try {
-      // 动态加载 ONNX Runtime Web（如果可用）
-      // 注意：需要先安装 onnxruntime-web: npm install onnxruntime-web
-      let onnx: any
-      try {
-        // @ts-ignore - 动态导入，可能不存在
-        onnx = await import('onnxruntime-web')
-      } catch (err) {
-        console.warn('ONNX Runtime Web not installed. Install with: npm install onnxruntime-web')
-        setOnnxLoading(false)
-        setOnnxLoaded(false)
-        alert(language === 'zh-CN' 
-          ? 'ONNX Runtime Web 未安装。请先安装：npm install onnxruntime-web'
-          : 'ONNX Runtime Web not installed. Please install: npm install onnxruntime-web')
-        return false
-      }
-      
-      // 检查 WebGPU 支持
-      const hasWebGPU = 'gpu' in navigator
-      const executionProvider = hasWebGPU ? 'webgpu' : 'wasm'
+    // 先绘制原始图片
+    ctx.drawImage(img, 0, 0)
+    const originalImageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
 
-      // 加载预训练模型（这里使用示例模型 URL，实际需要提供真实的模型文件）
-      // 注意：需要下载并部署实际的语义分割模型
-      const modelUrl = '/models/rembg.onnx' // 示例路径
-
-      try {
-        const session = await onnx.InferenceSession.create(modelUrl, {
-          executionProviders: [executionProvider]
-        })
-        onnxSessionRef.current = session
-        setOnnxLoaded(true)
-        setOnnxLoading(false)
-        return true
-      } catch (err) {
-        console.warn('ONNX model not found, falling back to traditional method:', err)
-        setOnnxLoaded(false)
-        setOnnxLoading(false)
-        return false
-      }
-    } catch (err) {
-      console.warn('ONNX Runtime Web not available:', err)
-      setOnnxLoaded(false)
-      setOnnxLoading(false)
-      return false
+    // 绘制背景
+    if (backgroundOptions.type === 'transparent') {
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+    } else if (backgroundOptions.type === 'color') {
+      ctx.fillStyle = backgroundOptions.color
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+    } else if (backgroundOptions.type === 'blur') {
+      const blurred = applyBlur(originalImageData, backgroundOptions.blurAmount)
+      ctx.putImageData(blurred, 0, 0)
+    } else if (backgroundOptions.type === 'image' && backgroundOptions.imageFile) {
+      const bgImg = new Image()
+      await new Promise((resolve, reject) => {
+        bgImg.onload = resolve
+        bgImg.onerror = reject
+        bgImg.src = URL.createObjectURL(backgroundOptions.imageFile!)
+      })
+      ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height)
     }
-  }, [onnxLoaded, onnxLoading])
 
-  // ========== AI 分割（使用 ONNX Runtime） ==========
-  const aiSegment = useCallback(async (task: ImageTask): Promise<ImageData | null> => {
-    if (!task.originalImage || !onnxSessionRef.current) return null
+    const maskData = mask.data
+    const resultData = new ImageData(canvas.width, canvas.height)
+    const backgroundData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+    const bgColor = defringeEdges ? estimateBackgroundColor(originalImageData) : null
+
+    for (let i = 0; i < originalImageData.data.length; i += 4) {
+      const maskAlpha = maskData[i + 3] / 255
+      if (backgroundOptions.type === 'transparent') {
+        resultData.data[i] = originalImageData.data[i]
+        resultData.data[i + 1] = originalImageData.data[i + 1]
+        resultData.data[i + 2] = originalImageData.data[i + 2]
+        resultData.data[i + 3] = Math.round(originalImageData.data[i + 3] * maskAlpha)
+        if (defringeEdges && bgColor) {
+          const a = resultData.data[i + 3] / 255
+          if (a > 0 && a < 1) {
+            resultData.data[i] = clampColor((resultData.data[i] - bgColor.r * (1 - a)) / a)
+            resultData.data[i + 1] = clampColor((resultData.data[i + 1] - bgColor.g * (1 - a)) / a)
+            resultData.data[i + 2] = clampColor((resultData.data[i + 2] - bgColor.b * (1 - a)) / a)
+          } else if (a === 0) {
+            resultData.data[i] = 0
+            resultData.data[i + 1] = 0
+            resultData.data[i + 2] = 0
+          }
+        }
+      } else {
+        const fgAlpha = maskAlpha
+        const bgAlpha = 1 - fgAlpha
+        resultData.data[i] = Math.round(originalImageData.data[i] * fgAlpha + backgroundData.data[i] * bgAlpha)
+        resultData.data[i + 1] = Math.round(originalImageData.data[i + 1] * fgAlpha + backgroundData.data[i + 1] * bgAlpha)
+        resultData.data[i + 2] = Math.round(originalImageData.data[i + 2] * fgAlpha + backgroundData.data[i + 2] * bgAlpha)
+        resultData.data[i + 3] = Math.round(originalImageData.data[i + 3] * fgAlpha + backgroundData.data[i + 3] * bgAlpha)
+      }
+    }
+
+    ctx.putImageData(resultData, 0, 0)
+
+    return new Promise((resolve) => {
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const url = URL.createObjectURL(blob)
+          resolve({ blob, url })
+        }
+      }, `image/${outputFormat}`, outputFormat === 'png' ? undefined : outputQuality / 100)
+    })
+  }, [backgroundOptions, outputFormat, outputQuality, defringeEdges])
+
+  // 遮罩变更时更新结果
+  const updateTaskResultWithMask = useCallback(async (taskId: string, mask: ImageData) => {
+    const task = tasks.find(t => t.id === taskId)
+    if (!task || !task.originalImage) return
+
+    const featheredMask = applyFeathering(mask, task.originalImage.width, task.originalImage.height, edgeFeather)
+    const result = await applyBackgroundToTask(task, featheredMask)
+
+    setTasks(prev => prev.map(t => 
+      t.id === taskId
+        ? (() => {
+            if (t.resultUrl) URL.revokeObjectURL(t.resultUrl)
+            return { ...t, mask: featheredMask, result: result.blob, resultUrl: result.url }
+          })()
+        : t
+    ))
+  }, [tasks, edgeFeather, applyBackgroundToTask])
+
+  // ========== AI 背景去除（@imgly/background-removal） ==========
+  const removeBackgroundAI = useCallback(async (task: ImageTask): Promise<ImageData | null> => {
+    if (!task.originalImage) return null
 
     try {
       const img = task.originalImage
-      const canvas = document.createElement('canvas')
-      canvas.width = img.width
-      canvas.height = img.height
-      const ctx = canvas.getContext('2d')!
-      ctx.drawImage(img, 0, 0)
 
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-      
-      // 预处理：转换为模型输入格式
-      const inputTensor = preprocessImage(imageData)
-      
-      // 运行推理
-      const feeds = { input: inputTensor }
-      const results = await onnxSessionRef.current.run(feeds)
-      
-      // 后处理：转换为遮罩
-      const mask = postprocessMask(results.output, canvas.width, canvas.height)
-      
+      setTasks(prev => prev.map(t =>
+        t.id === task.id ? { ...t, progress: 10, progressMessage: language === 'zh-CN' ? '正在加载 AI 模型...' : 'Loading AI model...' } : t
+      ))
+
+      // 将 HTMLImageElement 转为 Blob 以供 @imgly/background-removal
+      const inputCanvas = document.createElement('canvas')
+      inputCanvas.width = img.width
+      inputCanvas.height = img.height
+      const inputCtx = inputCanvas.getContext('2d')!
+      inputCtx.drawImage(img, 0, 0)
+      const inputBlob: Blob = await new Promise((resolve) => {
+        inputCanvas.toBlob((b) => resolve(b!), 'image/png')
+      })
+
+      const config: Partial<RemBgConfig> = {
+        output: {
+          format: 'image/png' as const,
+          quality: 1.0,
+        },
+        progress: (key: string, current: number, total: number) => {
+          const pct = total > 0 ? Math.round((current / total) * 100) : 0
+          let msg = ''
+          if (key.includes('fetch') || key.includes('download')) {
+            msg = language === 'zh-CN' ? `下载模型中... ${pct}%` : `Downloading model... ${pct}%`
+          } else if (key.includes('compute') || key.includes('inference')) {
+            msg = language === 'zh-CN' ? `AI 推理中... ${pct}%` : `AI inference... ${pct}%`
+          } else {
+            msg = language === 'zh-CN' ? `处理中... ${pct}%` : `Processing... ${pct}%`
+          }
+          setModelProgress(msg)
+          const overallProgress = 10 + Math.round(pct * 0.7) // 10-80
+          setTasks(prev => prev.map(t =>
+            t.id === task.id ? { ...t, progress: overallProgress, progressMessage: msg } : t
+          ))
+        }
+      }
+
+      // 调用 AI 去背景
+      const resultBlob = await removeBackground(inputBlob, config)
+      setModelReady(true)
+
+      setTasks(prev => prev.map(t =>
+        t.id === task.id ? { ...t, progress: 85, progressMessage: language === 'zh-CN' ? '生成遮罩...' : 'Generating mask...' } : t
+      ))
+
+      // 从 AI 结果中提取 alpha 通道作为 mask
+      const resultImg = new Image()
+      await new Promise<void>((resolve, reject) => {
+        resultImg.onload = () => resolve()
+        resultImg.onerror = reject
+        resultImg.src = URL.createObjectURL(resultBlob)
+      })
+
+      const maskCanvas = document.createElement('canvas')
+      maskCanvas.width = img.width
+      maskCanvas.height = img.height
+      const maskCtx = maskCanvas.getContext('2d')!
+      maskCtx.drawImage(resultImg, 0, 0, img.width, img.height)
+      const resultImageData = maskCtx.getImageData(0, 0, img.width, img.height)
+
+      // 提取 alpha 通道创建 mask（白色=前景，黑色=背景）
+      const mask = new ImageData(img.width, img.height)
+      for (let i = 0; i < resultImageData.data.length; i += 4) {
+        const alpha = resultImageData.data[i + 3]
+        mask.data[i] = alpha
+        mask.data[i + 1] = alpha
+        mask.data[i + 2] = alpha
+        mask.data[i + 3] = alpha
+      }
+
+      URL.revokeObjectURL(resultImg.src)
       return mask
     } catch (err) {
-      console.error('AI segmentation failed:', err)
+      console.error('AI background removal failed:', err)
       return null
     }
-  }, [])
-
-  // 图像预处理（转换为模型输入）
-  const preprocessImage = (imageData: ImageData): any => {
-    const { data, width, height } = imageData
-    const input = new Float32Array(3 * width * height)
-    
-    // 归一化到 [0, 1] 并转换为 RGB
-    for (let i = 0; i < width * height; i++) {
-      input[i] = data[i * 4] / 255.0 // R
-      input[width * height + i] = data[i * 4 + 1] / 255.0 // G
-      input[2 * width * height + i] = data[i * 4 + 2] / 255.0 // B
-    }
-    
-    return new (window as any).onnx.Tensor('float32', input, [1, 3, height, width])
-  }
-
-  // 后处理（转换为遮罩）
-  const postprocessMask = (output: any, width: number, height: number): ImageData => {
-    const mask = new ImageData(width, height)
-    const outputData = output.data
-    
-    for (let i = 0; i < width * height; i++) {
-      const value = outputData[i] > 0.5 ? 255 : 0
-      mask.data[i * 4] = value
-      mask.data[i * 4 + 1] = value
-      mask.data[i * 4 + 2] = value
-      mask.data[i * 4 + 3] = value
-    }
-    
-    return mask
-  }
+  }, [language])
 
   // ========== 画笔功能 ==========
   const initBrushCanvas = useCallback(() => {
@@ -379,9 +448,11 @@ export default function RemovePhotos() {
       return t
     }))
 
+    updateTaskResultWithMask(currentTask.id, mask)
+
     stateRef.current.brushPath = []
     stateRef.current.lastPoint = null
-  }, [currentTask])
+  }, [currentTask, updateTaskResultWithMask])
 
   const drawBrushStroke = (x1: number, y1: number, x2: number, y2: number) => {
     if (!maskCanvasRef.current) return
@@ -399,89 +470,126 @@ export default function RemovePhotos() {
     ctx.stroke()
   }
 
-  // ========== Inpainting（物体擦除） ==========
-  const performInpainting = useCallback(async (task: ImageTask, mask: ImageData): Promise<ImageData | null> => {
-    if (!task.originalImage) return null
+  // ========== Inpainting 画布绘制 ==========
+  const initInpaintCanvas = useCallback(() => {
+    if (!inpaintCanvasRef.current || !currentTask?.originalImage) return
 
-    try {
-      const img = task.originalImage
-      const canvas = document.createElement('canvas')
-      canvas.width = img.width
-      canvas.height = img.height
-      const ctx = canvas.getContext('2d')!
+    const canvas = inpaintCanvasRef.current
+    const img = currentTask.originalImage
+    canvas.width = img.width
+    canvas.height = img.height
+    const ctx = canvas.getContext('2d')!
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    ctx.strokeStyle = 'rgba(255, 0, 0, 0.6)'
+    ctx.lineWidth = brushSize
+  }, [currentTask, brushSize])
+
+  const handleInpaintStart = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!inpaintCanvasRef.current || !currentTask) return
+
+    const canvas = inpaintCanvasRef.current
+    const rect = canvas.getBoundingClientRect()
+    const scaleX = canvas.width / rect.width
+    const scaleY = canvas.height / rect.height
+    const x = (e.clientX - rect.left) * scaleX
+    const y = (e.clientY - rect.top) * scaleY
+
+    inpaintStateRef.current.isDrawing = true
+    inpaintStateRef.current.lastPoint = { x, y }
+
+    const ctx = canvas.getContext('2d')!
+    ctx.beginPath()
+    ctx.moveTo(x, y)
+  }, [currentTask])
+
+  const handleInpaintMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!inpaintCanvasRef.current || !inpaintStateRef.current.isDrawing) return
+    const canvas = inpaintCanvasRef.current
+    const rect = canvas.getBoundingClientRect()
+    const scaleX = canvas.width / rect.width
+    const scaleY = canvas.height / rect.height
+    const x = (e.clientX - rect.left) * scaleX
+    const y = (e.clientY - rect.top) * scaleY
+    const ctx = canvas.getContext('2d')!
+    ctx.lineWidth = brushSize
+    ctx.strokeStyle = 'rgba(255, 0, 0, 0.6)'
+    ctx.lineTo(x, y)
+    ctx.stroke()
+    inpaintStateRef.current.lastPoint = { x, y }
+  }, [brushSize])
+
+  const applyInpaintMask = useCallback(async (task: ImageTask, paintMask: ImageData) => {
+    if (!task.originalImage) return
+
+    const img = task.originalImage
+    const canvas = document.createElement('canvas')
+    canvas.width = img.width
+    canvas.height = img.height
+    const ctx = canvas.getContext('2d')!
+
+    // 如果已有结果，用结果作为基底，否则用原图套用当前遮罩结果
+    if (task.resultUrl) {
+      const baseImg = new Image()
+      await new Promise((resolve, reject) => {
+        baseImg.onload = resolve
+        baseImg.onerror = reject
+        baseImg.src = task.resultUrl!
+      })
+      ctx.drawImage(baseImg, 0, 0)
+    } else {
       ctx.drawImage(img, 0, 0)
-
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-      
-      // 使用简单的 Inpainting 算法（基于 Telea 算法）
-      const result = inpaintTelea(imageData, mask, canvas.width, canvas.height)
-      
-      return result
-    } catch (err) {
-      console.error('Inpainting failed:', err)
-      return null
-    }
-  }, [])
-
-  // Telea Inpainting 算法（简化版）
-  const inpaintTelea = (imageData: ImageData, mask: ImageData, width: number, height: number): ImageData => {
-    const result = new ImageData(width, height)
-    const imgData = imageData.data
-    const maskData = mask.data
-    const resultData = result.data
-
-    // 复制原始数据
-    for (let i = 0; i < imgData.length; i++) {
-      resultData[i] = imgData[i]
     }
 
-    // 找到需要修复的区域
-    const toInpaint: { x: number; y: number }[] = []
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        const idx = (y * width + x) * 4
-        if (maskData[idx + 3] > 128) { // 遮罩区域
-          toInpaint.push({ x, y })
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+    const baseData = imageData.data
+    const maskData = paintMask.data
+
+    if (inpaintMode === 'erase') {
+      for (let i = 0; i < maskData.length; i += 4) {
+        if (maskData[i + 3] > 10) {
+          baseData[i + 3] = 0
+        }
+      }
+    } else {
+      const blurred = applyBlur(imageData, inpaintBlur)
+      const blurredData = blurred.data
+      for (let i = 0; i < maskData.length; i += 4) {
+        if (maskData[i + 3] > 10) {
+          baseData[i] = blurredData[i]
+          baseData[i + 1] = blurredData[i + 1]
+          baseData[i + 2] = blurredData[i + 2]
+          baseData[i + 3] = blurredData[i + 3]
         }
       }
     }
 
-    // 对每个需要修复的像素，使用周围已知像素的平均值
-    const radius = 5
-    for (const { x, y } of toInpaint) {
-      let rSum = 0, gSum = 0, bSum = 0, count = 0
+    ctx.putImageData(imageData, 0, 0)
 
-      for (let dy = -radius; dy <= radius; dy++) {
-        for (let dx = -radius; dx <= radius; dx++) {
-          const nx = x + dx
-          const ny = y + dy
-          if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-            const nIdx = (ny * width + nx) * 4
-            if (maskData[nIdx + 3] < 128) { // 非遮罩区域
-              const dist = Math.sqrt(dx * dx + dy * dy)
-              if (dist <= radius && dist > 0) {
-                const weight = 1 / dist
-                rSum += imgData[nIdx] * weight
-                gSum += imgData[nIdx + 1] * weight
-                bSum += imgData[nIdx + 2] * weight
-                count += weight
-              }
-            }
-          }
-        }
-      }
+    canvas.toBlob((blob) => {
+      if (!blob) return
+      const url = URL.createObjectURL(blob)
+      setTasks(prev => prev.map(t =>
+        t.id === task.id
+          ? (() => {
+              if (t.resultUrl) URL.revokeObjectURL(t.resultUrl)
+              return { ...t, result: blob, resultUrl: url }
+            })()
+          : t
+      ))
+    }, `image/${outputFormat}`, outputFormat === 'png' ? undefined : outputQuality / 100)
+  }, [inpaintMode, inpaintBlur, outputFormat, outputQuality])
 
-      if (count > 0) {
-        const idx = (y * width + x) * 4
-        resultData[idx] = Math.round(rSum / count)
-        resultData[idx + 1] = Math.round(gSum / count)
-        resultData[idx + 2] = Math.round(bSum / count)
-        resultData[idx + 3] = imgData[idx + 3]
-      }
-    }
-
-    return result
-  }
+  const handleInpaintEnd = useCallback(async () => {
+    if (!inpaintCanvasRef.current || !currentTask) return
+    inpaintStateRef.current.isDrawing = false
+    const canvas = inpaintCanvasRef.current
+    const mask = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height)
+    await applyInpaintMask(currentTask, mask)
+    const ctx = canvas.getContext('2d')!
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+  }, [currentTask, applyInpaintMask])
 
   // 批量处理所有待处理任务
   const processBatch = useCallback(async () => {
@@ -506,7 +614,7 @@ export default function RemovePhotos() {
     setIsProcessing(false)
   }, [tasks])
 
-  // 处理单个任务
+  // 处理单个任务（使用 AI 去背景）
   const processSingleTask = useCallback(async (task: ImageTask) => {
     if (!task.originalImage) return
 
@@ -514,26 +622,19 @@ export default function RemovePhotos() {
       t.id === task.id ? { ...t, status: 'processing', progress: 0 } : t
     ))
 
-    let mask: ImageData | null = null
-
-    // 根据模式选择处理方法
-    if (processingMode === 'ai' && onnxLoaded && onnxSessionRef.current) {
-      // AI 分割
-      setTasks(prev => prev.map(t => 
-        t.id === task.id ? { ...t, progress: 10, progressMessage: language === 'zh-CN' ? 'AI 分割中...' : 'AI segmenting...' } : t
-      ))
-      mask = await aiSegment(task)
-    } else {
-      // 传统方法
-      mask = await removeBackgroundTraditional(task)
-    }
+    // 使用 AI 去背景
+    const mask = await removeBackgroundAI(task)
 
     if (!mask) {
       setTasks(prev => prev.map(t => 
-        t.id === task.id ? { ...t, status: 'failed', progressMessage: 'Processing failed' } : t
+        t.id === task.id ? { ...t, status: 'failed', progressMessage: language === 'zh-CN' ? '处理失败' : 'Processing failed' } : t
       ))
       return
     }
+
+    setTasks(prev => prev.map(t => 
+      t.id === task.id ? { ...t, progress: 90, progressMessage: language === 'zh-CN' ? '应用背景...' : 'Applying background...' } : t
+    ))
 
     // 应用边缘羽化
     const featheredMask = applyFeathering(
@@ -561,276 +662,40 @@ export default function RemovePhotos() {
           }
         : t
     ))
-  }, [processingMode, onnxLoaded, edgeFeather, language, aiSegment])
+  }, [edgeFeather, language, removeBackgroundAI])
 
-  // 传统去背景方法
-  const removeBackgroundTraditional = useCallback(async (task: ImageTask): Promise<ImageData | null> => {
-    if (!task.originalImage) return null
+  const clampColor = (value: number) => Math.max(0, Math.min(255, Math.round(value)))
 
-    const img = task.originalImage
-    const canvas = document.createElement('canvas')
-    canvas.width = img.width
-    canvas.height = img.height
-    const ctx = canvas.getContext('2d')!
-    ctx.drawImage(img, 0, 0)
+  const estimateBackgroundColor = (imageData: ImageData) => {
+    const { data, width, height } = imageData
+    const step = Math.max(1, Math.floor(Math.min(width, height) / 20))
+    let r = 0
+    let g = 0
+    let b = 0
+    let count = 0
 
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-
-    setTasks(prev => prev.map(t => 
-      t.id === task.id ? { ...t, progress: 20, progressMessage: language === 'zh-CN' ? '检测边缘...' : 'Detecting edges...' } : t
-    ))
-
-    // 1. 检测边缘
-    const edges = detectEdges(imageData)
-    
-    setTasks(prev => prev.map(t => 
-      t.id === task.id ? { ...t, progress: 40, progressMessage: language === 'zh-CN' ? '生成遮罩...' : 'Generating mask...' } : t
-    ))
-
-    // 2. 基于边缘和颜色相似度生成遮罩
-    const mask = generateMask(imageData, edges)
-
-    setTasks(prev => prev.map(t => 
-      t.id === task.id ? { ...t, progress: 60, progressMessage: language === 'zh-CN' ? '优化遮罩...' : 'Refining mask...' } : t
-    ))
-
-    // 3. 优化遮罩（填充空洞、平滑边缘）
-    const refinedMask = refineMask(mask, canvas.width, canvas.height)
-
-    return refinedMask
-  }, [language, edgeFeather])
-
-  // 应用背景到任务
-  const applyBackgroundToTask = useCallback(async (task: ImageTask, mask: ImageData): Promise<{ blob: Blob; url: string }> => {
-    if (!task.originalImage) throw new Error('Original image not found')
-
-    const img = task.originalImage
-    const canvas = document.createElement('canvas')
-    canvas.width = img.width
-    canvas.height = img.height
-    const ctx = canvas.getContext('2d')!
-
-    // 先绘制原始图片
-    ctx.drawImage(img, 0, 0)
-    const originalImageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-
-    // 绘制背景
-    if (backgroundOptions.type === 'transparent') {
-      // 透明背景，清除画布
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
-    } else if (backgroundOptions.type === 'color') {
-      ctx.fillStyle = backgroundOptions.color
-      ctx.fillRect(0, 0, canvas.width, canvas.height)
-    } else if (backgroundOptions.type === 'blur') {
-      // 模糊原图作为背景
-      const blurred = applyBlur(originalImageData, backgroundOptions.blurAmount)
-      ctx.putImageData(blurred, 0, 0)
-    } else if (backgroundOptions.type === 'image' && backgroundOptions.imageFile) {
-      const bgImg = new Image()
-      await new Promise((resolve, reject) => {
-        bgImg.onload = resolve
-        bgImg.onerror = reject
-        bgImg.src = URL.createObjectURL(backgroundOptions.imageFile!)
-      })
-      ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height)
-    }
-
-    // 绘制前景（应用遮罩）
-    const maskData = mask.data
-    const resultData = new ImageData(canvas.width, canvas.height)
-    
-    // 获取当前背景（如果有）
-    const backgroundData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-
-    for (let i = 0; i < originalImageData.data.length; i += 4) {
-      const maskAlpha = maskData[i + 3] / 255
-      
-      if (backgroundOptions.type === 'transparent') {
-        // 透明背景：只保留前景部分
-        resultData.data[i] = originalImageData.data[i]
-        resultData.data[i + 1] = originalImageData.data[i + 1]
-        resultData.data[i + 2] = originalImageData.data[i + 2]
-        resultData.data[i + 3] = Math.round(originalImageData.data[i + 3] * maskAlpha)
-      } else {
-        // 有背景：混合前景和背景
-        const fgAlpha = maskAlpha
-        const bgAlpha = 1 - fgAlpha
-        
-        resultData.data[i] = Math.round(
-          originalImageData.data[i] * fgAlpha + backgroundData.data[i] * bgAlpha
-        )
-        resultData.data[i + 1] = Math.round(
-          originalImageData.data[i + 1] * fgAlpha + backgroundData.data[i + 1] * bgAlpha
-        )
-        resultData.data[i + 2] = Math.round(
-          originalImageData.data[i + 2] * fgAlpha + backgroundData.data[i + 2] * bgAlpha
-        )
-        resultData.data[i + 3] = Math.round(
-          originalImageData.data[i + 3] * fgAlpha + backgroundData.data[i + 3] * bgAlpha
-        )
-      }
-    }
-
-    ctx.putImageData(resultData, 0, 0)
-
-    // 转换为 Blob
-    return new Promise((resolve) => {
-      canvas.toBlob((blob) => {
-        if (blob) {
-          const url = URL.createObjectURL(blob)
-          resolve({ blob, url })
-        }
-      }, `image/${outputFormat}`, outputFormat === 'png' ? undefined : outputQuality / 100)
-    })
-  }, [backgroundOptions, outputFormat, outputQuality])
-
-  // 边缘检测（Sobel 算子）
-  const detectEdges = (imageData: ImageData): boolean[] => {
-    const data = imageData.data
-    const width = imageData.width
-    const height = imageData.height
-    const edges = new Array(width * height).fill(false)
-
-    // Sobel 算子
-    const sobelX = [-1, 0, 1, -2, 0, 2, -1, 0, 1]
-    const sobelY = [-1, -2, -1, 0, 0, 0, 1, 2, 1]
-
-    for (let y = 1; y < height - 1; y++) {
-      for (let x = 1; x < width - 1; x++) {
-        let gx = 0, gy = 0
-
-        for (let ky = -1; ky <= 1; ky++) {
-          for (let kx = -1; kx <= 1; kx++) {
-            const idx = ((y + ky) * width + (x + kx)) * 4
-            const gray = (data[idx] + data[idx + 1] + data[idx + 2]) / 3
-            const kernelIdx = (ky + 1) * 3 + (kx + 1)
-            gx += gray * sobelX[kernelIdx]
-            gy += gray * sobelY[kernelIdx]
-          }
-        }
-
-        const magnitude = Math.sqrt(gx * gx + gy * gy)
-        edges[y * width + x] = magnitude > 30 // 阈值
-      }
-    }
-
-    return edges
-  }
-
-  // 生成遮罩（基于边缘和颜色相似度）
-  const generateMask = (imageData: ImageData, edges: boolean[]): ImageData => {
-    const data = imageData.data
-    const width = imageData.width
-    const height = imageData.height
-    const mask = new ImageData(width, height)
-    const maskData = mask.data
-
-    // 获取四个角的平均颜色（假设是背景）
-    const corners = [
-      [0, 0],
-      [width - 1, 0],
-      [0, height - 1],
-      [width - 1, height - 1]
-    ]
-
-    let bgR = 0, bgG = 0, bgB = 0
-    for (const [x, y] of corners) {
+    const sample = (x: number, y: number) => {
       const idx = (y * width + x) * 4
-      bgR += data[idx]
-      bgG += data[idx + 1]
-      bgB += data[idx + 2]
-    }
-    bgR /= 4
-    bgG /= 4
-    bgB /= 4
-
-    // 生成遮罩
-    for (let i = 0; i < data.length; i += 4) {
-      const r = data[i]
-      const g = data[i + 1]
-      const b = data[i + 2]
-
-      // 计算与背景颜色的相似度（使用欧氏距离）
-      const colorDiff = Math.sqrt(
-        Math.pow(r - bgR, 2) + 
-        Math.pow(g - bgG, 2) + 
-        Math.pow(b - bgB, 2)
-      )
-
-      // 判断是否为背景
-      let isBackground = false
-      
-      // 如果非常接近背景色（阈值 30），直接认为是背景
-      if (colorDiff < 30) {
-        isBackground = true
-      } 
-      // 如果颜色相似（阈值 80）且不在边缘上，也认为是背景
-      else if (colorDiff < 80 && !edges[i / 4]) {
-        isBackground = true
-      }
-
-      // 设置遮罩：背景 = 0（黑色），前景 = 255（白色）
-      maskData[i] = isBackground ? 0 : 255
-      maskData[i + 1] = isBackground ? 0 : 255
-      maskData[i + 2] = isBackground ? 0 : 255
-      maskData[i + 3] = isBackground ? 0 : 255
+      r += data[idx]
+      g += data[idx + 1]
+      b += data[idx + 2]
+      count++
     }
 
-    return mask
-  }
-
-  // 优化遮罩（填充空洞、平滑边缘）
-  const refineMask = (mask: ImageData, width: number, height: number): ImageData => {
-    const refined = new ImageData(width, height)
-    const maskData = mask.data
-    const refinedData = refined.data
-
-    // 复制原始数据
-    for (let i = 0; i < maskData.length; i++) {
-      refinedData[i] = maskData[i]
+    for (let x = 0; x < width; x += step) {
+      sample(x, 0)
+      sample(x, height - 1)
+    }
+    for (let y = 0; y < height; y += step) {
+      sample(0, y)
+      sample(width - 1, y)
     }
 
-    // 形态学操作：闭运算（先膨胀后腐蚀，填充小洞）
-    for (let iter = 0; iter < 2; iter++) {
-      // 膨胀
-      const dilated = new ImageData(width, height)
-      for (let y = 1; y < height - 1; y++) {
-        for (let x = 1; x < width - 1; x++) {
-          const idx = (y * width + x) * 4
-          let max = refinedData[idx]
-          for (let dy = -1; dy <= 1; dy++) {
-            for (let dx = -1; dx <= 1; dx++) {
-              const nIdx = ((y + dy) * width + (x + dx)) * 4
-              max = Math.max(max, refinedData[nIdx])
-            }
-          }
-          dilated.data[idx] = max
-          dilated.data[idx + 1] = max
-          dilated.data[idx + 2] = max
-          dilated.data[idx + 3] = max
-        }
-      }
-
-      // 腐蚀
-      for (let y = 1; y < height - 1; y++) {
-        for (let x = 1; x < width - 1; x++) {
-          const idx = (y * width + x) * 4
-          let min = dilated.data[idx]
-          for (let dy = -1; dy <= 1; dy++) {
-            for (let dx = -1; dx <= 1; dx++) {
-              const nIdx = ((y + dy) * width + (x + dx)) * 4
-              min = Math.min(min, dilated.data[nIdx])
-            }
-          }
-          refinedData[idx] = min
-          refinedData[idx + 1] = min
-          refinedData[idx + 2] = min
-          refinedData[idx + 3] = min
-        }
-      }
+    return {
+      r: count ? r / count : 255,
+      g: count ? g / count : 255,
+      b: count ? b / count : 255
     }
-
-    return refined
   }
 
   // 应用边缘羽化
@@ -848,38 +713,39 @@ export default function RemovePhotos() {
         const idx = (y * width + x) * 4
         const centerAlpha = maskData[idx + 3]
 
+        // 仅在边缘带做模糊，实心区域直接复制，加速且减少过度平滑
         if (centerAlpha === 0 || centerAlpha === 255) {
-          // 在边缘区域，计算羽化
-          let sum = 0
-          let count = 0
-
-          for (let dy = -radius; dy <= radius; dy++) {
-            for (let dx = -radius; dx <= radius; dx++) {
-              const nx = x + dx
-              const ny = y + dy
-              if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-                const nIdx = (ny * width + nx) * 4
-                const dist = Math.sqrt(dx * dx + dy * dy)
-                if (dist <= radius) {
-                  const weight = 1 - dist / radius
-                  sum += maskData[nIdx + 3] * weight
-                  count += weight
-                }
-              }
-            }
-          }
-
-          const alpha = count > 0 ? Math.round(sum / count) : centerAlpha
-          featheredData[idx] = maskData[idx]
-          featheredData[idx + 1] = maskData[idx + 1]
-          featheredData[idx + 2] = maskData[idx + 2]
-          featheredData[idx + 3] = alpha
-        } else {
           featheredData[idx] = maskData[idx]
           featheredData[idx + 1] = maskData[idx + 1]
           featheredData[idx + 2] = maskData[idx + 2]
           featheredData[idx + 3] = maskData[idx + 3]
+          continue
         }
+
+        let sum = 0
+        let count = 0
+
+        for (let dy = -radius; dy <= radius; dy++) {
+          for (let dx = -radius; dx <= radius; dx++) {
+            const nx = x + dx
+            const ny = y + dy
+            if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+              const nIdx = (ny * width + nx) * 4
+              const dist = Math.sqrt(dx * dx + dy * dy)
+              if (dist <= radius) {
+                const weight = 1 - dist / radius
+                sum += maskData[nIdx + 3] * weight
+                count += weight
+              }
+            }
+          }
+        }
+
+        const alpha = count > 0 ? Math.round(sum / count) : centerAlpha
+        featheredData[idx] = maskData[idx]
+        featheredData[idx + 1] = maskData[idx + 1]
+        featheredData[idx + 2] = maskData[idx + 2]
+        featheredData[idx + 3] = alpha
       }
     }
 
@@ -946,6 +812,18 @@ export default function RemovePhotos() {
       })
     }
   }, [backgroundOptions, edgeFeather, currentTask, applyBackgroundToTask])
+
+  useEffect(() => {
+    if (showBrushTool) {
+      initBrushCanvas()
+    }
+  }, [showBrushTool, currentTask, initBrushCanvas])
+
+  useEffect(() => {
+    if (showInpaintTool) {
+      initInpaintCanvas()
+    }
+  }, [showInpaintTool, currentTask, initInpaintCanvas])
 
   return (
     <div className="remove-photos">
@@ -1039,36 +917,128 @@ export default function RemovePhotos() {
             {/* 主预览区域 */}
             {currentTask && (
               <div className="preview-section">
-                {/* 对比预览 */}
+                {/* 对比预览 - 专业裁切滑块 */}
                 {currentTask.resultUrl && (
                   <div className="compare-container">
-                    <div className="compare-wrapper">
-                      <img 
-                        src={currentTask.preview} 
-                        alt="Original" 
+                    <div
+                      className="compare-wrapper"
+                      style={{ position: 'relative', overflow: 'hidden', cursor: 'ew-resize' }}
+                    >
+                      {/* 原图（全宽显示） */}
+                      <img
+                        src={currentTask.preview}
+                        alt="Original"
                         className="compare-image original"
-                        style={{ opacity: 1 - compareSlider / 100 }}
+                        style={{ width: '100%', display: 'block' }}
                       />
-                      <img 
-                        src={currentTask.resultUrl} 
-                        alt="Result" 
+                      {/* 结果图（用 clip-path 裁切左侧部分） */}
+                      <img
+                        src={currentTask.resultUrl}
+                        alt="Result"
                         className="compare-image result"
-                        style={{ opacity: compareSlider / 100 }}
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          width: '100%',
+                          display: 'block',
+                          clipPath: `inset(0 ${100 - compareSlider}% 0 0)`
+                        }}
                       />
-                    </div>
-                    <div className="compare-slider-container">
+                      {/* 滑块线 */}
+                      <div
+                        className="compare-line"
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          bottom: 0,
+                          left: `${compareSlider}%`,
+                          width: 3,
+                          backgroundColor: '#fff',
+                          boxShadow: '0 0 6px rgba(0,0,0,.5)',
+                          zIndex: 3,
+                          pointerEvents: 'none'
+                        }}
+                      >
+                        <div style={{
+                          position: 'absolute',
+                          top: '50%',
+                          left: '50%',
+                          transform: 'translate(-50%, -50%)',
+                          width: 32,
+                          height: 32,
+                          borderRadius: '50%',
+                          backgroundColor: '#fff',
+                          boxShadow: '0 2px 8px rgba(0,0,0,.3)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: 14,
+                          fontWeight: 'bold',
+                          color: '#333',
+                          userSelect: 'none'
+                        }}>⇔</div>
+                      </div>
+                      {/* 标签 */}
+                      <span style={{
+                        position: 'absolute', top: 8, left: 8, background: 'rgba(0,0,0,.6)',
+                        color: '#fff', padding: '2px 8px', borderRadius: 4, fontSize: 12, zIndex: 4
+                      }}>{language === 'zh-CN' ? '结果' : 'Result'}</span>
+                      <span style={{
+                        position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,.6)',
+                        color: '#fff', padding: '2px 8px', borderRadius: 4, fontSize: 12, zIndex: 4
+                      }}>{language === 'zh-CN' ? '原图' : 'Original'}</span>
+                      {/* 透明输入滑块覆盖 */}
                       <input
                         type="range"
                         min="0"
                         max="100"
                         value={compareSlider}
                         onChange={(e) => setCompareSlider(Number(e.target.value))}
-                        className="compare-slider"
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          width: '100%',
+                          height: '100%',
+                          opacity: 0,
+                          cursor: 'ew-resize',
+                          zIndex: 5,
+                          margin: 0
+                        }}
                       />
-                      <div className="compare-labels">
-                        <span>{language === 'zh-CN' ? '原图' : 'Original'}</span>
-                        <span>{language === 'zh-CN' ? '结果' : 'Result'}</span>
+                    </div>
+
+                    {/* 终态预览（暗色棋盘背景） */}
+                    <div
+                      style={{
+                        marginTop: 12,
+                        padding: 12,
+                        borderRadius: 8,
+                        border: '1px solid #2f3136',
+                        backgroundImage:
+                          'linear-gradient(45deg, #2b2b2b 25%, transparent 25%), linear-gradient(-45deg, #2b2b2b 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #2b2b2b 75%), linear-gradient(-45deg, transparent 75%, #2b2b2b 75%)',
+                        backgroundColor: '#1f1f1f',
+                        backgroundSize: '20px 20px',
+                        backgroundPosition: '0 0, 0 10px, 10px -10px, -10px 0'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                        <strong style={{ fontSize: 14, color: '#e5e7eb' }}>
+                          {language === 'zh-CN' ? '最终预览（透明背景）' : 'Final Preview (Transparent)'}
+                        </strong>
+                        <small style={{ color: '#9ca3af' }}>{outputFormat.toUpperCase()}</small>
                       </div>
+                      <img
+                        src={currentTask.resultUrl}
+                        alt="Result preview"
+                        style={{
+                          width: '100%',
+                          maxHeight: 360,
+                          objectFit: 'contain',
+                          display: 'block'
+                        }}
+                      />
                     </div>
                   </div>
                 )}
@@ -1094,6 +1064,10 @@ export default function RemovePhotos() {
                         <canvas
                           ref={inpaintCanvasRef}
                           className="inpaint-canvas"
+                          onMouseDown={handleInpaintStart}
+                          onMouseMove={handleInpaintMove}
+                          onMouseUp={handleInpaintEnd}
+                          onMouseLeave={handleInpaintEnd}
                         />
                       )}
                     </div>
@@ -1102,33 +1076,6 @@ export default function RemovePhotos() {
 
                 {/* 操作按钮 */}
                 <div className="preview-actions">
-                  {/* 处理模式选择 */}
-                  <div className="mode-selector">
-                    <button
-                      className={`mode-btn ${processingMode === 'auto' ? 'active' : ''}`}
-                      onClick={() => setProcessingMode('auto')}
-                      disabled={isProcessing}
-                    >
-                      {language === 'zh-CN' ? '自动' : 'Auto'}
-                    </button>
-                    <button
-                      className={`mode-btn ${processingMode === 'ai' ? 'active' : ''}`}
-                      onClick={async () => {
-                        if (!onnxLoaded) {
-                          await loadONNXRuntime()
-                        }
-                        setProcessingMode('ai')
-                      }}
-                      disabled={isProcessing || onnxLoading}
-                    >
-                      {onnxLoading ? (
-                        <Loader2 className="spinner" size={14} />
-                      ) : (
-                        <Zap size={14} />
-                      )}
-                      {language === 'zh-CN' ? 'AI' : 'AI'}
-                    </button>
-                  </div>
 
                   {/* 批量处理按钮 */}
                   {tasks.filter(t => t.status === 'pending').length > 0 && (
@@ -1187,32 +1134,15 @@ export default function RemovePhotos() {
                   )}
 
                   {/* Inpainting 工具 */}
-                  {currentTask && currentTask.mask && (
+                  {currentTask && (
                     <button
                       className={`action-btn ${showInpaintTool ? 'active' : ''}`}
                       onClick={async () => {
-                        setShowInpaintTool(!showInpaintTool)
+                        const next = !showInpaintTool
+                        setShowInpaintTool(next)
                         setShowBrushTool(false)
-                        if (!showInpaintTool && currentTask) {
-                          const result = await performInpainting(currentTask, currentTask.mask!)
-                          if (result) {
-                            // 更新任务结果
-                            const canvas = document.createElement('canvas')
-                            canvas.width = result.width
-                            canvas.height = result.height
-                            const ctx = canvas.getContext('2d')!
-                            ctx.putImageData(result, 0, 0)
-                            canvas.toBlob((blob) => {
-                              if (blob) {
-                                const url = URL.createObjectURL(blob)
-                                setTasks(prev => prev.map(t => 
-                                  t.id === currentTask.id 
-                                    ? { ...t, result: blob, resultUrl: url }
-                                    : t
-                                ))
-                              }
-                            }, `image/${outputFormat}`, outputFormat === 'png' ? undefined : outputQuality / 100)
-                          }
+                        if (next) {
+                          setTimeout(() => initInpaintCanvas(), 50)
                         }
                       }}
                       title={language === 'zh-CN' ? '物体擦除' : 'Remove Object'}
@@ -1229,11 +1159,13 @@ export default function RemovePhotos() {
                         onClick={() => {
                           if (currentTask && currentTask.historyIndex > 0) {
                             const newIndex = currentTask.historyIndex - 1
+                            const newMask = currentTask.history[newIndex]
                             setTasks(prev => prev.map(t => 
                               t.id === currentTask.id 
-                                ? { ...t, mask: t.history[newIndex], historyIndex: newIndex }
+                                ? { ...t, mask: newMask, historyIndex: newIndex }
                                 : t
                             ))
+                            updateTaskResultWithMask(currentTask.id, newMask)
                           }
                         }}
                         disabled={!currentTask || currentTask.historyIndex <= 0}
@@ -1246,11 +1178,13 @@ export default function RemovePhotos() {
                         onClick={() => {
                           if (currentTask && currentTask.historyIndex < currentTask.history.length - 1) {
                             const newIndex = currentTask.historyIndex + 1
+                            const newMask = currentTask.history[newIndex]
                             setTasks(prev => prev.map(t => 
                               t.id === currentTask.id 
-                                ? { ...t, mask: t.history[newIndex], historyIndex: newIndex }
+                                ? { ...t, mask: newMask, historyIndex: newIndex }
                                 : t
                             ))
+                            updateTaskResultWithMask(currentTask.id, newMask)
                           }
                         }}
                         disabled={!currentTask || currentTask.historyIndex >= currentTask.history.length - 1}
@@ -1344,34 +1278,32 @@ export default function RemovePhotos() {
           </h3>
 
           <div className="settings-grid">
-            {/* 处理模式 */}
+            {/* AI 模型状态 */}
             <div className="setting-group">
               <label>
-                {language === 'zh-CN' ? '处理模式' : 'Processing Mode'}
+                {language === 'zh-CN' ? 'AI 引擎' : 'AI Engine'}
               </label>
-              <select
-                value={processingMode}
-                onChange={(e) => setProcessingMode(e.target.value as ProcessingMode)}
-                disabled={isProcessing}
-              >
-                <option value="auto">
-                  {language === 'zh-CN' ? '自动（传统算法）' : 'Auto (Traditional)'}
-                </option>
-                <option value="ai">
-                  {language === 'zh-CN' ? 'AI 分割（需要模型）' : 'AI Segmentation (Requires Model)'}
-                </option>
-              </select>
-              {processingMode === 'ai' && !onnxLoaded && (
-                <button
-                  className="load-onnx-btn"
-                  onClick={loadONNXRuntime}
-                  disabled={onnxLoading}
-                >
-                  {onnxLoading 
-                    ? (language === 'zh-CN' ? '加载中...' : 'Loading...')
-                    : (language === 'zh-CN' ? '加载 AI 模型' : 'Load AI Model')}
-                </button>
-              )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{
+                  display: 'inline-block',
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  backgroundColor: modelReady ? '#22c55e' : isProcessing ? '#f59e0b' : '#6b7280'
+                }}></span>
+                <span style={{ fontSize: 13, color: '#d1d5db' }}>
+                  {modelReady
+                    ? (language === 'zh-CN' ? '模型已就绪' : 'Model ready')
+                    : isProcessing
+                      ? (modelProgress || (language === 'zh-CN' ? '加载中...' : 'Loading...'))
+                      : (language === 'zh-CN' ? '首次处理时自动加载' : 'Auto-loads on first process')}
+                </span>
+              </div>
+              <small>
+                {language === 'zh-CN'
+                  ? '使用 ISNet 深度学习模型，100% 浏览器本地运行'
+                  : 'Powered by ISNet deep learning model, 100% local in browser'}
+              </small>
             </div>
 
             {/* 画笔设置 */}
@@ -1408,6 +1340,40 @@ export default function RemovePhotos() {
                     </button>
                   </div>
                 </div>
+              </>
+            )}
+
+            {showInpaintTool && (
+              <>
+                <div className="setting-group">
+                  <label>{language === 'zh-CN' ? '擦除模式' : 'Remove Mode'}</label>
+                  <div className="brush-mode-selector">
+                    <button
+                      className={`brush-mode-btn ${inpaintMode === 'erase' ? 'active' : ''}`}
+                      onClick={() => setInpaintMode('erase')}
+                    >
+                      {language === 'zh-CN' ? '区域透明' : 'Transparent'}
+                    </button>
+                    <button
+                      className={`brush-mode-btn ${inpaintMode === 'blur' ? 'active' : ''}`}
+                      onClick={() => setInpaintMode('blur')}
+                    >
+                      {language === 'zh-CN' ? '区域模糊' : 'Blur'}
+                    </button>
+                  </div>
+                </div>
+                {inpaintMode === 'blur' && (
+                  <div className="setting-group">
+                    <label>{language === 'zh-CN' ? '模糊程度' : 'Blur Strength'}: {inpaintBlur}</label>
+                    <input
+                      type="range"
+                      min="5"
+                      max="80"
+                      value={inpaintBlur}
+                      onChange={(e) => setInpaintBlur(Number(e.target.value))}
+                    />
+                  </div>
+                )}
               </>
             )}
 
@@ -1457,6 +1423,34 @@ export default function RemovePhotos() {
                   {language === 'zh-CN' ? '图片' : 'Image'}
                 </option>
               </select>
+            </div>
+
+            {/* 边缘去污 */}
+            <div className="setting-group">
+              <label>
+                {language === 'zh-CN' ? '边缘去污' : 'Edge Defringe'}
+              </label>
+              <div className="brush-mode-selector">
+                <button
+                  className={`brush-mode-btn ${defringeEdges ? 'active' : ''}`}
+                  onClick={() => setDefringeEdges(true)}
+                  disabled={isProcessing}
+                >
+                  {language === 'zh-CN' ? '开启' : 'On'}
+                </button>
+                <button
+                  className={`brush-mode-btn ${!defringeEdges ? 'active' : ''}`}
+                  onClick={() => setDefringeEdges(false)}
+                  disabled={isProcessing}
+                >
+                  {language === 'zh-CN' ? '关闭' : 'Off'}
+                </button>
+              </div>
+              <small>
+                {language === 'zh-CN'
+                  ? '减少背景色溢出，利于后期商业合成'
+                  : 'Reduces color spill on edges for cleaner compositing'}
+              </small>
             </div>
 
             {/* 纯色背景 */}
