@@ -725,19 +725,33 @@ export default function RemovePhotos() {
                   ) : currentTask.resultUrl && showCompare ? (
                     <div className="rp-preview" style={{ transform: `scale(${zoom})` }}>
                       <div className="rp-compare">
+                        {/* Bottom layer: Original image (always full width) */}
                         <img src={currentTask.preview} alt="Original" className="rp-compare-img" draggable={false} />
-                        <img
-                          src={currentTask.resultUrl}
-                          alt="Result"
-                          className="rp-compare-img rp-compare-result"
-                          draggable={false}
+
+                        {/* Top layer: Result with clip — wrapped so transparent results have bg */}
+                        <div
+                          className={`rp-compare-result-wrap ${backgroundOptions.type === 'transparent' ? 'checkerboard' : ''}`}
                           style={{ clipPath: `inset(0 ${100 - compareSlider}% 0 0)` }}
-                        />
-                        <div className="rp-compare-line" style={{ left: `${compareSlider}%` }}>
-                          <div className="rp-compare-handle">⇔</div>
+                        >
+                          <img src={currentTask.resultUrl} alt="Result" className="rp-compare-img" draggable={false} />
                         </div>
-                        <span className="rp-compare-label left">{t('结果', 'Result')}</span>
-                        <span className="rp-compare-label right">{t('原图', 'Original')}</span>
+
+                        {/* Divider line */}
+                        <div className="rp-compare-line" style={{ left: `${compareSlider}%` }}>
+                          <div className="rp-compare-handle">
+                            <span className="rp-compare-arrows">◀ ▶</span>
+                          </div>
+                        </div>
+
+                        {/* Labels — hide when slider pushes them off-screen */}
+                        {compareSlider > 12 && (
+                          <span className="rp-compare-label left">{t('结果', 'Result')}</span>
+                        )}
+                        {compareSlider < 88 && (
+                          <span className="rp-compare-label right">{t('原图', 'Original')}</span>
+                        )}
+
+                        {/* Invisible range input for drag interaction */}
                         <input
                           type="range" min="0" max="100" value={compareSlider}
                           onChange={e => setCompareSlider(Number(e.target.value))}

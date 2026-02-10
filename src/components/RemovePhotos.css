@@ -382,51 +382,86 @@
   box-shadow: 0 8px 32px rgba(0,0,0,0.4);
   user-select: none;
   max-width: 800px;
+  line-height: 0; /* prevent inline-block gap below images */
 }
-.rp-compare-img { width: 100%; height: auto; display: block; }
-.rp-compare-result { position: absolute; top: 0; left: 0; width: 100%; }
+.rp-compare-img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Result wrapper: sits on top of original, clipped by slider */
+.rp-compare-result-wrap {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+  /* when transparent bg, the .checkerboard class adds the pattern */
+}
+.rp-compare-result-wrap .rp-compare-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Divider line */
 .rp-compare-line {
   position: absolute;
   top: 0;
   bottom: 0;
   width: 3px;
+  margin-left: -1.5px; /* center the 3px line on the % position */
   background: #fff;
   box-shadow: 0 0 8px rgba(0,0,0,0.5);
   z-index: 3;
   pointer-events: none;
 }
+
+/* Drag handle circle */
 .rp-compare-handle {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 34px;
-  height: 34px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   background: #fff;
   box-shadow: 0 2px 12px rgba(0,0,0,0.35);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
-  font-weight: bold;
-  color: #333;
   user-select: none;
 }
+.rp-compare-arrows {
+  font-size: 10px;
+  color: #333;
+  font-weight: 700;
+  letter-spacing: 2px;
+  line-height: 1;
+}
+
+/* Labels */
 .rp-compare-label {
   position: absolute;
   top: 10px;
-  background: rgba(0,0,0,0.65);
+  background: rgba(0,0,0,0.7);
   color: #fff;
-  padding: 3px 10px;
-  border-radius: 5px;
+  padding: 4px 12px;
+  border-radius: 6px;
   font-size: 0.75rem;
   font-weight: 600;
   z-index: 4;
   pointer-events: none;
+  backdrop-filter: blur(4px);
+  transition: opacity 0.2s;
 }
 .rp-compare-label.left { left: 10px; }
 .rp-compare-label.right { right: 10px; }
+
+/* Invisible range input covering the whole compare area */
 .rp-compare-slider {
   position: absolute;
   top: 0;
@@ -437,6 +472,10 @@
   cursor: ew-resize;
   z-index: 5;
   margin: 0;
+  padding: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
 }
 
 /* Result / Original previews */
