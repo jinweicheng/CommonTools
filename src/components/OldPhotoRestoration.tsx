@@ -1,13 +1,38 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { Upload, Download, X, Image as ImageIcon, Settings, Loader2, AlertCircle, CheckCircle2, Sparkles } from 'lucide-react'
+import { Upload, Download, X, Image as ImageIcon, Settings, Loader2, AlertCircle, CheckCircle2, Sparkles, RotateCcw, Zap, ScanFace } from 'lucide-react'
 import { useI18n } from '../i18n/I18nContext'
 import { saveAs } from 'file-saver'
 import './OldPhotoRestoration.css'
 
+// ============================================================
+//  商业级老照片修复引擎 — 10阶段专业流水线
+//  参考: Nero AI Photo Restore 级别效果
+//  核心: 图像分析 → 多通道修复 → 人脸增强 → AI超分
+// ============================================================
+
 const MAX_FILES = 5
-const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB for old photos
+const MAX_FILE_SIZE = 50 * 1024 * 1024
 
 type OutputFormat = 'jpg' | 'png' | 'webp'
+type QualityPreset = 'quick' | 'standard' | 'professional'
+
+/** 图像预分析结果 — 驱动自适应参数 */
+interface ImageAnalysis {
+  meanBrightness: number      // 0~255
+  stdBrightness: number       // 标准差
+  colorfulness: number        // 色彩丰度指数
+  noiseLevel: number          // 噪声估计 0~1
+  scratchDensity: number      // 划痕密度 0~1
+  isLowContrast: boolean
+  isDark: boolean
+  isOverexposed: boolean
+  hasColorCast: boolean
+  colorCastType: 'yellow' | 'green' | 'blue' | 'red' | 'none'
+  hasFaces: boolean
+  faceRegions: Array<{ x: number, y: number, w: number, h: number }>
+  isGrayscale: boolean
+  sharpness: number           // 清晰度 0~1 (Laplacian variance)
+}
 
 interface RestorationTask {
   id: string
@@ -22,21 +47,98 @@ interface RestorationTask {
   error?: string
   startTime?: number
   endTime?: number
+  currentStage?: string
+  analysis?: ImageAnalysis
 }
 
 interface RestorationOptions {
-  autoEnhance: boolean // 自动增强 ⭐⭐⭐⭐⭐
-  denoise: boolean // 去噪 ⭐⭐⭐⭐⭐
-  denoiseStrength: number // 0-100
-  sharpen: boolean // 锐化 ⭐⭐⭐⭐⭐
-  sharpenStrength: number // 0-100
-  grayBackgroundFix: boolean // 灰底修复 ⭐⭐⭐⭐
-  grayBackgroundFixStrength: number // 0-100
-  scratchRepair: boolean // 划痕淡化 ⭐⭐⭐
-  scratchRepairStrength: number // 0-100
-  superResolution: boolean
+  preset: QualityPreset
+  // S1: 预分析
+  autoAnalyze: boolean
+  // S2: 色彩校正
+  autoWhiteBalance: boolean
+  autoWhiteBalanceStrength: number
+  colorCastRemoval: boolean
+  colorCastRemovalStrength: number
+  // S3: 对比度 & 亮度
+  contrastEnhance: boolean
+  contrastEnhanceStrength: number
+  brightnessOptimize: boolean
+  brightnessOptimizeStrength: number
+  // S4: 去噪
+  denoise: boolean
+  denoiseStrength: number
+  // S5: 划痕/污渍修复
+  scratchRepair: boolean
+  scratchRepairStrength: number
+  stainRemoval: boolean
+  stainRemovalStrength: number
+  // S6: 人脸检测 & 增强
+  faceEnhance: boolean
+  faceEnhanceStrength: number
+  // S7: 锐化
+  sharpen: boolean
+  sharpenStrength: number
+  // S8: 细节增强
+  detailEnhance: boolean
+  detailEnhanceStrength: number
+  // S9: 色彩恢复
+  colorVibrancy: boolean
+  colorVibrancyStrength: number
+  // S10: 最终优化 (tone mapping + micro-contrast)
+  finalPolish: boolean
+  finalPolishStrength: number
+  // 输出
   outputFormat: OutputFormat
-  outputQuality: number // 0-100
+  outputQuality: number
+}
+
+const PRESETS: Record<QualityPreset, Partial<RestorationOptions>> = {
+  quick: {
+    autoAnalyze: true,
+    autoWhiteBalance: true, autoWhiteBalanceStrength: 45,
+    colorCastRemoval: true, colorCastRemovalStrength: 35,
+    contrastEnhance: true, contrastEnhanceStrength: 50,
+    brightnessOptimize: true, brightnessOptimizeStrength: 45,
+    denoise: true, denoiseStrength: 40,
+    scratchRepair: false, scratchRepairStrength: 40,
+    stainRemoval: false, stainRemovalStrength: 30,
+    faceEnhance: false, faceEnhanceStrength: 40,
+    sharpen: true, sharpenStrength: 40,
+    detailEnhance: false, detailEnhanceStrength: 30,
+    colorVibrancy: true, colorVibrancyStrength: 35,
+    finalPolish: true, finalPolishStrength: 30,
+  },
+  standard: {
+    autoAnalyze: true,
+    autoWhiteBalance: true, autoWhiteBalanceStrength: 60,
+    colorCastRemoval: true, colorCastRemovalStrength: 50,
+    contrastEnhance: true, contrastEnhanceStrength: 65,
+    brightnessOptimize: true, brightnessOptimizeStrength: 55,
+    denoise: true, denoiseStrength: 55,
+    scratchRepair: true, scratchRepairStrength: 55,
+    stainRemoval: true, stainRemovalStrength: 45,
+    faceEnhance: true, faceEnhanceStrength: 55,
+    sharpen: true, sharpenStrength: 55,
+    detailEnhance: true, detailEnhanceStrength: 45,
+    colorVibrancy: true, colorVibrancyStrength: 50,
+    finalPolish: true, finalPolishStrength: 45,
+  },
+  professional: {
+    autoAnalyze: true,
+    autoWhiteBalance: true, autoWhiteBalanceStrength: 75,
+    colorCastRemoval: true, colorCastRemovalStrength: 65,
+    contrastEnhance: true, contrastEnhanceStrength: 80,
+    brightnessOptimize: true, brightnessOptimizeStrength: 70,
+    denoise: true, denoiseStrength: 70,
+    scratchRepair: true, scratchRepairStrength: 65,
+    stainRemoval: true, stainRemovalStrength: 55,
+    faceEnhance: true, faceEnhanceStrength: 70,
+    sharpen: true, sharpenStrength: 65,
+    detailEnhance: true, detailEnhanceStrength: 60,
+    colorVibrancy: true, colorVibrancyStrength: 60,
+    finalPolish: true, finalPolishStrength: 55,
+  }
 }
 
 export default function OldPhotoRestoration() {
@@ -46,45 +148,48 @@ export default function OldPhotoRestoration() {
   const [opencvLoaded, setOpencvLoaded] = useState(false)
   const [opencvLoading, setOpencvLoading] = useState(false)
   const [deviceWarning, setDeviceWarning] = useState(false)
-  
-  // 默认设置（强烈推荐的功能组合）
+  const [showSettings, setShowSettings] = useState(false)
+
   const [options, setOptions] = useState<RestorationOptions>({
-    autoEnhance: true, // ⭐⭐⭐⭐⭐ 自动增强
-    denoise: true, // ⭐⭐⭐⭐⭐ 去噪
-    denoiseStrength: 40, // 降低强度，避免过度模糊
-    sharpen: true, // ⭐⭐⭐⭐⭐ 锐化
-    sharpenStrength: 30, // 降低强度，避免过度锐化
-    grayBackgroundFix: true, // ⭐⭐⭐⭐ 灰底修复
-    grayBackgroundFixStrength: 60,
-    scratchRepair: false, // ⭐⭐⭐ 划痕淡化（默认关闭，需要时开启）
-    scratchRepairStrength: 50,
-    superResolution: false,
-    outputFormat: 'jpg',
-    outputQuality: 90
+    preset: 'standard',
+    autoAnalyze: true,
+    autoWhiteBalance: true, autoWhiteBalanceStrength: 60,
+    colorCastRemoval: true, colorCastRemovalStrength: 50,
+    contrastEnhance: true, contrastEnhanceStrength: 65,
+    brightnessOptimize: true, brightnessOptimizeStrength: 55,
+    denoise: true, denoiseStrength: 55,
+    scratchRepair: true, scratchRepairStrength: 55,
+    stainRemoval: true, stainRemovalStrength: 45,
+    faceEnhance: true, faceEnhanceStrength: 55,
+    sharpen: true, sharpenStrength: 55,
+    detailEnhance: true, detailEnhanceStrength: 45,
+    colorVibrancy: true, colorVibrancyStrength: 50,
+    finalPolish: true, finalPolishStrength: 45,
+    outputFormat: 'png',
+    outputQuality: 95
   })
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const opencvRef = useRef<any>(null)
+  const faceCascadeRef = useRef<any>(null)
 
-  // 检测设备性能
+  const applyPreset = useCallback((preset: QualityPreset) => {
+    setOptions(prev => ({ ...prev, preset, ...PRESETS[preset] }))
+  }, [])
+
   useEffect(() => {
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
     const hasLowMemory = (navigator as any).deviceMemory && (navigator as any).deviceMemory < 4
     const hasLowCores = navigator.hardwareConcurrency && navigator.hardwareConcurrency < 4
-
-    if (isMobile || hasLowMemory || hasLowCores) {
-      setDeviceWarning(true)
-    }
+    if (isMobile || hasLowMemory || hasLowCores) setDeviceWarning(true)
   }, [])
 
-  // 加载 OpenCV.js
+  // ---- OpenCV.js 加载 ----
   const loadOpenCV = useCallback(async (): Promise<boolean> => {
     if (opencvLoaded || opencvLoading) return opencvLoaded
-
     setOpencvLoading(true)
 
     return new Promise((resolve, reject) => {
-      // 检查是否已经加载
       if ((window as any).cv && (window as any).cv.Mat) {
         opencvRef.current = (window as any).cv
         setOpencvLoaded(true)
@@ -93,25 +198,16 @@ export default function OldPhotoRestoration() {
         return
       }
 
-      // 动态加载 OpenCV.js（优先使用本地文件，然后尝试 CDN）
       const loadScript = (src: string): Promise<void> => {
         return new Promise((resolve, reject) => {
           const script = document.createElement('script')
           script.src = src
           script.async = true
           script.crossOrigin = 'anonymous'
-          
           script.onload = () => {
             const cv = (window as any).cv
-            if (!cv) {
-              reject(new Error('OpenCV.js loaded but cv object not found'))
-              return
-            }
-
-            // 检查是否已经初始化
-            // OpenCV.js 加载后，cv 对象可能立即可用，也可能需要等待 onRuntimeInitialized
-            const checkInitialized = () => {
-              // 检查关键函数是否可用
+            if (!cv) { reject(new Error('cv not found')); return }
+            const checkInit = () => {
               if (cv && typeof cv.Mat === 'function' && typeof cv.matFromImageData === 'function') {
                 opencvRef.current = cv
                 setOpencvLoaded(true)
@@ -121,1126 +217,1278 @@ export default function OldPhotoRestoration() {
               }
               return false
             }
-
-            // 立即检查
-            if (checkInitialized()) {
-              return
-            }
-
-            // 如果未初始化，等待运行时初始化
+            if (checkInit()) return
             if (cv.onRuntimeInitialized) {
-              // 已经设置了回调，等待即可
-              const originalCallback = cv.onRuntimeInitialized
+              const orig = cv.onRuntimeInitialized
               cv.onRuntimeInitialized = () => {
-                if (originalCallback) originalCallback()
-                if (checkInitialized()) {
-                  return
-                }
-                // 如果检查失败，等待一下再检查
-                setTimeout(() => {
-                  if (!checkInitialized()) {
-                    setOpencvLoading(false)
-                    reject(new Error('OpenCV.js initialized but core functions not available'))
-                  }
-                }, 1000)
+                if (orig) orig()
+                if (checkInit()) return
+                setTimeout(() => { if (!checkInit()) { setOpencvLoading(false); reject(new Error('Init failed')) } }, 1000)
               }
             } else {
-              // 设置初始化回调
               cv.onRuntimeInitialized = () => {
-                setTimeout(() => {
-                  if (!checkInitialized()) {
-                    setOpencvLoading(false)
-                    reject(new Error('OpenCV.js initialized but core functions not available'))
-                  }
-                }, 100)
+                setTimeout(() => { if (!checkInit()) { setOpencvLoading(false); reject(new Error('Init failed')) } }, 100)
               }
             }
-            
-            // 超时处理
-            setTimeout(() => {
-              if (!opencvLoaded) {
-                setOpencvLoading(false)
-                reject(new Error('OpenCV.js initialization timeout'))
-              }
-            }, 30000)
+            setTimeout(() => { if (!opencvLoaded) { setOpencvLoading(false); reject(new Error('Timeout')) } }, 30000)
           }
-          
-          script.onerror = () => {
-            reject(new Error(`Failed to load OpenCV.js from ${src}`))
-          }
-          
+          script.onerror = () => reject(new Error(`Failed: ${src}`))
           document.head.appendChild(script)
         })
       }
 
-      // 尝试加载顺序：本地文件 -> jsDelivr CDN -> docs.opencv.org
       const isDev = import.meta.env.DEV
       const baseURL = isDev ? window.location.origin : (window.location.origin + import.meta.env.BASE_URL)
       const localPath = `${baseURL.replace(/\/+$/, '')}/opencv.js`
-      
-      // 先尝试本地文件
+
       loadScript(localPath)
-        .catch(() => {
-          // 本地文件失败，尝试 jsDelivr CDN
-          console.log('Local OpenCV.js not found, trying jsDelivr CDN...')
-          return loadScript('https://cdn.jsdelivr.net/npm/opencv-js@4.10.0/dist/opencv.js')
-        })
-        .catch(() => {
-          // jsDelivr 失败，尝试 docs.opencv.org
-          console.log('jsDelivr CDN failed, trying docs.opencv.org...')
-          return loadScript('https://docs.opencv.org/4.10.0/opencv.js')
-        })
-        .then(() => {
-          resolve(true)
-        })
-        .catch((err) => {
-          setOpencvLoading(false)
-          reject(new Error(`Failed to load OpenCV.js from all sources: ${err.message}`))
-        })
+        .catch(() => loadScript('https://cdn.jsdelivr.net/npm/opencv-js@4.10.0/dist/opencv.js'))
+        .catch(() => loadScript('https://docs.opencv.org/4.10.0/opencv.js'))
+        .then(() => resolve(true))
+        .catch((err) => { setOpencvLoading(false); reject(err) })
     })
   }, [opencvLoaded, opencvLoading])
 
-  // 预加载 OpenCV（延迟加载，避免阻塞页面）
   useEffect(() => {
-    // 延迟 1 秒后预加载，避免影响页面初始加载
-    const timer = setTimeout(() => {
-      loadOpenCV().catch(() => {
-        console.warn('OpenCV preload failed, will retry on user action')
-      })
-    }, 1000)
-    
+    const timer = setTimeout(() => { loadOpenCV().catch(() => {}) }, 800)
     return () => clearTimeout(timer)
   }, [loadOpenCV])
 
+  // ---- 加载 Haar Cascade 人脸检测器 ----
+  const loadFaceCascade = useCallback(async () => {
+    const cv = opencvRef.current
+    if (!cv || faceCascadeRef.current) return
+    try {
+      // OpenCV.js 内置 haarcascade
+      if (typeof cv.CascadeClassifier === 'function') {
+        const cascade = new cv.CascadeClassifier()
+        // 尝试内置路径
+        const loaded = cascade.load('haarcascade_frontalface_default')
+        if (loaded) {
+          faceCascadeRef.current = cascade
+        } else {
+          // 从 CDN 获取
+          try {
+            const resp = await fetch('https://raw.githubusercontent.com/opencv/opencv/4.x/data/haarcascades/haarcascade_frontalface_default.xml')
+            if (resp.ok) {
+              const text = await resp.text()
+              const fileName = 'haarcascade_frontalface_default.xml'
+              cv.FS_createDataFile('/', fileName, text, true, false, false)
+              const loaded2 = cascade.load(fileName)
+              if (loaded2) faceCascadeRef.current = cascade
+              else cascade.delete()
+            }
+          } catch (_e) {
+            cascade.delete()
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Face cascade load failed:', e)
+    }
+  }, [])
 
-  // 文件上传处理
+  // ---- 文件上传 ----
   const handleFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const uploadedFiles = event.target.files
-    if (!uploadedFiles || uploadedFiles.length === 0) return
-
-    const fileArray = Array.from(uploadedFiles)
-    
-    // 检查文件数量限制
-    if (tasks.length + fileArray.length > MAX_FILES) {
-      alert(
-        language === 'zh-CN' 
-          ? `最多只能处理 ${MAX_FILES} 张照片`
-          : `Maximum ${MAX_FILES} photos allowed`
-      )
+    const files = event.target.files
+    if (!files || files.length === 0) return
+    const arr = Array.from(files)
+    if (tasks.length + arr.length > MAX_FILES) {
+      alert(language === 'zh-CN' ? `最多 ${MAX_FILES} 张照片` : `Max ${MAX_FILES} photos`)
       return
     }
-
     const newTasks: RestorationTask[] = []
-
-    for (const file of fileArray) {
-      // 检查文件类型
-      if (!file.type.startsWith('image/')) {
-        alert(
-          language === 'zh-CN' 
-            ? `不是图片文件: ${file.name}`
-            : `Not an image file: ${file.name}`
-        )
-        continue
-      }
-
-      // 检查文件大小
-      if (file.size > MAX_FILE_SIZE) {
-        alert(
-          language === 'zh-CN' 
-            ? `文件过大 (最大50MB): ${file.name}`
-            : `File too large (max 50MB): ${file.name}`
-        )
-        continue
-      }
-
-      const preview = URL.createObjectURL(file)
-      const taskId = `${Date.now()}-${Math.random()}`
-
+    for (const file of arr) {
+      if (!file.type.startsWith('image/')) continue
+      if (file.size > MAX_FILE_SIZE) continue
       newTasks.push({
-        id: taskId,
+        id: `${Date.now()}-${Math.random()}`,
         file,
-        originalPreview: preview,
+        originalPreview: URL.createObjectURL(file),
         status: 'pending',
         progress: 0
       })
     }
-
     setTasks(prev => [...prev, ...newTasks])
-    
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ''
-    }
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }, [tasks.length, language])
 
-  // 处理图像（使用 OpenCV.js 在主线程，但分块处理）
+  // ====================================================================
+  //  商业级10阶段处理引擎
+  // ====================================================================
   const processImage = useCallback(async (task: RestorationTask): Promise<void> => {
     if (!opencvRef.current) {
-      try {
-        const loaded = await loadOpenCV()
-        if (!loaded || !opencvRef.current) {
-          throw new Error(language === 'zh-CN' 
-            ? 'OpenCV 加载失败，请检查网络连接或刷新页面重试'
-            : 'OpenCV failed to load, please check your network connection or refresh the page')
-        }
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : String(err)
-        throw new Error(language === 'zh-CN' 
-          ? `OpenCV 加载失败: ${errorMessage}`
-          : `OpenCV loading failed: ${errorMessage}`)
-      }
+      const loaded = await loadOpenCV()
+      if (!loaded || !opencvRef.current) throw new Error('OpenCV load failed')
     }
 
     const cv = opencvRef.current
     const startTime = Date.now()
+    const yieldToUI = () => new Promise(resolve => setTimeout(resolve, 0))
 
-    // 更新任务状态
-    setTasks(prev => prev.map(t => 
-      t.id === task.id ? { 
-        ...t, 
-        status: 'processing' as const, 
-        progress: 5,
-        progressMessage: language === 'zh-CN' ? '准备中...' : 'Preparing...',
-        startTime
-      } : t
-    ))
+    const updateProgress = (progress: number, msg: string, stage?: string) => {
+      setTasks(prev => prev.map(t =>
+        t.id === task.id ? { ...t, status: 'processing' as const, progress, progressMessage: msg, startTime, currentStage: stage } : t
+      ))
+    }
+
+    const safeDel = (mat: any) => { try { if (mat && typeof mat.delete === 'function' && !mat.isDeleted?.()) mat.delete() } catch (_e) { /* noop */ } }
+    const isValid = (mat: any) => {
+      try { return mat && !mat.empty() && mat.cols > 0 && mat.rows > 0 } catch (_e) { return false }
+    }
+    const safeStage = async (backup: any, processed: { val: any }, stageFn: () => Promise<any>) => {
+      try {
+        await stageFn()
+      } catch (err) {
+        console.warn('Stage failed:', err)
+        if (!isValid(processed.val)) {
+          processed.val = backup
+        } else {
+          safeDel(backup)
+        }
+      }
+    }
+
+    updateProgress(2, language === 'zh-CN' ? '准备图像引擎...' : 'Preparing engine...', 'init')
+    await yieldToUI()
+
+    // 加载人脸检测器
+    await loadFaceCascade()
 
     try {
-      // 加载图像
+      // ---- 加载图像 ----
       const img = new Image()
       img.src = task.originalPreview
-      
-      await new Promise((resolve, reject) => {
-        img.onload = resolve
-        img.onerror = reject
-      })
+      await new Promise<void>((resolve, reject) => { img.onload = () => resolve(); img.onerror = () => reject(new Error('Image load failed')) })
 
-      setTasks(prev => prev.map(t => 
-        t.id === task.id ? { 
-          ...t, 
-          progress: 10,
-          progressMessage: language === 'zh-CN' ? '加载图像...' : 'Loading image...'
-        } : t
-      ))
+      updateProgress(4, language === 'zh-CN' ? '加载图像数据...' : 'Loading image...', 'init')
 
-      // 创建 Canvas 并绘制图像
       const canvas = document.createElement('canvas')
       canvas.width = img.width
       canvas.height = img.height
       const ctx = canvas.getContext('2d')!
       ctx.drawImage(img, 0, 0)
-
-      // 获取 ImageData
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
 
-      // 创建 OpenCV Mat
+      if (!imageData || imageData.width === 0 || imageData.height === 0) throw new Error('Invalid image data')
+      if (imageData.width > 8192 || imageData.height > 8192) throw new Error('Image too large (max 8192)')
+
       let src: any = null
-      let processed: any = null
-      
+      const p = { val: null as any } // processed holder for safeStage
+
       try {
-        // 验证 ImageData
-        if (!imageData || !imageData.data || imageData.width === 0 || imageData.height === 0) {
-          throw new Error(language === 'zh-CN' 
-            ? '图像数据无效'
-            : 'Invalid image data')
-        }
-        
-        // 检查图像尺寸是否过大
-        const maxDimension = 8192
-        if (imageData.width > maxDimension || imageData.height > maxDimension) {
-          throw new Error(language === 'zh-CN' 
-            ? `图像尺寸过大（最大 ${maxDimension}x${maxDimension}）`
-            : `Image size too large (max ${maxDimension}x${maxDimension})`)
-        }
-        
         src = cv.matFromImageData(imageData)
-        if (!src || src.empty() || src.cols === 0 || src.rows === 0) {
-          throw new Error(language === 'zh-CN' 
-            ? `无法创建图像矩阵 (${imageData.width}x${imageData.height})`
-            : `Failed to create image matrix (${imageData.width}x${imageData.height})`)
-        }
-        
-        processed = src.clone()
-        if (!processed || processed.empty() || processed.cols === 0 || processed.rows === 0) {
-          throw new Error(language === 'zh-CN' 
-            ? `无法克隆图像矩阵 (${src.cols}x${src.rows})`
-            : `Failed to clone image matrix (${src.cols}x${src.rows})`)
-        }
-        
-        console.log('Mat created successfully:', {
-          srcSize: `${src.cols}x${src.rows}`,
-          processedSize: `${processed.cols}x${processed.rows}`,
-          imageDataSize: `${imageData.width}x${imageData.height}`
-        })
+        if (!isValid(src)) throw new Error('Failed to create Mat')
+        p.val = src.clone()
+        if (!isValid(p.val)) throw new Error('Failed to clone Mat')
       } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err)
-        console.error('Mat creation error:', errorMsg, {
-          imageDataValid: !!imageData,
-          imageDataSize: imageData ? `${imageData.width}x${imageData.height}` : 'null',
-          srcValid: src && !src.empty(),
-          processedValid: processed && !processed.empty()
-        })
-        try { if (src && !src.empty()) src.delete() } catch (e) {}
-        try { if (processed && !processed.empty()) processed.delete() } catch (e) {}
+        safeDel(src)
+        safeDel(p.val)
         throw err
       }
 
-      // 使用异步操作避免 UI 卡死
-      const yieldToUI = () => new Promise(resolve => setTimeout(resolve, 0))
-
-      // ========== 处理流程（按推荐顺序） ==========
       try {
-        // 验证 OpenCV 函数可用性
-        if (!cv.Mat || typeof cv.matFromImageData !== 'function') {
-          throw new Error(language === 'zh-CN' ? 'OpenCV 核心函数不可用，请刷新页面重试' : 'OpenCV core functions not available, please refresh the page')
+        // ================================================================
+        //  阶段 1/${totalStages}: 智能预分析
+        // ================================================================
+        let analysis: ImageAnalysis = {
+          meanBrightness: 128, stdBrightness: 50, colorfulness: 50,
+          noiseLevel: 0.3, scratchDensity: 0.1, isLowContrast: false,
+          isDark: false, isOverexposed: false, hasColorCast: false,
+          colorCastType: 'none', hasFaces: false, faceRegions: [],
+          isGrayscale: false, sharpness: 0.5
         }
-        
-        // 验证初始 processed Mat
-        if (!processed || processed.empty() || processed.cols === 0 || processed.rows === 0) {
-          throw new Error(`Initial processed Mat is invalid: cols=${processed?.cols}, rows=${processed?.rows}, empty=${processed?.empty()}`)
-        }
-        
-        console.log('Processing started:', {
-          imageSize: `${processed.cols}x${processed.rows}`,
-          options: {
-            autoEnhance: options.autoEnhance,
-            denoise: options.denoise,
-            sharpen: options.sharpen,
-            grayBackgroundFix: options.grayBackgroundFix,
-            scratchRepair: options.scratchRepair
-          }
-        })
-        // 1. 自动增强 ⭐⭐⭐⭐⭐（第一步，提升整体质量）
-        if (options.autoEnhance) {
-          setTasks(prev => prev.map(t => 
-            t.id === task.id ? { 
-              ...t, 
-              progress: 15,
-              progressMessage: language === 'zh-CN' ? '自动增强...' : 'Auto enhancing...'
-            } : t
-          ))
 
+        if (options.autoAnalyze) {
+          updateProgress(5, language === 'zh-CN' ? '🔍 阶段1/10: 智能分析图像特征...' : '🔍 Stage 1/10: Analyzing image...', 'analyze')
           await yieldToUI()
 
-          if (processed.empty() || processed.cols === 0 || processed.rows === 0) {
-            throw new Error('Processed Mat is empty or invalid before auto enhance')
-          }
-
-          // 使用 CLAHE (Contrast Limited Adaptive Histogram Equalization) 进行自适应对比度增强
-          // 这是专业照片修复的标准方法
-          // 验证 processed Mat 是否有效
-          if (!processed || processed.empty() || processed.cols === 0 || processed.rows === 0) {
-            throw new Error('Processed Mat is invalid before auto enhance')
-          }
-          
-          const processedBackup = processed.clone()
-          let rgb: any = null
-          let lab: any = null
-          let channels: any = null
-          let enhanced: any = null
-          
           try {
-            // 转换为 RGB（去除 Alpha）
-            rgb = new cv.Mat()
-            // 验证 processed 仍然有效
-            if (processed.empty() || processed.cols === 0 || processed.rows === 0) {
-              throw new Error('Processed Mat became invalid before RGB conversion')
-            }
-            cv.cvtColor(processed, rgb, cv.COLOR_RGBA2RGB)
-            
-            // 验证 RGB Mat
-            if (rgb.empty() || rgb.cols === 0 || rgb.rows === 0) {
-              throw new Error('RGB Mat conversion failed')
-            }
-            
-            // 转换为 LAB 颜色空间（L 通道包含亮度信息）
-            lab = new cv.Mat()
+            const rgb = new cv.Mat()
+            cv.cvtColor(p.val, rgb, cv.COLOR_RGBA2RGB)
+
+            // 1a. 亮度分析
+            const gray = new cv.Mat()
+            cv.cvtColor(rgb, gray, cv.COLOR_RGB2GRAY)
+            const meanStd = new cv.Mat()
+            const stdDevMat = new cv.Mat()
+            cv.meanStdDev(gray, meanStd, stdDevMat)
+            analysis.meanBrightness = meanStd.data64F[0]
+            analysis.stdBrightness = stdDevMat.data64F[0]
+            analysis.isDark = analysis.meanBrightness < 75
+            analysis.isOverexposed = analysis.meanBrightness > 200
+            analysis.isLowContrast = analysis.stdBrightness < 40
+            safeDel(meanStd); safeDel(stdDevMat)
+
+            // 1b. 清晰度分析 (Laplacian variance)
+            const lap = new cv.Mat()
+            cv.Laplacian(gray, lap, cv.CV_64F)
+            const lapMean = new cv.Mat()
+            const lapStd = new cv.Mat()
+            cv.meanStdDev(lap, lapMean, lapStd)
+            const lapVar = lapStd.data64F[0] * lapStd.data64F[0]
+            analysis.sharpness = Math.min(1.0, lapVar / 2000)
+            safeDel(lap); safeDel(lapMean); safeDel(lapStd)
+
+            // 1c. 噪声估计 (高频能量占比)
+            const blurred = new cv.Mat()
+            cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0)
+            const noiseMat = new cv.Mat()
+            cv.absdiff(gray, blurred, noiseMat)
+            const noiseMean = cv.mean(noiseMat)
+            analysis.noiseLevel = Math.min(1.0, noiseMean[0] / 30)
+            safeDel(blurred); safeDel(noiseMat)
+
+            // 1d. 色彩分析
+            const lab = new cv.Mat()
             cv.cvtColor(rgb, lab, cv.COLOR_RGB2Lab)
-            
-            // 验证 LAB Mat
-            if (lab.empty() || lab.cols === 0 || lab.rows === 0) {
-              throw new Error('LAB Mat conversion failed')
-            }
-            
-            // 分离通道
-            channels = new cv.MatVector()
-            cv.split(lab, channels)
-            
-            // 验证通道数量
-            if (channels.size() < 3) {
-              throw new Error('Failed to split LAB channels')
-            }
-            
-            // 对 L 通道应用 CLAHE（如果可用）
-            const lChannel = channels.get(0)
-            if (lChannel.empty() || lChannel.cols === 0 || lChannel.rows === 0) {
-              throw new Error('L channel is invalid')
-            }
-            
-            if (typeof cv.CLAHE === 'function') {
-              const clahe = new cv.CLAHE(3.0, new cv.Size(8, 8)) // 提高对比度限制
-              clahe.apply(lChannel, lChannel)
-              clahe.delete()
-            } else {
-              // 降级方案：使用直方图均衡化
-              cv.equalizeHist(lChannel, lChannel)
-            }
-            
-            // 合并通道
-            cv.merge(channels, lab)
-            
-            // 验证合并后的 LAB Mat
-            if (lab.empty() || lab.cols === 0 || lab.rows === 0) {
-              throw new Error('LAB Mat merge failed')
-            }
-            
-            // 转换回 RGB
-            cv.cvtColor(lab, rgb, cv.COLOR_Lab2RGB)
-            
-            // 验证 RGB Mat
-            if (rgb.empty() || rgb.cols === 0 || rgb.rows === 0) {
-              throw new Error('RGB Mat conversion from LAB failed')
-            }
-            
-            // 转换回 RGBA
-            enhanced = new cv.Mat()
-            cv.cvtColor(rgb, enhanced, cv.COLOR_RGB2RGBA)
-            
-            // 验证结果
-            if (enhanced.empty() || enhanced.cols === 0 || enhanced.rows === 0) {
-              throw new Error('Auto enhance result is invalid')
-            }
-            
-            // 确保尺寸匹配
-            if (enhanced.cols !== processed.cols || enhanced.rows !== processed.rows) {
-              throw new Error(`Size mismatch: processed(${processed.cols}x${processed.rows}) vs enhanced(${enhanced.cols}x${enhanced.rows})`)
-            }
-            
-            processed.delete()
-            processedBackup.delete()
-            processed = enhanced
-            
-            // 清理
-            if (rgb) rgb.delete()
-            if (lab) lab.delete()
-            if (channels) channels.delete()
-          } catch (err) {
-            // 记录错误详情
-            const errorMsg = err instanceof Error ? err.message : String(err)
-            console.error('Auto enhance error:', errorMsg, {
-              processedValid: processed && !processed.empty() && processed.cols > 0 && processed.rows > 0,
-              processedSize: processed ? `${processed.cols}x${processed.rows}` : 'null',
-              rgbValid: rgb && !rgb.empty(),
-              labValid: lab && !lab.empty(),
-              enhancedValid: enhanced && !enhanced.empty()
-            })
-            
-            // 清理
-            try { if (rgb && !rgb.empty()) rgb.delete() } catch (e) {}
-            try { if (lab && !lab.empty()) lab.delete() } catch (e) {}
-            try { if (channels) channels.delete() } catch (e) {}
-            try { if (enhanced && !enhanced.empty()) enhanced.delete() } catch (e) {}
-            
-            // 如果失败，使用备份
-            if (processed && !processed.empty() && processed.cols > 0 && processed.rows > 0) {
-              processedBackup.delete()
-            } else {
-              if (processedBackup && !processedBackup.empty()) {
-                processed = processedBackup
-              } else {
-                throw new Error('Both processed and backup are invalid')
+            const labChs = new cv.MatVector()
+            cv.split(lab, labChs)
+            if (labChs.size() >= 3) {
+              const aMean = cv.mean(labChs.get(1))[0]
+              const bMean = cv.mean(labChs.get(2))[0]
+              const aStd = new cv.Mat(); const aStdV = new cv.Mat()
+              cv.meanStdDev(labChs.get(1), aStd, aStdV)
+              const aStdVal = aStdV.data64F[0]
+              const bStd2 = new cv.Mat(); const bStdV = new cv.Mat()
+              cv.meanStdDev(labChs.get(2), bStd2, bStdV)
+              const bStdVal = bStdV.data64F[0]
+              safeDel(aStd); safeDel(aStdV); safeDel(bStd2); safeDel(bStdV)
+
+              analysis.colorfulness = Math.sqrt(aStdVal * aStdVal + bStdVal * bStdVal) + 0.3 * Math.sqrt((aMean - 128) * (aMean - 128) + (bMean - 128) * (bMean - 128))
+              analysis.isGrayscale = analysis.colorfulness < 8
+
+              // 色偏检测
+              const aOff = aMean - 128
+              const bOff = bMean - 128
+              if (Math.abs(aOff) > 6 || Math.abs(bOff) > 6) {
+                analysis.hasColorCast = true
+                if (bOff > 8 && aOff > 3) analysis.colorCastType = 'yellow'
+                else if (aOff < -6) analysis.colorCastType = 'green'
+                else if (bOff < -8) analysis.colorCastType = 'blue'
+                else if (aOff > 8) analysis.colorCastType = 'red'
+                else analysis.colorCastType = 'yellow'
               }
             }
-            console.warn('Auto enhance failed, continuing with original:', err)
+            safeDel(lab); labChs.delete()
+
+            // 1e. 划痕密度估计
+            const edges = new cv.Mat()
+            cv.Canny(gray, edges, 50, 150)
+            const kLine = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(1, 7))
+            const lineFeatures = new cv.Mat()
+            cv.morphologyEx(edges, lineFeatures, cv.MORPH_CLOSE, kLine)
+            cv.morphologyEx(lineFeatures, lineFeatures, cv.MORPH_OPEN, kLine)
+            const linePixels = cv.countNonZero(lineFeatures)
+            analysis.scratchDensity = Math.min(1.0, linePixels / (gray.rows * gray.cols) * 50)
+            safeDel(edges); safeDel(kLine); safeDel(lineFeatures)
+
+            // 1f. 人脸检测
+            if (faceCascadeRef.current) {
+              try {
+                const faces = new cv.RectVector()
+                faceCascadeRef.current.detectMultiScale(gray, faces, 1.1, 4, 0, new cv.Size(30, 30))
+                for (let i = 0; i < faces.size(); i++) {
+                  const f = faces.get(i)
+                  analysis.faceRegions.push({ x: f.x, y: f.y, w: f.width, h: f.height })
+                }
+                analysis.hasFaces = analysis.faceRegions.length > 0
+                faces.delete()
+              } catch (_e) { /* noop */ }
+            }
+
+            safeDel(gray); safeDel(rgb)
+
+            // 保存分析结果到任务
+            setTasks(prev => prev.map(t => t.id === task.id ? { ...t, analysis } : t))
+          } catch (err) {
+            console.warn('Analysis failed, using defaults:', err)
           }
-          
-          await yieldToUI()
         }
 
-        // 2. 去噪 ⭐⭐⭐⭐⭐（在增强后进行，效果更好）
-        if (options.denoise) {
-          setTasks(prev => prev.map(t => 
-            t.id === task.id ? { 
-              ...t, 
-              progress: 35,
-              progressMessage: language === 'zh-CN' ? '去噪处理...' : 'Denoising...'
-            } : t
-          ))
-
+        // ================================================================
+        //  阶段 2/${totalStages}: 高级白平衡 + 色偏校正
+        // ================================================================
+        if (options.autoWhiteBalance || options.colorCastRemoval) {
+          updateProgress(10, language === 'zh-CN' ? '🎨 阶段2/10: 色彩校正...' : '🎨 Stage 2/10: Color Correction...', 'wb')
           await yieldToUI()
 
-          // 验证 processed Mat 是否有效
-          if (!processed || processed.empty() || processed.cols === 0 || processed.rows === 0) {
-            throw new Error('Processed Mat is empty or invalid before denoising')
-          }
-          
-          // 调整去噪强度：降低默认值，避免过度模糊
-          const h = Math.max(1, Math.min(8, (options.denoiseStrength / 100) * 8))
-          
-          // 创建备份
-          const processedBackup = processed.clone()
-          const dst = new cv.Mat()
-          let rgb: any = null
-          let denoisedRgb: any = null
-          
-          try {
-            // 验证 processed 仍然有效
-            if (processed.empty() || processed.cols === 0 || processed.rows === 0) {
-              throw new Error('Processed Mat became invalid before denoising')
-            }
-            
-            // fastNlMeansDenoisingColored 需要 RGB 格式（CV_8UC3），不是 RGBA（CV_8UC4）
-            // 所以需要先转换为 RGB，去噪后再转换回 RGBA
-            rgb = new cv.Mat()
-            cv.cvtColor(processed, rgb, cv.COLOR_RGBA2RGB)
-            
-            // 验证 RGB Mat
-            if (rgb.empty() || rgb.cols === 0 || rgb.rows === 0) {
-              throw new Error('RGB conversion failed for denoising')
-            }
-            
-            denoisedRgb = new cv.Mat()
-            
-            // 优先使用 fastNlMeansDenoisingColored（彩色去噪，效果最好）
-            if (typeof cv.fastNlMeansDenoisingColored === 'function') {
-              // 使用更温和的参数：h 值较小，模板窗口和搜索窗口适中
-              // 注意：fastNlMeansDenoisingColored 需要 RGB 格式
-              cv.fastNlMeansDenoisingColored(rgb, denoisedRgb, h, 7, 7, 21)
-            } else if (typeof cv.fastNlMeansDenoising === 'function') {
-              // 降级到灰度去噪
-              const gray = new cv.Mat()
-              try {
-                cv.cvtColor(rgb, gray, cv.COLOR_RGB2GRAY)
-                if (gray.empty() || gray.cols === 0 || gray.rows === 0) {
-                  throw new Error('Gray conversion failed')
+          const backup = p.val.clone()
+          await safeStage(backup, p, async () => {
+            const rgb = new cv.Mat()
+            cv.cvtColor(p.val, rgb, cv.COLOR_RGBA2RGB)
+            const lab = new cv.Mat()
+            cv.cvtColor(rgb, lab, cv.COLOR_RGB2Lab)
+            const chs = new cv.MatVector()
+            cv.split(lab, chs)
+
+            if (chs.size() >= 3) {
+              const lCh = chs.get(0)
+              const aCh = chs.get(1)
+              const bCh = chs.get(2)
+
+              // 白平衡 — 增强版 Gray World: 分析并补偿偏移
+              if (options.autoWhiteBalance) {
+                const castBoost = analysis.hasColorCast ? 1.3 : 1.0
+                const strength = (options.autoWhiteBalanceStrength / 100) * castBoost
+                const aMean = cv.mean(aCh)[0]
+                const bMean = cv.mean(bCh)[0]
+
+                // 非线性校正 — 偏离越大校正越强
+                const aOff = 128 - aMean
+                const bOff = 128 - bMean
+                const aCorrect = Math.round(aOff * strength * (1 + Math.abs(aOff) / 128 * 0.3))
+                const bCorrect = Math.round(bOff * strength * (1 + Math.abs(bOff) / 128 * 0.3))
+
+                // 安全的逐像素校正（避免溢出）
+                if (Math.abs(aCorrect) > 0) {
+                  const aF = new cv.Mat()
+                  aCh.convertTo(aF, cv.CV_32F)
+                  const aData = aF.data32F
+                  for (let i = 0; i < aData.length; i++) {
+                    aData[i] = Math.max(0, Math.min(255, aData[i] + aCorrect))
+                  }
+                  aF.convertTo(aCh, cv.CV_8U)
+                  safeDel(aF)
                 }
-                cv.fastNlMeansDenoising(gray, gray, h, 7, 21)
-                cv.cvtColor(gray, denoisedRgb, cv.COLOR_GRAY2RGB)
-              } finally {
-                if (gray && !gray.empty()) gray.delete()
+                if (Math.abs(bCorrect) > 0) {
+                  const bF = new cv.Mat()
+                  bCh.convertTo(bF, cv.CV_32F)
+                  const bData = bF.data32F
+                  for (let i = 0; i < bData.length; i++) {
+                    bData[i] = Math.max(0, Math.min(255, bData[i] + bCorrect))
+                  }
+                  bF.convertTo(bCh, cv.CV_8U)
+                  safeDel(bF)
+                }
               }
-            } else {
-              // 降级方案：使用双边滤波（保留边缘的去噪）
-              cv.bilateralFilter(rgb, denoisedRgb, 9, 75, 75)
-            }
-            
-            // 验证去噪后的 RGB Mat
-            if (denoisedRgb.empty() || denoisedRgb.cols === 0 || denoisedRgb.rows === 0) {
-              throw new Error('Denoised RGB Mat is invalid')
-            }
-            
-            // 转换回 RGBA
-            cv.cvtColor(denoisedRgb, dst, cv.COLOR_RGB2RGBA)
-            
-            // 验证结果
-            if (dst.empty() || dst.cols === 0 || dst.rows === 0) {
-              throw new Error('Denoising result is invalid')
-            }
-            
-            // 确保尺寸匹配
-            if (dst.cols !== processed.cols || dst.rows !== processed.rows) {
-              throw new Error(`Size mismatch: processed(${processed.cols}x${processed.rows}) vs dst(${dst.cols}x${dst.rows})`)
-            }
-            
-            processed.delete()
-            processedBackup.delete()
-            processed = dst
-            
-            // 清理
-            if (rgb) rgb.delete()
-            if (denoisedRgb) denoisedRgb.delete()
-          } catch (err) {
-            const errorMsg = err instanceof Error ? err.message : String(err)
-            const errorCode = typeof err === 'number' ? err : undefined
-            
-            console.error('Denoising error:', errorMsg, {
-              errorCode: errorCode,
-              processedValid: processed && !processed.empty() && processed.cols > 0 && processed.rows > 0,
-              processedSize: processed ? `${processed.cols}x${processed.rows}` : 'null',
-              processedType: processed ? processed.type ? processed.type() : 'unknown' : 'null',
-              rgbValid: rgb && !rgb.empty(),
-              denoisedRgbValid: denoisedRgb && !denoisedRgb.empty(),
-              dstValid: dst && !dst.empty(),
-              h: h
-            })
-            
-            // 清理
-            try { if (rgb && !rgb.empty()) rgb.delete() } catch (e) {}
-            try { if (denoisedRgb && !denoisedRgb.empty()) denoisedRgb.delete() } catch (e) {}
-            try { if (dst && !dst.empty()) dst.delete() } catch (e) {}
-            
-            // 如果失败，使用备份
-            if (processed && !processed.empty() && processed.cols > 0 && processed.rows > 0) {
-              processedBackup.delete()
-            } else {
-              if (processedBackup && !processedBackup.empty()) {
-                processed = processedBackup
-              } else {
-                throw new Error('Both processed and backup are invalid after denoising error')
+
+              // 色偏 CLAHE — 自适应色彩空间均衡
+              if (options.colorCastRemoval) {
+                const castBoost = analysis.hasColorCast ? 1.4 : 1.0
+                const strength = (options.colorCastRemovalStrength / 100) * castBoost
+                if (typeof cv.CLAHE === 'function') {
+                  const clip = 1.2 + strength * 2.0
+                  const clahe = new cv.CLAHE(clip, new cv.Size(4, 4))
+                  clahe.apply(aCh, aCh)
+                  clahe.apply(bCh, bCh)
+                  clahe.delete()
+                }
               }
-            }
-            
-            // 如果是 OpenCV 错误代码，尝试使用降级方案
-            let fallbackSucceeded = false
-            if (typeof err === 'number' && (err === 6981192 || err === 6981448)) {
-              console.warn('OpenCV denoising failed, trying fallback method...')
-              
-              // 使用双边滤波作为降级方案
-              try {
-                // 确保 processed 仍然有效（此时应该是备份）
-                if (processed && !processed.empty() && processed.cols > 0 && processed.rows > 0) {
-                  const fallbackDst = new cv.Mat()
-                  cv.bilateralFilter(processed, fallbackDst, 9, 75, 75)
-                  
-                  if (!fallbackDst.empty() && fallbackDst.cols > 0 && fallbackDst.rows > 0 && 
-                      fallbackDst.cols === processed.cols && fallbackDst.rows === processed.rows) {
-                    processed.delete()
-                    processedBackup.delete()
-                    processed = fallbackDst
-                    fallbackSucceeded = true
-                    console.log('Fallback denoising (bilateral filter) succeeded')
-                  } else {
-                    fallbackDst.delete()
-                    console.warn('Fallback denoising result is invalid')
+
+              // 多通道白点校正 — 轻微拉伸 L通道
+              if (analysis.isLowContrast && options.autoWhiteBalance) {
+                const minMax = { minVal: 0, maxVal: 0 }
+                cv.minMaxLoc(lCh, minMax as any)
+                // 简单的线性拉伸预处理
+                if (typeof (minMax as any).minVal === 'number') {
+                  const mn = (minMax as any).minVal
+                  const mx = (minMax as any).maxVal
+                  if (mx - mn < 200 && mx - mn > 10) {
+                    const alpha = 240.0 / (mx - mn)
+                    const beta = -mn * alpha + 8
+                    lCh.convertTo(lCh, cv.CV_8U, alpha, beta)
                   }
                 }
-              } catch (fallbackErr) {
-                console.warn('Fallback denoising also failed:', fallbackErr)
               }
+
+              cv.merge(chs, lab)
+              cv.cvtColor(lab, rgb, cv.COLOR_Lab2RGB)
+              const dst = new cv.Mat()
+              cv.cvtColor(rgb, dst, cv.COLOR_RGB2RGBA)
+
+              if (isValid(dst) && dst.cols === p.val.cols) {
+                safeDel(p.val); safeDel(backup); p.val = dst
+              } else { safeDel(dst); throw new Error('WB mismatch') }
             }
-            
-            // 如果降级方案也失败，继续使用原图（processed 已经是备份）
-            if (!fallbackSucceeded && processed && !processed.empty() && processed.cols > 0 && processed.rows > 0) {
-              console.warn('Denoising failed, continuing with original image:', err)
-            }
-          }
-          
+            safeDel(rgb); safeDel(lab); chs.delete()
+          })
           await yieldToUI()
         }
 
-        // 3. 锐化 ⭐⭐⭐⭐⭐（在去噪后进行，恢复细节）
-        if (options.sharpen) {
-          setTasks(prev => prev.map(t => 
-            t.id === task.id ? { 
-              ...t, 
-              progress: 50,
-              progressMessage: language === 'zh-CN' ? '锐化处理...' : 'Sharpening...'
-            } : t
-          ))
-
+        // ================================================================
+        //  阶段 3/${totalStages}: 多级对比度增强 + 自适应亮度
+        // ================================================================
+        if (options.contrastEnhance || options.brightnessOptimize) {
+          updateProgress(18, language === 'zh-CN' ? '✨ 阶段3/10: 对比度 & 亮度...' : '✨ Stage 3/10: Contrast & Brightness...', 'contrast')
           await yieldToUI()
 
-          // 验证 processed Mat 是否有效
-          if (!processed || processed.empty() || processed.cols === 0 || processed.rows === 0) {
-            throw new Error('Processed Mat is empty or invalid before sharpening')
-          }
+          const backup = p.val.clone()
+          await safeStage(backup, p, async () => {
+            const rgb = new cv.Mat()
+            cv.cvtColor(p.val, rgb, cv.COLOR_RGBA2RGB)
 
-          const kernel = new cv.Mat(3, 3, cv.CV_32F)
-          const dst = new cv.Mat()
-          
-          try {
-            // 验证 processed 仍然有效
-            if (processed.empty() || processed.cols === 0 || processed.rows === 0) {
-              throw new Error('Processed Mat became invalid before sharpening')
-            }
-            
-            // 使用 Unsharp Mask 算法（专业锐化方法）
-            // 调整强度：降低默认值，避免过度锐化产生伪影
-            const strength = options.sharpenStrength / 100
-            const center = -0.3 * strength // 降低锐化强度
-            const others = center / 8
-            
-            const kernelData = new Float32Array([
-              others, others, others,
-              others, 1 - center, others,
-              others, others, others
-            ])
-            kernel.data32F.set(kernelData)
-            
-            cv.filter2D(processed, dst, cv.CV_8U, kernel, new cv.Point(-1, -1), 0, cv.BORDER_DEFAULT)
-            
-            // 验证结果
-            if (dst.empty() || dst.cols === 0 || dst.rows === 0) {
-              throw new Error('Sharpening result is invalid')
-            }
-            
-            // 确保尺寸匹配
-            if (dst.cols !== processed.cols || dst.rows !== processed.rows) {
-              throw new Error(`Size mismatch: processed(${processed.cols}x${processed.rows}) vs dst(${dst.cols}x${dst.rows})`)
-            }
-            
-            processed.delete()
-            processed = dst
-          } catch (err) {
-            const errorMsg = err instanceof Error ? err.message : String(err)
-            console.error('Sharpening error:', errorMsg, {
-              processedValid: processed && !processed.empty() && processed.cols > 0 && processed.rows > 0,
-              processedSize: processed ? `${processed.cols}x${processed.rows}` : 'null',
-              dstValid: dst && !dst.empty()
-            })
-            if (dst && !dst.empty()) dst.delete()
-            if (kernel && !kernel.empty()) kernel.delete()
-            throw err
-          }
-          
-          if (kernel && !kernel.empty()) kernel.delete()
-          await yieldToUI()
-        }
+            // 多级 CLAHE — 粗+细两次
+            if (options.contrastEnhance) {
+              const contrastBoost = analysis.isLowContrast ? 1.3 : 1.0
+              const strength = (options.contrastEnhanceStrength / 100) * contrastBoost
 
-        // 4. 灰底修复 ⭐⭐⭐⭐（修复老照片常见的灰底问题）
-        if (options.grayBackgroundFix) {
-          setTasks(prev => prev.map(t => 
-            t.id === task.id ? { 
-              ...t, 
-              progress: 65,
-              progressMessage: language === 'zh-CN' ? '修复灰底...' : 'Fixing gray background...'
-            } : t
-          ))
+              const lab = new cv.Mat()
+              cv.cvtColor(rgb, lab, cv.COLOR_RGB2Lab)
+              const labChs = new cv.MatVector()
+              cv.split(lab, labChs)
 
-          await yieldToUI()
+              if (labChs.size() >= 3 && typeof cv.CLAHE === 'function') {
+                const lCh = labChs.get(0)
 
-          if (processed.empty() || processed.cols === 0 || processed.rows === 0) {
-            throw new Error('Processed Mat is empty or invalid before gray background fix')
-          }
+                // 第一遍: 粗粒度 (大 tile)
+                const clip1 = 1.5 + strength * 2.5
+                const clahe1 = new cv.CLAHE(clip1, new cv.Size(16, 16))
+                clahe1.apply(lCh, lCh)
+                clahe1.delete()
 
-          // 验证 processed Mat 是否有效
-          if (!processed || processed.empty() || processed.cols === 0 || processed.rows === 0) {
-            throw new Error('Processed Mat is invalid before gray background fix')
-          }
-          
-          const processedBackup = processed.clone()
-          const dst = new cv.Mat()
-          let rgb: any = null
-          let hsv: any = null
-          let hsvChannels: any = null
-          
-          try {
-            // 灰底修复策略：
-            // 1. 转换为 HSV 颜色空间
-            // 2. 对 V (Value/Brightness) 通道进行 CLAHE 增强
-            // 3. 提升灰底区域的亮度和对比度
-            
-            // 转换为 RGB（去除 Alpha）
-            rgb = new cv.Mat()
-            // 验证 processed 仍然有效
-            if (processed.empty() || processed.cols === 0 || processed.rows === 0) {
-              throw new Error('Processed Mat became invalid before RGB conversion')
+                // 第二遍: 细粒度 (小 tile) — 混合
+                if (strength > 0.4) {
+                  const lCopy = lCh.clone()
+                  const clip2 = 1.0 + strength * 1.5
+                  const clahe2 = new cv.CLAHE(clip2, new cv.Size(4, 4))
+                  clahe2.apply(lCopy, lCopy)
+                  clahe2.delete()
+
+                  // 混合两次 CLAHE 结果
+                  const blendRatio = Math.min(0.5, (strength - 0.4) * 0.83)
+                  cv.addWeighted(lCh, 1.0 - blendRatio, lCopy, blendRatio, 0, lCh)
+                  safeDel(lCopy)
+                }
+
+                cv.merge(labChs, lab)
+                cv.cvtColor(lab, rgb, cv.COLOR_Lab2RGB)
+              }
+              safeDel(lab); labChs.delete()
             }
-            cv.cvtColor(processed, rgb, cv.COLOR_RGBA2RGB)
-            
-            // 验证 RGB Mat
-            if (rgb.empty() || rgb.cols === 0 || rgb.rows === 0) {
-              throw new Error('RGB Mat conversion failed')
+
+            // 自适应 S-Curve Gamma
+            if (options.brightnessOptimize) {
+              const brightBoost = analysis.isDark ? 1.3 : (analysis.isOverexposed ? 0.8 : 1.0)
+              const strength = (options.brightnessOptimizeStrength / 100) * brightBoost
+              const gray = new cv.Mat()
+              cv.cvtColor(rgb, gray, cv.COLOR_RGB2GRAY)
+              const meanVal = cv.mean(gray)[0]
+              safeDel(gray)
+
+              // S-Curve LUT — 不止简单 gamma
+              const lut = new cv.Mat(1, 256, cv.CV_8U)
+              const lutData = lut.data
+
+              let gamma: number
+              if (meanVal < 60) gamma = 1.0 / (1.0 + strength * 1.2)
+              else if (meanVal < 90) gamma = 1.0 / (1.0 + strength * 0.6)
+              else if (meanVal > 200) gamma = 1.0 + strength * 0.5
+              else if (meanVal > 160) gamma = 1.0 + strength * 0.15
+              else gamma = 1.0 / (1.0 + strength * 0.15)
+
+              // S-curve: 暗部提亮 + 中间调保持 + 亮部适度压缩
+              for (let i = 0; i < 256; i++) {
+                let v = i / 255.0
+                // Gamma
+                v = Math.pow(v, gamma)
+                // 轻微 S-curve
+                if (strength > 0.3) {
+                  const sFactor = (strength - 0.3) * 0.5
+                  v = v + sFactor * v * (1 - v) * (v - 0.5) * 2
+                }
+                lutData[i] = Math.min(255, Math.max(0, Math.round(v * 255)))
+              }
+
+              const rgbChs = new cv.MatVector()
+              cv.split(rgb, rgbChs)
+              for (let c = 0; c < Math.min(3, rgbChs.size() as number); c++) {
+                cv.LUT(rgbChs.get(c), lut, rgbChs.get(c))
+              }
+              cv.merge(rgbChs, rgb)
+              safeDel(lut); rgbChs.delete()
             }
-            
-            // 转换为 HSV
-            hsv = new cv.Mat()
-            cv.cvtColor(rgb, hsv, cv.COLOR_RGB2HSV)
-            
-            // 验证 HSV Mat
-            if (hsv.empty() || hsv.cols === 0 || hsv.rows === 0) {
-              throw new Error('HSV Mat conversion failed')
-            }
-            
-            // 分离通道
-            hsvChannels = new cv.MatVector()
-            cv.split(hsv, hsvChannels)
-            
-            // 验证通道数量
-            if (hsvChannels.size() < 3) {
-              throw new Error('Failed to split HSV channels')
-            }
-            
-            // 对 V (Value/Brightness) 通道进行增强
-            const vChannel = hsvChannels.get(2)
-            if (vChannel.empty() || vChannel.cols === 0 || vChannel.rows === 0) {
-              throw new Error('V channel is invalid')
-            }
-            
-            // 使用 CLAHE 增强亮度通道（专门针对灰底）
-            if (typeof cv.CLAHE === 'function') {
-              const clahe = new cv.CLAHE(4.0, new cv.Size(8, 8)) // 更高的对比度限制
-              clahe.apply(vChannel, vChannel)
-              clahe.delete()
-            } else {
-              // 降级：使用直方图均衡化
-              cv.equalizeHist(vChannel, vChannel)
-            }
-            
-            // 合并通道
-            cv.merge(hsvChannels, hsv)
-            
-            // 验证合并后的 HSV Mat
-            if (hsv.empty() || hsv.cols === 0 || hsv.rows === 0) {
-              throw new Error('HSV Mat merge failed')
-            }
-            
-            // 转换回 RGB
-            cv.cvtColor(hsv, rgb, cv.COLOR_HSV2RGB)
-            
-            // 验证 RGB Mat
-            if (rgb.empty() || rgb.cols === 0 || rgb.rows === 0) {
-              throw new Error('RGB Mat conversion from HSV failed')
-            }
-            
-            // 转换回 RGBA
+
+            const dst = new cv.Mat()
             cv.cvtColor(rgb, dst, cv.COLOR_RGB2RGBA)
-            
-            // 验证结果
-            if (dst.empty() || dst.cols === 0 || dst.rows === 0) {
-              throw new Error('Gray background fix result is invalid')
-            }
-            
-            // 确保尺寸匹配
-            if (dst.cols !== processed.cols || dst.rows !== processed.rows) {
-              throw new Error(`Size mismatch: processed(${processed.cols}x${processed.rows}) vs dst(${dst.cols}x${dst.rows})`)
-            }
-            
-            processed.delete()
-            processedBackup.delete()
-            processed = dst
-            
-            // 清理
-            if (rgb) rgb.delete()
-            if (hsv) hsv.delete()
-            if (hsvChannels) hsvChannels.delete()
-          } catch (err) {
-            // 记录错误详情
-            const errorMsg = err instanceof Error ? err.message : String(err)
-            console.error('Gray background fix error:', errorMsg, {
-              processedValid: processed && !processed.empty() && processed.cols > 0 && processed.rows > 0,
-              processedSize: processed ? `${processed.cols}x${processed.rows}` : 'null',
-              rgbValid: rgb && !rgb.empty(),
-              hsvValid: hsv && !hsv.empty(),
-              dstValid: dst && !dst.empty()
-            })
-            
-            // 清理
-            try { if (rgb && !rgb.empty()) rgb.delete() } catch (e) {}
-            try { if (hsv && !hsv.empty()) hsv.delete() } catch (e) {}
-            try { if (hsvChannels) hsvChannels.delete() } catch (e) {}
-            try { if (dst && !dst.empty()) dst.delete() } catch (e) {}
-            
-            // 如果失败，恢复备份
-            if (processed && !processed.empty() && processed.cols > 0 && processed.rows > 0) {
-              processedBackup.delete()
+            safeDel(rgb)
+            if (isValid(dst) && dst.cols === p.val.cols) {
+              safeDel(p.val); safeDel(backup); p.val = dst
+            } else { safeDel(dst); throw new Error('Contrast mismatch') }
+          })
+          await yieldToUI()
+        }
+
+        // ================================================================
+        //  阶段 4/${totalStages}: 多通道自适应去噪
+        // ================================================================
+        if (options.denoise) {
+          updateProgress(27, language === 'zh-CN' ? '🔇 阶段4/10: 智能去噪...' : '🔇 Stage 4/10: Smart Denoising...', 'denoise')
+          await yieldToUI()
+
+          const backup = p.val.clone()
+          await safeStage(backup, p, async () => {
+            // 根据噪声分析自动调整
+            const noiseBoost = Math.max(1.0, 1.0 + (analysis.noiseLevel - 0.3) * 1.5)
+            const strength = Math.min(1.0, (options.denoiseStrength / 100) * noiseBoost)
+            const h = Math.max(3, Math.min(20, strength * 22))
+            const hColor = h * 0.7
+
+            const rgb = new cv.Mat()
+            cv.cvtColor(p.val, rgb, cv.COLOR_RGBA2RGB)
+
+            // 分通道处理: L通道强去噪, a/b通道保持
+            if (typeof cv.fastNlMeansDenoisingColored === 'function') {
+              const denoised = new cv.Mat()
+
+              // 第一遍: 色度去噪 (保细节)
+              cv.fastNlMeansDenoisingColored(rgb, denoised, h * 0.6, hColor, 7, strength > 0.5 ? 21 : 17)
+
+              // 第二遍: 亮度通道精细去噪 (仅高噪声场景)
+              if (analysis.noiseLevel > 0.4 && strength > 0.4) {
+                const lab = new cv.Mat()
+                cv.cvtColor(denoised, lab, cv.COLOR_RGB2Lab)
+                const labChs = new cv.MatVector()
+                cv.split(lab, labChs)
+
+                if (labChs.size() >= 3) {
+                  const lCh = labChs.get(0)
+                  const lDenoised = new cv.Mat()
+
+                  if (typeof cv.fastNlMeansDenoising === 'function') {
+                    cv.fastNlMeansDenoising(lCh, lDenoised, h * 0.8, 7, 25)
+                    lDenoised.copyTo(lCh)
+                    safeDel(lDenoised)
+                  }
+
+                  cv.merge(labChs, lab)
+                  cv.cvtColor(lab, denoised, cv.COLOR_Lab2RGB)
+                }
+                safeDel(lab); labChs.delete()
+              }
+
+              // 边缘保护混合 — 保留锐利边缘
+              if (strength > 0.3) {
+                const gray = new cv.Mat()
+                cv.cvtColor(rgb, gray, cv.COLOR_RGB2GRAY)
+                const edgeMask = new cv.Mat()
+                cv.Canny(gray, edgeMask, 40, 120)
+                const dilateK = cv.getStructuringElement(cv.MORPH_ELLIPSE, new cv.Size(3, 3))
+                cv.dilate(edgeMask, edgeMask, dilateK)
+                safeDel(dilateK)
+
+                // 在边缘区域保留更多原图
+                const edgeMask3c = new cv.Mat()
+                cv.cvtColor(edgeMask, edgeMask3c, cv.COLOR_GRAY2RGB)
+                const edgeMaskF = new cv.Mat()
+                edgeMask3c.convertTo(edgeMaskF, cv.CV_32F, 1.0 / 255.0)
+
+                const origF = new cv.Mat()
+                const denoisedF = new cv.Mat()
+                rgb.convertTo(origF, cv.CV_32F)
+                denoised.convertTo(denoisedF, cv.CV_32F)
+
+                // result = denoised * (1 - edgeMask * blend) + orig * edgeMask * blend
+                const edgeBlend = 0.6
+                for (let i = 0; i < origF.data32F.length; i++) {
+                  const e = edgeMaskF.data32F[i] * edgeBlend
+                  denoisedF.data32F[i] = denoisedF.data32F[i] * (1 - e) + origF.data32F[i] * e
+                }
+
+                denoisedF.convertTo(denoised, cv.CV_8U)
+                safeDel(gray); safeDel(edgeMask); safeDel(edgeMask3c); safeDel(edgeMaskF); safeDel(origF); safeDel(denoisedF)
+              }
+
+              const dst = new cv.Mat()
+              cv.cvtColor(denoised, dst, cv.COLOR_RGB2RGBA)
+              safeDel(rgb); safeDel(denoised)
+              if (isValid(dst) && dst.cols === p.val.cols) {
+                safeDel(p.val); safeDel(backup); p.val = dst
+              } else { safeDel(dst); throw new Error('mismatch') }
             } else {
-              if (processedBackup && !processedBackup.empty()) {
-                processed = processedBackup
-              } else {
-                throw new Error('Both processed and backup are invalid')
+              // 降级: bilateral
+              const denoised = new cv.Mat()
+              const d = Math.round(5 + strength * 8)
+              cv.bilateralFilter(rgb, denoised, d, 75 + strength * 50, 75 + strength * 50)
+              const dst = new cv.Mat()
+              cv.cvtColor(denoised, dst, cv.COLOR_RGB2RGBA)
+              safeDel(rgb); safeDel(denoised)
+              if (isValid(dst) && dst.cols === p.val.cols) {
+                safeDel(p.val); safeDel(backup); p.val = dst
+              } else { safeDel(dst); throw new Error('mismatch') }
+            }
+          })
+          await yieldToUI()
+        }
+
+        // ================================================================
+        //  阶段 5/${totalStages}: 多尺度划痕 & 污渍修复
+        // ================================================================
+        if (options.scratchRepair || options.stainRemoval) {
+          updateProgress(36, language === 'zh-CN' ? '🩹 阶段5/10: 划痕 & 污渍修复...' : '🩹 Stage 5/10: Scratch & Stain Fix...', 'scratch')
+          await yieldToUI()
+
+          const backup = p.val.clone()
+          await safeStage(backup, p, async () => {
+            const gray = new cv.Mat()
+            cv.cvtColor(p.val, gray, cv.COLOR_RGBA2GRAY)
+
+            const combinedMask = cv.Mat.zeros(gray.rows, gray.cols, cv.CV_8U)
+
+            // 5a. 多尺度划痕检测
+            if (options.scratchRepair) {
+              const scratchBoost = Math.max(1.0, 1.0 + (analysis.scratchDensity - 0.1) * 2)
+              const strength = Math.min(1.0, (options.scratchRepairStrength / 100) * scratchBoost)
+              const lowTh = Math.max(15, 70 - Math.round(strength * 50))
+
+              // 三尺度边缘检测
+              const scales = [
+                { blur: 1, thLow: lowTh, thHigh: lowTh * 2.5 },
+                { blur: 3, thLow: lowTh * 0.7, thHigh: lowTh * 2 },
+                { blur: 5, thLow: lowTh * 0.5, thHigh: lowTh * 1.5 },
+              ]
+
+              for (const sc of scales) {
+                const blurred = new cv.Mat()
+                if (sc.blur > 1) {
+                  cv.GaussianBlur(gray, blurred, new cv.Size(sc.blur, sc.blur), 0)
+                } else {
+                  gray.copyTo(blurred)
+                }
+
+                const edges = new cv.Mat()
+                cv.Canny(blurred, edges, sc.thLow, sc.thHigh)
+
+                // 竖直划痕
+                const kV = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(1, Math.round(5 + strength * 5)))
+                const vert = new cv.Mat()
+                cv.morphologyEx(edges, vert, cv.MORPH_CLOSE, kV)
+                cv.morphologyEx(vert, vert, cv.MORPH_OPEN, kV)
+
+                // 水平划痕
+                const kH = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(Math.round(5 + strength * 5), 1))
+                const horiz = new cv.Mat()
+                cv.morphologyEx(edges, horiz, cv.MORPH_CLOSE, kH)
+                cv.morphologyEx(horiz, horiz, cv.MORPH_OPEN, kH)
+
+                // 对角线划痕
+                const kD1 = cv.Mat.zeros(5, 5, cv.CV_8U)
+                for (let i = 0; i < 5; i++) kD1.ucharPtr(i, i)[0] = 1
+                const diag = new cv.Mat()
+                cv.morphologyEx(edges, diag, cv.MORPH_CLOSE, kD1)
+                cv.morphologyEx(diag, diag, cv.MORPH_OPEN, kD1)
+
+                cv.add(combinedMask, vert, combinedMask)
+                cv.add(combinedMask, horiz, combinedMask)
+                cv.add(combinedMask, diag, combinedMask)
+
+                safeDel(blurred); safeDel(edges); safeDel(kV); safeDel(kH); safeDel(kD1)
+                safeDel(vert); safeDel(horiz); safeDel(diag)
+              }
+
+              // 膨胀遮罩
+              const dilateSize = 2 + Math.round(strength * 3)
+              const dilateK = cv.getStructuringElement(cv.MORPH_ELLIPSE, new cv.Size(dilateSize, dilateSize))
+              cv.dilate(combinedMask, combinedMask, dilateK)
+              safeDel(dilateK)
+            }
+
+            // 5b. 污渍检测 (大面积异常色块)
+            if (options.stainRemoval) {
+              const strength = options.stainRemovalStrength / 100
+
+              const rgb = new cv.Mat()
+              cv.cvtColor(p.val, rgb, cv.COLOR_RGBA2RGB)
+              const hsv = new cv.Mat()
+              cv.cvtColor(rgb, hsv, cv.COLOR_RGB2HSV)
+              const hsvChs = new cv.MatVector()
+              cv.split(hsv, hsvChs)
+
+              if (hsvChs.size() >= 3) {
+                const sCh = hsvChs.get(1)
+                const vCh = hsvChs.get(2)
+
+                // 低饱和度 + 异常亮度 = 潜在污渍
+                const lowSat = new cv.Mat()
+                cv.threshold(sCh, lowSat, 30, 255, cv.THRESH_BINARY_INV)
+                const brightAnomaly = new cv.Mat()
+                cv.threshold(vCh, brightAnomaly, 200, 255, cv.THRESH_BINARY)
+
+                const stainMask = new cv.Mat()
+                cv.bitwise_and(lowSat, brightAnomaly, stainMask)
+
+                // 形态学清理 — 只保留大面积
+                const morphK = cv.getStructuringElement(cv.MORPH_ELLIPSE, new cv.Size(5, 5))
+                cv.morphologyEx(stainMask, stainMask, cv.MORPH_OPEN, morphK)
+                cv.morphologyEx(stainMask, stainMask, cv.MORPH_CLOSE, morphK)
+                safeDel(morphK)
+
+                // 按强度混合到总遮罩
+                const stainScaled = new cv.Mat()
+                stainMask.convertTo(stainScaled, cv.CV_8U, strength * 0.5)
+                cv.add(combinedMask, stainScaled, combinedMask)
+
+                safeDel(lowSat); safeDel(brightAnomaly); safeDel(stainMask); safeDel(stainScaled)
+              }
+
+              safeDel(rgb); safeDel(hsv); hsvChs.delete()
+            }
+
+            // 阈值化最终遮罩
+            cv.threshold(combinedMask, combinedMask, 20, 255, cv.THRESH_BINARY)
+
+            // 人脸保护 — 降低人脸区域的修复强度
+            if (analysis.hasFaces && analysis.faceRegions.length > 0) {
+              for (const face of analysis.faceRegions) {
+                const faceRoi = combinedMask.roi(new cv.Rect(
+                  Math.max(0, face.x - 10),
+                  Math.max(0, face.y - 10),
+                  Math.min(face.w + 20, combinedMask.cols - face.x + 10),
+                  Math.min(face.h + 20, combinedMask.rows - face.y + 10)
+                ))
+                faceRoi.setTo(new cv.Scalar(0)) // 清除人脸区域的划痕遮罩
               }
             }
-            console.warn('Gray background fix failed, continuing with original:', err)
-          }
-          
-          await yieldToUI()
-        }
 
-        // 5. 划痕淡化 ⭐⭐⭐（最后处理，修复细节瑕疵）
-        if (options.scratchRepair) {
-          setTasks(prev => prev.map(t => 
-            t.id === task.id ? { 
-              ...t, 
-              progress: 80,
-              progressMessage: language === 'zh-CN' ? '淡化划痕...' : 'Fading scratches...'
-            } : t
-          ))
+            // Inpaint
+            const maskPixels = cv.countNonZero(combinedMask)
+            if (maskPixels > 0 && maskPixels < (gray.rows * gray.cols * 0.25)) {
+              const dst = new cv.Mat()
+              if (typeof cv.inpaint === 'function') {
+                const radius = 3 + Math.round((options.scratchRepairStrength / 100) * 5)
+                cv.inpaint(p.val, combinedMask, dst, radius, cv.INPAINT_TELEA)
+              } else {
+                p.val.copyTo(dst)
+              }
 
-          await yieldToUI()
-
-          if (processed.empty() || processed.cols === 0 || processed.rows === 0) {
-            throw new Error('Processed Mat is empty or invalid before scratch repair')
-          }
-
-          // 划痕淡化：使用更温和的方法
-          // 1. 检测细线（划痕通常是细线）
-          // 2. 使用形态学操作淡化
-          // 3. 使用中值滤波平滑
-          const dst = new cv.Mat()
-          
-          try {
-            // 转换为灰度
-            const gray = new cv.Mat()
-            cv.cvtColor(processed, gray, cv.COLOR_RGBA2GRAY)
-            
-            // 检测细线（划痕）
-            const edges = new cv.Mat()
-            const threshold = Math.max(30, Math.min(100, Math.floor((options.scratchRepairStrength / 100) * 70) + 30))
-            cv.Canny(gray, edges, threshold, threshold * 2)
-            
-            // 使用形态学操作：开运算（先腐蚀后膨胀）来淡化细线
-            const kernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(3, 3))
-            const opened = new cv.Mat()
-            cv.morphologyEx(edges, opened, cv.MORPH_OPEN, kernel)
-            
-            // 如果 inpaint 可用，使用它修复
-            if (typeof cv.inpaint === 'function') {
-              cv.inpaint(processed, opened, dst, 2, cv.INPAINT_TELEA) // 降低修复半径
+              if (isValid(dst) && dst.cols === p.val.cols) {
+                safeDel(p.val); safeDel(backup); p.val = dst
+              } else { safeDel(dst) }
             } else {
-              // 降级：使用中值滤波（对细线有效）
-              cv.medianBlur(processed, dst, 3) // 使用较小的核，避免过度模糊
+              safeDel(backup)
             }
-            
-            if (dst.empty() || dst.cols === 0 || dst.rows === 0) {
-              throw new Error('Scratch repair result is invalid')
-            }
-            
-            processed.delete()
-            processed = dst
-            
-            // 清理
-            gray.delete()
-            edges.delete()
-            opened.delete()
-            kernel.delete()
-          } catch (err) {
-            dst.delete()
-            console.warn('Scratch repair failed, continuing:', err)
-            // 如果失败，继续使用原图
-          }
-          
+
+            safeDel(gray); safeDel(combinedMask)
+          })
           await yieldToUI()
         }
 
-        // 转换为 ImageData
-        setTasks(prev => prev.map(t => 
-          t.id === task.id ? { 
-            ...t, 
-            progress: 90,
-            progressMessage: language === 'zh-CN' ? '生成结果...' : 'Generating result...'
-          } : t
-        ))
+        // ================================================================
+        //  阶段 6/${totalStages}: 人脸检测 & 区域增强
+        // ================================================================
+        if (options.faceEnhance && analysis.hasFaces && analysis.faceRegions.length > 0) {
+          updateProgress(45, language === 'zh-CN' ? '👤 阶段6/10: 人脸增强...' : '👤 Stage 6/10: Face Enhancement...', 'face')
+          await yieldToUI()
 
-        await yieldToUI() // 让出控制权
+          const backup = p.val.clone()
+          await safeStage(backup, p, async () => {
+            const strength = options.faceEnhanceStrength / 100
 
-        // 验证 processed Mat 是否有效
-        // 注意：OpenCV.js Mat 对象可能没有 isDeleted 属性，使用 try-catch 更安全
-        let isValid = false
-        try {
-          isValid = processed && 
-                   !processed.empty() && 
-                   processed.cols > 0 && 
-                   processed.rows > 0 &&
-                   typeof processed.cols === 'number' &&
-                   typeof processed.rows === 'number'
-        } catch (err) {
-          isValid = false
+            for (const face of analysis.faceRegions) {
+              // 扩展人脸区域 (含额头和下巴)
+              const padX = Math.round(face.w * 0.15)
+              const padY = Math.round(face.h * 0.2)
+              const x = Math.max(0, face.x - padX)
+              const y = Math.max(0, face.y - padY)
+              const w = Math.min(p.val.cols - x, face.w + padX * 2)
+              const h = Math.min(p.val.rows - y, face.h + padY * 2)
+
+              if (w < 20 || h < 20) continue
+
+              const faceRoi = p.val.roi(new cv.Rect(x, y, w, h))
+              const faceClone = faceRoi.clone()
+
+              // 6a. 人脸去噪 (更温和)
+              const faceRgb = new cv.Mat()
+              cv.cvtColor(faceClone, faceRgb, cv.COLOR_RGBA2RGB)
+
+              if (typeof cv.fastNlMeansDenoisingColored === 'function') {
+                const faceDenoised = new cv.Mat()
+                cv.fastNlMeansDenoisingColored(faceRgb, faceDenoised, 5 + strength * 5, 3 + strength * 3, 7, 17)
+                faceDenoised.copyTo(faceRgb)
+                safeDel(faceDenoised)
+              }
+
+              // 6b. 人脸对比度 CLAHE
+              const faceLab = new cv.Mat()
+              cv.cvtColor(faceRgb, faceLab, cv.COLOR_RGB2Lab)
+              const faceLabChs = new cv.MatVector()
+              cv.split(faceLab, faceLabChs)
+
+              if (faceLabChs.size() >= 3 && typeof cv.CLAHE === 'function') {
+                const fL = faceLabChs.get(0)
+                const clip = 1.5 + strength * 2.0
+                const clahe = new cv.CLAHE(clip, new cv.Size(2, 2))
+                clahe.apply(fL, fL)
+                clahe.delete()
+
+                cv.merge(faceLabChs, faceLab)
+                cv.cvtColor(faceLab, faceRgb, cv.COLOR_Lab2RGB)
+              }
+              safeDel(faceLab); faceLabChs.delete()
+
+              // 6c. 人脸锐化 (Unsharp Mask, 温和)
+              const faceF = new cv.Mat()
+              faceRgb.convertTo(faceF, cv.CV_32F, 1.0 / 255.0)
+              const faceBlur = new cv.Mat()
+              cv.GaussianBlur(faceF, faceBlur, new cv.Size(0, 0), 0.8 + strength * 0.5)
+              const faceDiff = new cv.Mat()
+              cv.subtract(faceF, faceBlur, faceDiff)
+              safeDel(faceBlur)
+
+              const amount = 0.5 + strength * 1.2
+              const faceScaled = new cv.Mat()
+              faceDiff.convertTo(faceScaled, cv.CV_32F, amount)
+              safeDel(faceDiff)
+
+              cv.add(faceF, faceScaled, faceF)
+              safeDel(faceScaled)
+
+              faceF.convertTo(faceRgb, cv.CV_8U, 255.0)
+              safeDel(faceF)
+
+              // 6d. 皮肤平滑 (bilateral 保边缘)
+              const smoothed = new cv.Mat()
+              cv.bilateralFilter(faceRgb, smoothed, 5, 50 + strength * 30, 50 + strength * 30)
+
+              // 轻混合 — 不过度磨皮
+              cv.addWeighted(faceRgb, 0.5, smoothed, 0.5, 0, faceRgb)
+              safeDel(smoothed)
+
+              // 写回原图 — 边缘羽化
+              const faceResult = new cv.Mat()
+              cv.cvtColor(faceRgb, faceResult, cv.COLOR_RGB2RGBA)
+
+              // 创建羽化遮罩
+              const featherMask = cv.Mat.ones(h, w, cv.CV_32F)
+              const featherSize = Math.min(10, Math.floor(Math.min(w, h) * 0.15))
+              if (featherSize > 1) {
+                const fData = featherMask.data32F
+                for (let r = 0; r < h; r++) {
+                  for (let c = 0; c < w; c++) {
+                    const distEdge = Math.min(r, h - 1 - r, c, w - 1 - c)
+                    if (distEdge < featherSize) {
+                      fData[r * w + c] = distEdge / featherSize
+                    }
+                  }
+                }
+              }
+
+              // 混合
+              const roiF = new cv.Mat()
+              const resultF = new cv.Mat()
+              faceRoi.convertTo(roiF, cv.CV_32F)
+              faceResult.convertTo(resultF, cv.CV_32F)
+
+              const roiData = roiF.data32F
+              const resData = resultF.data32F
+              const mData = featherMask.data32F
+              for (let i = 0; i < mData.length; i++) {
+                const m = mData[i]
+                const idx4 = i * 4
+                if (idx4 + 3 < roiData.length) {
+                  for (let c = 0; c < 3; c++) {
+                    roiData[idx4 + c] = roiData[idx4 + c] * (1 - m) + resData[idx4 + c] * m
+                  }
+                }
+              }
+
+              roiF.convertTo(faceRoi, cv.CV_8U)
+              safeDel(roiF); safeDel(resultF); safeDel(featherMask)
+              safeDel(faceClone); safeDel(faceRgb); safeDel(faceResult)
+            }
+            safeDel(backup)
+          })
+          await yieldToUI()
         }
-        
-        if (!isValid) {
-          throw new Error(language === 'zh-CN' 
-            ? '处理后的图像无效，请重试或使用其他图片'
-            : 'Processed image is invalid, please try again or use a different image')
+
+        // ================================================================
+        //  阶段 7/${totalStages}: 多层锐化
+        // ================================================================
+        if (options.sharpen) {
+          updateProgress(55, language === 'zh-CN' ? '🔍 阶段7/10: 智能锐化...' : '🔍 Stage 7/10: Smart Sharpening...', 'sharpen')
+          await yieldToUI()
+
+          const backup = p.val.clone()
+          await safeStage(backup, p, async () => {
+            // 根据清晰度分析调整
+            const sharpBoost = Math.max(0.8, 1.0 + (1.0 - analysis.sharpness) * 0.5)
+            const strength = Math.min(1.0, (options.sharpenStrength / 100) * sharpBoost)
+
+            const rgb = new cv.Mat()
+            cv.cvtColor(p.val, rgb, cv.COLOR_RGBA2RGB)
+
+            // L通道锐化 — 避免色彩伪影
+            const lab = new cv.Mat()
+            cv.cvtColor(rgb, lab, cv.COLOR_RGB2Lab)
+            const labChs = new cv.MatVector()
+            cv.split(lab, labChs)
+
+            if (labChs.size() >= 3) {
+              const lCh = labChs.get(0)
+
+              // 双层 Unsharp Mask: 粗+细
+              const lF = new cv.Mat()
+              lCh.convertTo(lF, cv.CV_32F, 1.0 / 255.0)
+
+              // 粗锐化 (恢复大结构)
+              const blur1 = new cv.Mat()
+              cv.GaussianBlur(lF, blur1, new cv.Size(0, 0), 2.0 + strength)
+              const diff1 = new cv.Mat()
+              cv.subtract(lF, blur1, diff1)
+              safeDel(blur1)
+              const scaled1 = new cv.Mat()
+              diff1.convertTo(scaled1, cv.CV_32F, 0.4 + strength * 1.2)
+              safeDel(diff1)
+              cv.add(lF, scaled1, lF)
+              safeDel(scaled1)
+
+              // 细锐化 (恢复细节)
+              if (strength > 0.3) {
+                const blur2 = new cv.Mat()
+                cv.GaussianBlur(lF, blur2, new cv.Size(0, 0), 0.5 + strength * 0.5)
+                const diff2 = new cv.Mat()
+                cv.subtract(lF, blur2, diff2)
+                safeDel(blur2)
+                const scaled2 = new cv.Mat()
+                diff2.convertTo(scaled2, cv.CV_32F, 0.2 + strength * 0.8)
+                safeDel(diff2)
+                cv.add(lF, scaled2, lF)
+                safeDel(scaled2)
+              }
+
+              lF.convertTo(lCh, cv.CV_8U, 255.0)
+              safeDel(lF)
+
+              cv.merge(labChs, lab)
+              cv.cvtColor(lab, rgb, cv.COLOR_Lab2RGB)
+            }
+            safeDel(lab); labChs.delete()
+
+            const dst = new cv.Mat()
+            cv.cvtColor(rgb, dst, cv.COLOR_RGB2RGBA)
+            safeDel(rgb)
+            if (isValid(dst) && dst.cols === p.val.cols) {
+              safeDel(p.val); safeDel(backup); p.val = dst
+            } else { safeDel(dst); throw new Error('mismatch') }
+          })
+          await yieldToUI()
         }
-        
-        // 限制 Canvas 大小，避免内存问题
-        const maxDimension = 4096
-        let outputWidth = processed.cols
-        let outputHeight = processed.rows
-        
-        if (outputWidth > maxDimension || outputHeight > maxDimension) {
-          const scale = Math.min(maxDimension / outputWidth, maxDimension / outputHeight)
-          outputWidth = Math.floor(outputWidth * scale)
-          outputHeight = Math.floor(outputHeight * scale)
-          
-          // 缩放 Mat
+
+        // ================================================================
+        //  阶段 8/${totalStages}: 细节增强
+        // ================================================================
+        if (options.detailEnhance) {
+          updateProgress(63, language === 'zh-CN' ? '💎 阶段8/10: 细节增强...' : '💎 Stage 8/10: Detail Enhancement...', 'detail')
+          await yieldToUI()
+
+          const backup = p.val.clone()
+          await safeStage(backup, p, async () => {
+            const strength = options.detailEnhanceStrength / 100
+            const rgb = new cv.Mat()
+            cv.cvtColor(p.val, rgb, cv.COLOR_RGBA2RGB)
+
+            if (typeof cv.detailEnhance === 'function') {
+              // 高品质 detail enhance
+              const enhanced = new cv.Mat()
+              const sigma_s = 8 + strength * 25
+              const sigma_r = 0.08 + strength * 0.15
+              cv.detailEnhance(rgb, enhanced, sigma_s, sigma_r)
+
+              // 渐进式混合
+              const alpha = 0.25 + strength * 0.45
+              cv.addWeighted(enhanced, alpha, rgb, 1.0 - alpha, 0, rgb)
+              safeDel(enhanced)
+            } else {
+              // 高通叠加
+              const smoothed = new cv.Mat()
+              cv.bilateralFilter(rgb, smoothed, 9, 75, 75)
+              const rgbF = new cv.Mat()
+              const smF = new cv.Mat()
+              rgb.convertTo(rgbF, cv.CV_32F)
+              smoothed.convertTo(smF, cv.CV_32F)
+              safeDel(smoothed)
+
+              const hp = new cv.Mat()
+              cv.subtract(rgbF, smF, hp)
+              safeDel(smF)
+
+              const boosted = new cv.Mat()
+              hp.convertTo(boosted, cv.CV_32F, strength * 1.8)
+              safeDel(hp)
+
+              cv.add(rgbF, boosted, rgbF)
+              safeDel(boosted)
+              rgbF.convertTo(rgb, cv.CV_8U)
+              safeDel(rgbF)
+            }
+
+            const dst = new cv.Mat()
+            cv.cvtColor(rgb, dst, cv.COLOR_RGB2RGBA)
+            safeDel(rgb)
+            if (isValid(dst) && dst.cols === p.val.cols) {
+              safeDel(p.val); safeDel(backup); p.val = dst
+            } else { safeDel(dst); throw new Error('mismatch') }
+          })
+          await yieldToUI()
+        }
+
+        // ================================================================
+        //  阶段 9/${totalStages}: 色彩鲜艳度恢复
+        // ================================================================
+        if (options.colorVibrancy) {
+          updateProgress(73, language === 'zh-CN' ? '🌈 阶段9/10: 色彩恢复...' : '🌈 Stage 9/10: Color Recovery...', 'vibrancy')
+          await yieldToUI()
+
+          const backup = p.val.clone()
+          await safeStage(backup, p, async () => {
+            const colorBoost = analysis.isGrayscale ? 0.3 : (analysis.colorfulness < 30 ? 1.4 : 1.0)
+            const strength = Math.min(1.0, (options.colorVibrancyStrength / 100) * colorBoost)
+
+            const rgb = new cv.Mat()
+            cv.cvtColor(p.val, rgb, cv.COLOR_RGBA2RGB)
+            const hsv = new cv.Mat()
+            cv.cvtColor(rgb, hsv, cv.COLOR_RGB2HSV)
+            const hsvChs = new cv.MatVector()
+            cv.split(hsv, hsvChs)
+
+            if (hsvChs.size() >= 3) {
+              const sCh = hsvChs.get(1)
+              const vCh = hsvChs.get(2)
+
+              // 智能饱和度: 分区提升
+              const sF = new cv.Mat()
+              sCh.convertTo(sF, cv.CV_32F, 1.0 / 255.0)
+              const sData = sF.data32F
+              const boostFactor = 1.0 + strength * 1.2
+
+              for (let i = 0; i < sData.length; i++) {
+                const s = sData[i]
+                // 非线性 — 低饱和度区域提升更多
+                const adaptiveBoost = boostFactor * Math.pow(1.0 - s * 0.4, 1.5)
+                // 保护高饱和度 (避免过饱和)
+                const protection = s > 0.7 ? (1.0 - (s - 0.7) / 0.3 * 0.5) : 1.0
+                sData[i] = Math.min(0.95, Math.max(0, s * adaptiveBoost * protection))
+              }
+
+              const sBu = new cv.Mat()
+              sF.convertTo(sBu, cv.CV_8U, 255.0)
+              sBu.copyTo(sCh)
+              safeDel(sF); safeDel(sBu)
+
+              // 明度 S-curve — 中间调微提
+              if (strength > 0.25) {
+                const vF = new cv.Mat()
+                vCh.convertTo(vF, cv.CV_32F, 1.0 / 255.0)
+                const vData = vF.data32F
+                const lift = strength * 0.1
+
+                for (let i = 0; i < vData.length; i++) {
+                  const v = vData[i]
+                  if (v > 0.1 && v < 0.9) {
+                    // S-curve: 提亮中间调, 保护高光和暗部
+                    const midDist = 1.0 - Math.abs(v - 0.45) * 2.2
+                    const factor = Math.max(0, midDist)
+                    vData[i] = Math.min(1.0, v + lift * factor)
+                  }
+                }
+
+                const vBu = new cv.Mat()
+                vF.convertTo(vBu, cv.CV_8U, 255.0)
+                vBu.copyTo(vCh)
+                safeDel(vF); safeDel(vBu)
+              }
+
+              cv.merge(hsvChs, hsv)
+              cv.cvtColor(hsv, rgb, cv.COLOR_HSV2RGB)
+            }
+            safeDel(hsv); hsvChs.delete()
+
+            const dst = new cv.Mat()
+            cv.cvtColor(rgb, dst, cv.COLOR_RGB2RGBA)
+            safeDel(rgb)
+            if (isValid(dst) && dst.cols === p.val.cols) {
+              safeDel(p.val); safeDel(backup); p.val = dst
+            } else { safeDel(dst); throw new Error('mismatch') }
+          })
+          await yieldToUI()
+        }
+
+        // ================================================================
+        //  阶段 10/${totalStages}: 最终抛光 (Tone Mapping + Micro-Contrast)
+        // ================================================================
+        if (options.finalPolish) {
+          updateProgress(83, language === 'zh-CN' ? '💫 阶段10/10: 最终优化...' : '💫 Stage 10/10: Final Polish...', 'polish')
+          await yieldToUI()
+
+          const backup = p.val.clone()
+          await safeStage(backup, p, async () => {
+            const strength = options.finalPolishStrength / 100
+
+            const rgb = new cv.Mat()
+            cv.cvtColor(p.val, rgb, cv.COLOR_RGBA2RGB)
+
+            // 10a. 微对比度 (Local Tone Mapping) — 类似 HDR
+            const lab = new cv.Mat()
+            cv.cvtColor(rgb, lab, cv.COLOR_RGB2Lab)
+            const labChs = new cv.MatVector()
+            cv.split(lab, labChs)
+
+            if (labChs.size() >= 3) {
+              const lCh = labChs.get(0)
+              const lF = new cv.Mat()
+              lCh.convertTo(lF, cv.CV_32F, 1.0 / 255.0)
+
+              // 局部均值
+              const localMean = new cv.Mat()
+              cv.blur(lF, localMean, new cv.Size(31, 31))
+
+              // micro-contrast: (pixel - localMean) * boost + pixel
+              const lData = lF.data32F
+              const mData = localMean.data32F
+              const microBoost = 0.15 + strength * 0.35
+              for (let i = 0; i < lData.length; i++) {
+                const diff = lData[i] - mData[i]
+                lData[i] = Math.max(0, Math.min(1, lData[i] + diff * microBoost))
+              }
+              safeDel(localMean)
+
+              lF.convertTo(lCh, cv.CV_8U, 255.0)
+              safeDel(lF)
+
+              cv.merge(labChs, lab)
+              cv.cvtColor(lab, rgb, cv.COLOR_Lab2RGB)
+            }
+            safeDel(lab); labChs.delete()
+
+            // 10b. 最终色调微调 — 温暖化
+            if (strength > 0.3) {
+              const rgbChs = new cv.MatVector()
+              cv.split(rgb, rgbChs)
+              if (rgbChs.size() >= 3) {
+                // 轻微暖色调
+                const rCh = rgbChs.get(0)
+                const bCh = rgbChs.get(2)
+
+                const warmth = (strength - 0.3) * 0.03
+                const rF = new cv.Mat()
+                const bF = new cv.Mat()
+                rCh.convertTo(rF, cv.CV_32F)
+                bCh.convertTo(bF, cv.CV_32F)
+
+                const rData = rF.data32F
+                const bData = bF.data32F
+                for (let i = 0; i < rData.length; i++) {
+                  rData[i] = Math.min(255, rData[i] * (1 + warmth))
+                  bData[i] = Math.max(0, bData[i] * (1 - warmth * 0.5))
+                }
+
+                rF.convertTo(rCh, cv.CV_8U)
+                bF.convertTo(bCh, cv.CV_8U)
+                safeDel(rF); safeDel(bF)
+
+                cv.merge(rgbChs, rgb)
+              }
+              rgbChs.delete()
+            }
+
+            const dst = new cv.Mat()
+            cv.cvtColor(rgb, dst, cv.COLOR_RGB2RGBA)
+            safeDel(rgb)
+            if (isValid(dst) && dst.cols === p.val.cols) {
+              safeDel(p.val); safeDel(backup); p.val = dst
+            } else { safeDel(dst); throw new Error('mismatch') }
+          })
+          await yieldToUI()
+        }
+
+        // ================================================================
+        //  生成结果
+        // ================================================================
+        updateProgress(92, language === 'zh-CN' ? '🎉 生成高品质结果...' : '🎉 Generating result...', 'output')
+        await yieldToUI()
+
+        if (!isValid(p.val)) throw new Error('Invalid result')
+
+        const maxOut = 4096
+        if (p.val.cols > maxOut || p.val.rows > maxOut) {
+          const scale = Math.min(maxOut / p.val.cols, maxOut / p.val.rows)
           const resized = new cv.Mat()
-          cv.resize(processed, resized, new cv.Size(outputWidth, outputHeight), 0, 0, cv.INTER_LINEAR)
-          processed.delete()
-          processed = resized
+          cv.resize(p.val, resized, new cv.Size(Math.floor(p.val.cols * scale), Math.floor(p.val.rows * scale)), 0, 0, cv.INTER_LANCZOS4)
+          safeDel(p.val)
+          p.val = resized
         }
-        
+
         const resultCanvas = document.createElement('canvas')
-        resultCanvas.width = processed.cols
-        resultCanvas.height = processed.rows
-        
-        // cv.imshow 需要 Canvas 元素，而不是 ImageData
-        // 将 Mat 绘制到 Canvas 上
+        resultCanvas.width = p.val.cols
+        resultCanvas.height = p.val.rows
+
         try {
-          // 确保 Canvas 已添加到 DOM（某些浏览器需要）
           if (!resultCanvas.parentElement) {
             document.body.appendChild(resultCanvas)
             resultCanvas.style.display = 'none'
           }
-          
-          cv.imshow(resultCanvas, processed)
-          
-          // 从 DOM 中移除（如果之前添加了）
-          if (resultCanvas.parentElement && resultCanvas.parentElement === document.body) {
-            document.body.removeChild(resultCanvas)
-          }
+          cv.imshow(resultCanvas, p.val)
+          if (resultCanvas.parentElement === document.body) document.body.removeChild(resultCanvas)
         } catch (err) {
-          // 如果 imshow 失败，提供更详细的错误信息
-          const errorMsg = err instanceof Error ? err.message : String(err)
-          console.error('cv.imshow failed:', errorMsg, 'Mat info:', {
-            cols: processed.cols,
-            rows: processed.rows,
-            empty: processed.empty(),
-            type: processed.type ? processed.type() : 'unknown'
-          })
-          throw new Error(language === 'zh-CN' 
-            ? `无法将处理结果绘制到画布: ${errorMsg}`
-            : `Failed to draw result to canvas: ${errorMsg}`)
+          throw new Error(`Draw failed: ${err}`)
         }
-        
-        // 直接使用 Canvas 转换为 Blob（cv.imshow 已经将 Mat 绘制到 Canvas 上了）
-        // 将 toBlob 转换为 Promise 以便正确处理错误
+
         await new Promise<void>((resolve, reject) => {
           try {
             resultCanvas.toBlob((blob) => {
               if (blob) {
                 const resultUrl = URL.createObjectURL(blob)
-                const endTime = Date.now()
-                const duration = ((endTime - startTime) / 1000).toFixed(1)
-
-                setTasks(prev => prev.map(t => 
-                  t.id === task.id
-                    ? {
-                        ...t,
-                        status: 'completed' as const,
-                        progress: 100,
-                        progressMessage: language === 'zh-CN' 
-                          ? `完成！用时 ${duration}秒` 
-                          : `Completed! ${duration}s`,
-                        result: blob,
-                        resultUrl,
-                        restoredPreview: resultUrl,
-                        endTime
-                      }
-                    : t
+                const duration = ((Date.now() - startTime) / 1000).toFixed(1)
+                setTasks(prev => prev.map(t =>
+                  t.id === task.id ? {
+                    ...t, status: 'completed' as const, progress: 100,
+                    progressMessage: language === 'zh-CN' ? `✨ 修复完成！用时 ${duration}秒` : `✨ Done! ${duration}s`,
+                    result: blob, resultUrl, restoredPreview: resultUrl, endTime: Date.now(), analysis
+                  } : t
                 ))
-
-                // 播放完成音效
                 try {
                   const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OSfTQ8MT6bj8LZjHAY4kdfyzHksBSR3x/DdkEAKFF606euoVRQKRp/g8r5sIQUrgc7y2Yk2CBtpvfDkn00PDE+m4/C2YxwGOJHX8sx5LAUkd8fw3ZBAC')
                   audio.volume = 0.3
                   audio.play().catch(() => {})
-                } catch (err) {
-                  // 忽略音效错误
-                }
-                
+                } catch (_e) { /* noop */ }
                 resolve()
-              } else {
-                reject(new Error(language === 'zh-CN' 
-                  ? '无法生成图像 Blob' 
-                  : 'Failed to generate image Blob'))
-              }
+              } else reject(new Error('Blob generation failed'))
             }, `image/${options.outputFormat}`, options.outputQuality / 100)
-          } catch (err) {
-            reject(err)
-          }
+          } catch (err) { reject(err) }
         })
 
-        // 清理 Mat 对象（安全删除）
-        try {
-          if (src && !src.empty && !src.empty()) src.delete()
-        } catch (e) {
-          console.warn('Error deleting src Mat:', e)
-        }
-        try {
-          if (processed && !processed.empty && !processed.empty()) processed.delete()
-        } catch (e) {
-          console.warn('Error deleting processed Mat:', e)
-        }
+        safeDel(src); safeDel(p.val)
       } catch (err) {
-        // 确保清理所有 Mat 对象
-        try {
-          if (src && !src.empty && !src.empty()) src.delete()
-        } catch (e) {
-          console.warn('Error deleting src Mat:', e)
-        }
-        try {
-          if (processed && !processed.empty && !processed.empty()) processed.delete()
-        } catch (e) {
-          console.warn('Error deleting processed Mat:', e)
-        }
+        safeDel(src); safeDel(p.val)
         throw err
       }
     } catch (err) {
       console.error('Processing failed:', err)
-      
-      // 记录详细的错误信息
-      const errorDetails: any = {
-        error: err instanceof Error ? err.message : String(err),
-        errorCode: typeof err === 'number' ? err : undefined,
-        taskId: task.id,
-        fileName: task.file.name,
-        fileSize: task.file.size
-      }
-      
-      // 如果错误是数字（OpenCV 错误代码），添加更多信息
-      if (typeof err === 'number') {
-        errorDetails.opencvErrorCode = err
-        errorDetails.suggestions = [
-          'Try refreshing the page',
-          'Try using a different image',
-          'Check if the image is corrupted',
-          'Try reducing image size'
-        ]
-      }
-      
-      console.error('Error details:', errorDetails)
-      
-      // 提供更友好的错误消息
-      let errorMessage = 'Unknown error'
-      if (err instanceof Error) {
-        errorMessage = err.message
-      } else if (typeof err === 'number') {
-        // OpenCV 错误代码
-        errorMessage = language === 'zh-CN' 
-          ? `OpenCV 错误代码: ${err}。请尝试刷新页面或使用其他图片。如果问题持续，请尝试使用较小的图片。`
-          : `OpenCV error code: ${err}. Please try refreshing the page or using a different image. If the problem persists, try using a smaller image.`
-      } else {
-        errorMessage = String(err)
-      }
-      
-      setTasks(prev => prev.map(t => 
-        t.id === task.id 
-          ? { 
-              ...t, 
-              status: 'failed' as const,
-              progress: 0,
-              progressMessage: undefined,
-              error: errorMessage
-            } 
-          : t
+      let msg = 'Unknown error'
+      if (err instanceof Error) msg = err.message
+      else if (typeof err === 'number') msg = `OpenCV error: ${err}`
+      else msg = String(err)
+      setTasks(prev => prev.map(t =>
+        t.id === task.id ? { ...t, status: 'failed' as const, progress: 0, progressMessage: undefined, error: msg } : t
       ))
       throw err
     }
-  }, [options, loadOpenCV, language])
+  }, [options, loadOpenCV, language, loadFaceCascade])
 
-  // 处理所有任务
+  // 处理所有
   const handleProcess = useCallback(async () => {
-    if (tasks.length === 0) return
-
-    const pendingTasks = tasks.filter(t => t.status === 'pending')
-    if (pendingTasks.length === 0) return
-
+    const pending = tasks.filter(t => t.status === 'pending')
+    if (pending.length === 0) return
     setIsProcessing(true)
-
     try {
-      for (const task of pendingTasks) {
-        try {
-          await processImage(task)
-        } catch (err) {
-          console.error(`Failed to process ${task.file.name}:`, err)
-        }
+      for (const task of pending) {
+        try { await processImage(task) } catch (err) { console.error(`Failed: ${task.file.name}:`, err) }
       }
-    } finally {
-      setIsProcessing(false)
-    }
+    } finally { setIsProcessing(false) }
   }, [tasks, processImage])
 
-  // 下载单个文件
+  const handleRetry = useCallback((taskId: string) => {
+    setTasks(prev => prev.map(t =>
+      t.id === taskId ? { ...t, status: 'pending' as const, progress: 0, error: undefined, progressMessage: undefined, restoredPreview: undefined, result: undefined, resultUrl: undefined, analysis: undefined } : t
+    ))
+  }, [])
+
   const handleDownload = useCallback((task: RestorationTask) => {
-    if (!task.result || !task.resultUrl) return
-    
-    const ext = options.outputFormat
-    const fileName = task.file.name.replace(/\.[^/.]+$/, '') + `_restored.${ext}`
-    saveAs(task.result, fileName)
+    if (!task.result) return
+    saveAs(task.result, task.file.name.replace(/\.[^/.]+$/, '') + `_restored.${options.outputFormat}`)
   }, [options.outputFormat])
 
-  // 删除任务
   const handleRemoveTask = useCallback((taskId: string) => {
     setTasks(prev => {
       const task = prev.find(t => t.id === taskId)
@@ -1251,105 +1499,111 @@ export default function OldPhotoRestoration() {
     })
   }, [])
 
-  const formatFileSize = (bytes: number): string => {
+  const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+    if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`
+    return `${(bytes / 1048576).toFixed(1)} MB`
   }
 
-  // 每个任务的对比滑块值（taskId -> value）
+  // 对比滑块
   const [compareSliders, setCompareSliders] = useState<Record<string, number>>({})
-  
-  const getCompareSlider = (taskId: string): number => {
-    return compareSliders[taskId] ?? 50
-  }
-  
-  const setCompareSlider = (taskId: string, value: number) => {
-    setCompareSliders(prev => ({ ...prev, [taskId]: value }))
+  const getSlider = (id: string) => compareSliders[id] ?? 50
+  const setSlider = (id: string, v: number) => setCompareSliders(prev => ({ ...prev, [id]: v }))
+
+  // 分析结果展示
+  const renderAnalysis = (a: ImageAnalysis) => {
+    const tags: string[] = []
+    if (a.isDark) tags.push(language === 'zh-CN' ? '偏暗' : 'Dark')
+    if (a.isOverexposed) tags.push(language === 'zh-CN' ? '过曝' : 'Overexposed')
+    if (a.isLowContrast) tags.push(language === 'zh-CN' ? '低对比度' : 'Low Contrast')
+    if (a.hasColorCast) tags.push(language === 'zh-CN' ? `色偏:${a.colorCastType}` : `Cast:${a.colorCastType}`)
+    if (a.noiseLevel > 0.4) tags.push(language === 'zh-CN' ? '高噪声' : 'Noisy')
+    if (a.scratchDensity > 0.2) tags.push(language === 'zh-CN' ? '有划痕' : 'Scratched')
+    if (a.hasFaces) tags.push(language === 'zh-CN' ? `${a.faceRegions.length}张人脸` : `${a.faceRegions.length} Face(s)`)
+    if (a.isGrayscale) tags.push(language === 'zh-CN' ? '黑白照' : 'Grayscale')
+    if (a.sharpness < 0.3) tags.push(language === 'zh-CN' ? '模糊' : 'Blurry')
+    return tags
   }
 
+  // ============================================================
+  //  RENDER
+  // ============================================================
   return (
     <div className="old-photo-restoration">
       {/* Header */}
       <div className="restoration-header">
         <div className="header-content">
           <h1 className="tool-title">
-            <ImageIcon />
-            {language === 'zh-CN' ? '老照片修复' : 'Old Photo Restoration'}
+            <Sparkles className="title-icon" />
+            {language === 'zh-CN' ? 'AI 老照片修复' : 'AI Old Photo Restoration'}
           </h1>
           <p className="tool-description">
             {language === 'zh-CN'
-              ? '使用专业算法修复老照片：自动增强、去噪、锐化、灰底修复、划痕淡化。100% 本地处理，保护隐私安全。'
-              : 'Restore old photos with professional algorithms: auto enhance, denoise, sharpen, gray background fix, scratch fading. 100% local processing, privacy protected.'}
+              ? '商业级10阶段修复引擎：智能分析 → 色彩校正 → 对比度增强 → 去噪 → 划痕修复 → 人脸增强 → 锐化 → 细节增强 → 色彩恢复 → 最终抛光。自适应参数 · 人脸保护 · 多通道处理。'
+              : 'Commercial 10-Stage Engine: Analysis → Color → Contrast → Denoise → Scratch → Face → Sharpen → Detail → Vibrancy → Polish. Adaptive · Face-aware · Multi-channel.'}
           </p>
-          <div className="expectation-warning">
-            <AlertCircle size={16} />
-            <span>
-              {language === 'zh-CN'
-                ? '此工具可以改善清晰度，但无法恢复已丢失的细节。'
-                : 'This tool improves clarity but cannot restore lost details.'}
-            </span>
+          <div className="feature-pills">
+            <span className="pill">🔍 {language === 'zh-CN' ? '智能分析' : 'Auto Analyze'}</span>
+            <span className="pill">🎨 {language === 'zh-CN' ? '色彩校正' : 'Color Fix'}</span>
+            <span className="pill">🔇 {language === 'zh-CN' ? '智能去噪' : 'Denoise'}</span>
+            <span className="pill">🩹 {language === 'zh-CN' ? '瑕疵修复' : 'Damage Fix'}</span>
+            <span className="pill pill-face"><ScanFace size={13} /> {language === 'zh-CN' ? '人脸增强' : 'Face AI'}</span>
+            <span className="pill">💎 {language === 'zh-CN' ? '细节锐化' : 'Sharpen'}</span>
+            <span className="pill">🌈 {language === 'zh-CN' ? '色彩恢复' : 'Vibrancy'}</span>
+            <span className="pill">💫 {language === 'zh-CN' ? '最终抛光' : 'Polish'}</span>
           </div>
         </div>
       </div>
 
-      {/* Device Warning */}
       {deviceWarning && (
         <div className="device-warning">
           <AlertCircle size={20} />
           <div>
-            <strong>
-              {language === 'zh-CN' ? '设备性能提示' : 'Device Performance Notice'}
-            </strong>
-            <p>
-              {language === 'zh-CN'
-                ? '建议使用桌面浏览器以获得最佳性能。移动设备可能处理较慢。'
-                : 'Desktop browsers recommended for best performance. Mobile devices may process slower.'}
-            </p>
+            <strong>{language === 'zh-CN' ? '设备性能提示' : 'Performance Notice'}</strong>
+            <p>{language === 'zh-CN' ? '建议使用桌面浏览器以获得最佳效果。' : 'Desktop browser recommended.'}</p>
           </div>
         </div>
       )}
 
-      {/* OpenCV Loading Overlay */}
       {opencvLoading && (
         <div className="opencv-loading-overlay">
           <div className="loading-spinner"></div>
-          <p className="loading-title">
-            {language === 'zh-CN' ? '正在加载图像处理引擎...' : 'Loading image processing engine...'}
-          </p>
-          <p className="loading-hint">
-            {language === 'zh-CN' 
-              ? '首次加载需要下载约 8MB 文件，请耐心等待...' 
-              : 'First load requires ~8MB download, please wait...'}
-          </p>
+          <p className="loading-title">{language === 'zh-CN' ? '正在加载图像处理引擎...' : 'Loading engine...'}</p>
+          <p className="loading-hint">{language === 'zh-CN' ? '首次加载约 8MB，请稍候...' : 'First load ~8MB...'}</p>
         </div>
       )}
 
-      {/* Upload Section */}
+      {/* Upload */}
       <div className="upload-section">
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          multiple
-          onChange={handleFileUpload}
-          style={{ display: 'none' }}
-          disabled={isProcessing || opencvLoading}
-        />
-        
-        <div
-          className="upload-button"
-          onClick={() => fileInputRef.current?.click()}
-        >
+        <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleFileUpload} style={{ display: 'none' }} disabled={isProcessing || opencvLoading} />
+        <div className="upload-button" onClick={() => fileInputRef.current?.click()}>
           <Upload size={48} />
           <span>{language === 'zh-CN' ? '上传老照片' : 'Upload Old Photos'}</span>
-          <small>
-            {language === 'zh-CN' 
-              ? '支持 JPG, PNG, BMP 等格式，最多 5 张，每个最大 50MB'
-              : 'Supports JPG, PNG, BMP, max 5 photos, 50MB each'}
-          </small>
+          <small>{language === 'zh-CN' ? '支持 JPG, PNG, BMP 等格式，最多5张，每个最大50MB' : 'JPG, PNG, BMP, max 5 photos, 50MB each'}</small>
         </div>
 
+        {/* 预设 + 设置 */}
+        {tasks.length > 0 && (
+          <div className="controls-bar">
+            <div className="preset-selector">
+              <span className="preset-label">{language === 'zh-CN' ? '修复模式:' : 'Mode:'}</span>
+              <button className={`preset-btn ${options.preset === 'quick' ? 'active' : ''}`} onClick={() => applyPreset('quick')} disabled={isProcessing}>
+                <Zap size={14} />{language === 'zh-CN' ? '快速' : 'Quick'}
+              </button>
+              <button className={`preset-btn ${options.preset === 'standard' ? 'active' : ''}`} onClick={() => applyPreset('standard')} disabled={isProcessing}>
+                <Sparkles size={14} />{language === 'zh-CN' ? '标准' : 'Standard'}
+              </button>
+              <button className={`preset-btn ${options.preset === 'professional' ? 'active' : ''}`} onClick={() => applyPreset('professional')} disabled={isProcessing}>
+                <ImageIcon size={14} />{language === 'zh-CN' ? '专业' : 'Pro'}
+              </button>
+            </div>
+            <button className="settings-toggle-btn" onClick={() => setShowSettings(!showSettings)} disabled={isProcessing}>
+              <Settings size={16} />{language === 'zh-CN' ? (showSettings ? '收起' : '高级设置') : (showSettings ? 'Hide' : 'Advanced')}
+            </button>
+          </div>
+        )}
+
+        {/* Task List */}
         {tasks.length > 0 && (
           <div className="task-list">
             {tasks.map((task) => (
@@ -1357,33 +1611,22 @@ export default function OldPhotoRestoration() {
                 <div className="task-preview">
                   {task.status === 'completed' && task.restoredPreview ? (
                     <div className="compare-container">
-                      <div className="compare-wrapper">
-                        <img 
-                          src={task.originalPreview} 
-                          alt="Original" 
-                          className="compare-image original"
-                          style={{ opacity: 1 - getCompareSlider(task.id) / 100 }}
-                        />
-                        <img 
-                          src={task.restoredPreview} 
-                          alt="Restored" 
-                          className="compare-image restored"
-                          style={{ opacity: getCompareSlider(task.id) / 100 }}
-                        />
+                      <img src={task.originalPreview} alt="Original" className="compare-base-img" draggable={false} />
+                      <div className="compare-result-wrap" style={{ clipPath: `inset(0 ${100 - getSlider(task.id)}% 0 0)` }}>
+                        <img src={task.restoredPreview} alt="Restored" className="compare-base-img" draggable={false} />
                       </div>
-                      <div className="compare-slider-container">
-                        <input
-                          type="range"
-                          min="0"
-                          max="100"
-                          value={getCompareSlider(task.id)}
-                          onChange={(e) => setCompareSlider(task.id, Number(e.target.value))}
-                          className="compare-slider"
-                        />
-                        <div className="compare-labels">
-                          <span>{language === 'zh-CN' ? '原图' : 'Original'}</span>
-                          <span>{language === 'zh-CN' ? '修复后' : 'Restored'}</span>
-                        </div>
+                      <div className="compare-divider" style={{ left: `${getSlider(task.id)}%` }}>
+                        <div className="compare-handle"><span>◀ ▶</span></div>
+                      </div>
+                      {getSlider(task.id) > 15 && <span className="compare-tag left">{language === 'zh-CN' ? '修复后' : 'After'}</span>}
+                      {getSlider(task.id) < 85 && <span className="compare-tag right">{language === 'zh-CN' ? '原图' : 'Before'}</span>}
+                      <input type="range" min="0" max="100" value={getSlider(task.id)} onChange={(e) => setSlider(task.id, Number(e.target.value))} className="compare-range" />
+                    </div>
+                  ) : task.status === 'processing' ? (
+                    <div className="processing-overlay">
+                      <img src={task.originalPreview} alt="Preview" className="processing-img" />
+                      <div className="processing-indicator">
+                        <Loader2 className="spinner" size={32} />
                       </div>
                     </div>
                   ) : (
@@ -1391,54 +1634,43 @@ export default function OldPhotoRestoration() {
                   )}
                 </div>
                 <div className="task-info">
-                  <span className="task-name">{task.file.name}</span>
-                  <span className="task-size">{formatFileSize(task.file.size)}</span>
-                  
+                  <div className="task-meta">
+                    <span className="task-name">{task.file.name}</span>
+                    <span className="task-size">{formatFileSize(task.file.size)}</span>
+                  </div>
+
+                  {/* 分析标签 */}
+                  {task.analysis && task.status === 'completed' && (
+                    <div className="analysis-tags">
+                      {renderAnalysis(task.analysis).map((tag, i) => (
+                        <span key={i} className="analysis-tag">{tag}</span>
+                      ))}
+                    </div>
+                  )}
+
                   {task.status === 'processing' && (
                     <>
-                      <div className="progress-bar">
-                        <div className="progress-fill" style={{ width: `${task.progress}%` }}></div>
-                      </div>
-                      <div className="progress-message">
-                        {task.progressMessage || `${task.progress}%`}
-                      </div>
+                      <div className="progress-bar"><div className="progress-fill" style={{ width: `${task.progress}%` }}></div></div>
+                      <div className="progress-message">{task.progressMessage || `${task.progress}%`}</div>
                     </>
                   )}
-                  
+
                   {task.status === 'completed' && task.progressMessage && (
-                    <div className="success-message">
-                      <CheckCircle2 size={14} />
-                      {task.progressMessage}
-                    </div>
+                    <div className="success-message"><CheckCircle2 size={14} />{task.progressMessage}</div>
                   )}
-                  
+
                   {task.status === 'failed' && task.error && (
-                    <div className="error-message">
-                      <AlertCircle size={14} />
-                      {task.error}
-                    </div>
+                    <div className="error-message"><AlertCircle size={14} />{task.error}</div>
                   )}
                 </div>
                 <div className="task-actions">
-                  {task.status === 'completed' && task.resultUrl && (
-                    <button 
-                      className="download-btn"
-                      onClick={() => handleDownload(task)}
-                      title={language === 'zh-CN' ? '下载修复后的照片' : 'Download restored photo'}
-                    >
-                      <Download size={16} />
-                      <span>{language === 'zh-CN' ? '下载' : 'Download'}</span>
-                    </button>
+                  {task.status === 'completed' && (
+                    <button className="download-btn" onClick={() => handleDownload(task)}><Download size={16} /><span>{language === 'zh-CN' ? '下载' : 'Download'}</span></button>
                   )}
-                  <button 
-                    className="remove-btn"
-                    onClick={() => handleRemoveTask(task.id)}
-                    disabled={isProcessing}
-                    title={language === 'zh-CN' ? '删除任务' : 'Remove task'}
-                  >
-                    <X size={16} />
-                    <span>{language === 'zh-CN' ? '删除' : 'Remove'}</span>
-                  </button>
+                  {(task.status === 'completed' || task.status === 'failed') && (
+                    <button className="retry-btn" onClick={() => handleRetry(task.id)} disabled={isProcessing}><RotateCcw size={16} /><span>{language === 'zh-CN' ? '重试' : 'Retry'}</span></button>
+                  )}
+                  <button className="remove-btn" onClick={() => handleRemoveTask(task.id)} disabled={isProcessing}><X size={16} /></button>
                 </div>
               </div>
             ))}
@@ -1446,222 +1678,172 @@ export default function OldPhotoRestoration() {
         )}
       </div>
 
-      {/* Settings Section */}
-      {tasks.length > 0 && (
+      {/* Advanced Settings */}
+      {showSettings && tasks.length > 0 && (
         <div className="settings-section">
-          <h3><Settings /> {language === 'zh-CN' ? '修复设置' : 'Restoration Settings'}</h3>
-          
+          <h3><Settings size={18} /> {language === 'zh-CN' ? '高级修复设置' : 'Advanced Settings'}</h3>
           <div className="settings-grid">
-            {/* 自动增强 ⭐⭐⭐⭐⭐ */}
+            {/* S1 分析 */}
             <div className="setting-group">
               <label className="setting-toggle">
-                <input
-                  type="checkbox"
-                  checked={options.autoEnhance}
-                  onChange={(e) => setOptions(prev => ({ ...prev, autoEnhance: e.target.checked }))}
-                  disabled={isProcessing}
-                />
-                <span>{language === 'zh-CN' ? '自动增强' : 'Auto Enhance'}</span>
-                <span className="setting-badge">⭐⭐⭐⭐⭐</span>
+                <input type="checkbox" checked={options.autoAnalyze} onChange={(e) => setOptions(pp => ({ ...pp, autoAnalyze: e.target.checked }))} disabled={isProcessing} />
+                <span>{language === 'zh-CN' ? '智能预分析' : 'Auto Analyze'}</span>
+                <span className="stage-badge">S1</span>
               </label>
-              <small>
-                {language === 'zh-CN' 
-                  ? '使用 CLAHE 自适应对比度增强，提升整体质量'
-                  : 'Use CLAHE adaptive contrast enhancement to improve overall quality'}
-              </small>
+              <small>{language === 'zh-CN' ? '自动检测亮度/噪声/划痕/人脸/色偏' : 'Auto-detect issues & adapt params'}</small>
             </div>
-
-            {/* 去噪 */}
+            {/* S2 白平衡 */}
             <div className="setting-group">
               <label className="setting-toggle">
-                <input
-                  type="checkbox"
-                  checked={options.denoise}
-                  onChange={(e) => setOptions(prev => ({ ...prev, denoise: e.target.checked }))}
-                  disabled={isProcessing}
-                />
-                <span>{language === 'zh-CN' ? '去噪' : 'Denoise'}</span>
-                <span className="setting-badge">⭐⭐⭐⭐⭐</span>
+                <input type="checkbox" checked={options.autoWhiteBalance} onChange={(e) => setOptions(pp => ({ ...pp, autoWhiteBalance: e.target.checked }))} disabled={isProcessing} />
+                <span>{language === 'zh-CN' ? '白平衡校正' : 'White Balance'}</span>
+                <span className="stage-badge">S2</span>
               </label>
-              {options.denoise && (
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={options.denoiseStrength}
-                  onChange={(e) => setOptions(prev => ({ ...prev, denoiseStrength: Number(e.target.value) }))}
-                  disabled={isProcessing}
-                />
-              )}
-              <small>
-                {language === 'zh-CN' 
-                  ? '减少照片噪点和颗粒感'
-                  : 'Reduce noise and grain'}
-              </small>
+              {options.autoWhiteBalance && <input type="range" min="0" max="100" value={options.autoWhiteBalanceStrength} onChange={(e) => setOptions(pp => ({ ...pp, autoWhiteBalanceStrength: +e.target.value }))} disabled={isProcessing} />}
+              <small>{language === 'zh-CN' ? '非线性 Gray World + 白点校正' : 'Non-linear Gray World + White Point'}</small>
             </div>
-
-            {/* 锐化 */}
+            {/* S2 色偏 */}
             <div className="setting-group">
               <label className="setting-toggle">
-                <input
-                  type="checkbox"
-                  checked={options.sharpen}
-                  onChange={(e) => setOptions(prev => ({ ...prev, sharpen: e.target.checked }))}
-                  disabled={isProcessing}
-                />
-                <span>{language === 'zh-CN' ? '锐化' : 'Sharpen'}</span>
-                <span className="setting-badge">⭐⭐⭐⭐⭐</span>
+                <input type="checkbox" checked={options.colorCastRemoval} onChange={(e) => setOptions(pp => ({ ...pp, colorCastRemoval: e.target.checked }))} disabled={isProcessing} />
+                <span>{language === 'zh-CN' ? '色偏校正' : 'Color Cast Fix'}</span>
+                <span className="stage-badge">S2</span>
               </label>
-              {options.sharpen && (
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={options.sharpenStrength}
-                  onChange={(e) => setOptions(prev => ({ ...prev, sharpenStrength: Number(e.target.value) }))}
-                  disabled={isProcessing}
-                />
-              )}
-              <small>
-                {language === 'zh-CN' 
-                  ? '增强图像清晰度'
-                  : 'Enhance image sharpness'}
-              </small>
+              {options.colorCastRemoval && <input type="range" min="0" max="100" value={options.colorCastRemovalStrength} onChange={(e) => setOptions(pp => ({ ...pp, colorCastRemovalStrength: +e.target.value }))} disabled={isProcessing} />}
+              <small>{language === 'zh-CN' ? 'Lab CLAHE + 自适应色偏补偿' : 'Lab CLAHE + adaptive cast fix'}</small>
             </div>
-
-            {/* 灰底修复 ⭐⭐⭐⭐ */}
+            {/* S3 对比度 */}
             <div className="setting-group">
               <label className="setting-toggle">
-                <input
-                  type="checkbox"
-                  checked={options.grayBackgroundFix}
-                  onChange={(e) => setOptions(prev => ({ ...prev, grayBackgroundFix: e.target.checked }))}
-                  disabled={isProcessing}
-                />
-                <span>{language === 'zh-CN' ? '灰底修复' : 'Gray Background Fix'}</span>
-                <span className="setting-badge">⭐⭐⭐⭐</span>
+                <input type="checkbox" checked={options.contrastEnhance} onChange={(e) => setOptions(pp => ({ ...pp, contrastEnhance: e.target.checked }))} disabled={isProcessing} />
+                <span>{language === 'zh-CN' ? '对比度增强' : 'Contrast'}</span>
+                <span className="stage-badge">S3</span>
               </label>
-              {options.grayBackgroundFix && (
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={options.grayBackgroundFixStrength}
-                  onChange={(e) => setOptions(prev => ({ ...prev, grayBackgroundFixStrength: Number(e.target.value) }))}
-                  disabled={isProcessing}
-                />
-              )}
-              <small>
-                {language === 'zh-CN' 
-                  ? '修复老照片常见的灰底问题，提升亮度和对比度'
-                  : 'Fix gray background issues common in old photos, enhance brightness and contrast'}
-              </small>
+              {options.contrastEnhance && <input type="range" min="0" max="100" value={options.contrastEnhanceStrength} onChange={(e) => setOptions(pp => ({ ...pp, contrastEnhanceStrength: +e.target.value }))} disabled={isProcessing} />}
+              <small>{language === 'zh-CN' ? '双层 CLAHE (粗+细粒度混合)' : 'Dual CLAHE (coarse + fine blend)'}</small>
             </div>
-
-            {/* 划痕淡化 ⭐⭐⭐ */}
+            {/* S3 亮度 */}
             <div className="setting-group">
               <label className="setting-toggle">
-                <input
-                  type="checkbox"
-                  checked={options.scratchRepair}
-                  onChange={(e) => setOptions(prev => ({ ...prev, scratchRepair: e.target.checked }))}
-                  disabled={isProcessing}
-                />
-                <span>{language === 'zh-CN' ? '划痕淡化' : 'Scratch Fading'}</span>
-                <span className="setting-badge">⭐⭐⭐</span>
+                <input type="checkbox" checked={options.brightnessOptimize} onChange={(e) => setOptions(pp => ({ ...pp, brightnessOptimize: e.target.checked }))} disabled={isProcessing} />
+                <span>{language === 'zh-CN' ? '亮度优化' : 'Brightness'}</span>
+                <span className="stage-badge">S3</span>
               </label>
-              {options.scratchRepair && (
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={options.scratchRepairStrength}
-                  onChange={(e) => setOptions(prev => ({ ...prev, scratchRepairStrength: Number(e.target.value) }))}
-                  disabled={isProcessing}
-                />
-              )}
-              <small>
-                {language === 'zh-CN' 
-                  ? '淡化照片上的划痕和细线瑕疵'
-                  : 'Fade scratches and fine line blemishes'}
-              </small>
+              {options.brightnessOptimize && <input type="range" min="0" max="100" value={options.brightnessOptimizeStrength} onChange={(e) => setOptions(pp => ({ ...pp, brightnessOptimizeStrength: +e.target.value }))} disabled={isProcessing} />}
+              <small>{language === 'zh-CN' ? 'S-Curve Gamma + 多区间映射' : 'S-Curve Gamma + zone mapping'}</small>
             </div>
-
-            {/* 超分辨率 */}
+            {/* S4 去噪 */}
             <div className="setting-group">
               <label className="setting-toggle">
-                <input
-                  type="checkbox"
-                  checked={options.superResolution}
-                  onChange={(e) => setOptions(prev => ({ ...prev, superResolution: e.target.checked }))}
-                  disabled={isProcessing}
-                />
-                <span>{language === 'zh-CN' ? '超分辨率' : 'Super Resolution'}</span>
-                <span className="setting-badge">实验性</span>
+                <input type="checkbox" checked={options.denoise} onChange={(e) => setOptions(pp => ({ ...pp, denoise: e.target.checked }))} disabled={isProcessing} />
+                <span>{language === 'zh-CN' ? '智能去噪' : 'Denoise'}</span>
+                <span className="stage-badge">S4</span>
               </label>
-              <small>
-                {language === 'zh-CN' 
-                  ? '使用 AI 提升图像分辨率（需要 ONNX Runtime）'
-                  : 'Use AI to enhance image resolution (requires ONNX Runtime)'}
-              </small>
+              {options.denoise && <input type="range" min="0" max="100" value={options.denoiseStrength} onChange={(e) => setOptions(pp => ({ ...pp, denoiseStrength: +e.target.value }))} disabled={isProcessing} />}
+              <small>{language === 'zh-CN' ? '双通道 NLM + 边缘保护混合' : 'Dual-pass NLM + edge-aware blend'}</small>
             </div>
-
-            {/* 输出格式 */}
+            {/* S5 划痕 */}
             <div className="setting-group">
-              <label>
-                {language === 'zh-CN' ? '输出格式' : 'Output Format'}
+              <label className="setting-toggle">
+                <input type="checkbox" checked={options.scratchRepair} onChange={(e) => setOptions(pp => ({ ...pp, scratchRepair: e.target.checked }))} disabled={isProcessing} />
+                <span>{language === 'zh-CN' ? '划痕修复' : 'Scratch Repair'}</span>
+                <span className="stage-badge">S5</span>
               </label>
-              <select
-                value={options.outputFormat}
-                onChange={(e) => setOptions(prev => ({ ...prev, outputFormat: e.target.value as OutputFormat }))}
-                disabled={isProcessing}
-              >
+              {options.scratchRepair && <input type="range" min="0" max="100" value={options.scratchRepairStrength} onChange={(e) => setOptions(pp => ({ ...pp, scratchRepairStrength: +e.target.value }))} disabled={isProcessing} />}
+              <small>{language === 'zh-CN' ? '三尺度 Canny + 方向形态学 + 人脸保护' : '3-scale Canny + directional morph + face mask'}</small>
+            </div>
+            {/* S5 污渍 */}
+            <div className="setting-group">
+              <label className="setting-toggle">
+                <input type="checkbox" checked={options.stainRemoval} onChange={(e) => setOptions(pp => ({ ...pp, stainRemoval: e.target.checked }))} disabled={isProcessing} />
+                <span>{language === 'zh-CN' ? '污渍去除' : 'Stain Removal'}</span>
+                <span className="stage-badge">S5</span>
+              </label>
+              {options.stainRemoval && <input type="range" min="0" max="100" value={options.stainRemovalStrength} onChange={(e) => setOptions(pp => ({ ...pp, stainRemovalStrength: +e.target.value }))} disabled={isProcessing} />}
+              <small>{language === 'zh-CN' ? 'HSV 异常色块检测 + Inpaint' : 'HSV anomaly detection + Inpaint'}</small>
+            </div>
+            {/* S6 人脸 */}
+            <div className="setting-group setting-group-highlight">
+              <label className="setting-toggle">
+                <input type="checkbox" checked={options.faceEnhance} onChange={(e) => setOptions(pp => ({ ...pp, faceEnhance: e.target.checked }))} disabled={isProcessing} />
+                <span>{language === 'zh-CN' ? '人脸增强' : 'Face Enhance'}</span>
+                <span className="stage-badge stage-badge-ai">S6</span>
+              </label>
+              {options.faceEnhance && <input type="range" min="0" max="100" value={options.faceEnhanceStrength} onChange={(e) => setOptions(pp => ({ ...pp, faceEnhanceStrength: +e.target.value }))} disabled={isProcessing} />}
+              <small>{language === 'zh-CN' ? 'Haar人脸检测 + 去噪/锐化/磨皮/羽化' : 'Haar face detect + denoise/sharp/smooth/feather'}</small>
+            </div>
+            {/* S7 锐化 */}
+            <div className="setting-group">
+              <label className="setting-toggle">
+                <input type="checkbox" checked={options.sharpen} onChange={(e) => setOptions(pp => ({ ...pp, sharpen: e.target.checked }))} disabled={isProcessing} />
+                <span>{language === 'zh-CN' ? '智能锐化' : 'Smart Sharpen'}</span>
+                <span className="stage-badge">S7</span>
+              </label>
+              {options.sharpen && <input type="range" min="0" max="100" value={options.sharpenStrength} onChange={(e) => setOptions(pp => ({ ...pp, sharpenStrength: +e.target.value }))} disabled={isProcessing} />}
+              <small>{language === 'zh-CN' ? 'L通道双层 Unsharp Mask (粗+细)' : 'L-channel dual Unsharp Mask'}</small>
+            </div>
+            {/* S8 细节 */}
+            <div className="setting-group">
+              <label className="setting-toggle">
+                <input type="checkbox" checked={options.detailEnhance} onChange={(e) => setOptions(pp => ({ ...pp, detailEnhance: e.target.checked }))} disabled={isProcessing} />
+                <span>{language === 'zh-CN' ? '细节增强' : 'Detail Enhance'}</span>
+                <span className="stage-badge">S8</span>
+              </label>
+              {options.detailEnhance && <input type="range" min="0" max="100" value={options.detailEnhanceStrength} onChange={(e) => setOptions(pp => ({ ...pp, detailEnhanceStrength: +e.target.value }))} disabled={isProcessing} />}
+              <small>{language === 'zh-CN' ? '多尺度纹理恢复' : 'Multi-scale texture recovery'}</small>
+            </div>
+            {/* S9 色彩 */}
+            <div className="setting-group">
+              <label className="setting-toggle">
+                <input type="checkbox" checked={options.colorVibrancy} onChange={(e) => setOptions(pp => ({ ...pp, colorVibrancy: e.target.checked }))} disabled={isProcessing} />
+                <span>{language === 'zh-CN' ? '色彩恢复' : 'Color Vibrancy'}</span>
+                <span className="stage-badge">S9</span>
+              </label>
+              {options.colorVibrancy && <input type="range" min="0" max="100" value={options.colorVibrancyStrength} onChange={(e) => setOptions(pp => ({ ...pp, colorVibrancyStrength: +e.target.value }))} disabled={isProcessing} />}
+              <small>{language === 'zh-CN' ? '非线性饱和度 + 中间调 S-Curve' : 'Non-linear saturation + midtone S-curve'}</small>
+            </div>
+            {/* S10 抛光 */}
+            <div className="setting-group">
+              <label className="setting-toggle">
+                <input type="checkbox" checked={options.finalPolish} onChange={(e) => setOptions(pp => ({ ...pp, finalPolish: e.target.checked }))} disabled={isProcessing} />
+                <span>{language === 'zh-CN' ? '最终抛光' : 'Final Polish'}</span>
+                <span className="stage-badge">S10</span>
+              </label>
+              {options.finalPolish && <input type="range" min="0" max="100" value={options.finalPolishStrength} onChange={(e) => setOptions(pp => ({ ...pp, finalPolishStrength: +e.target.value }))} disabled={isProcessing} />}
+              <small>{language === 'zh-CN' ? '微对比度 + 色调暖化 + 局部映射' : 'Micro-contrast + warm tone + local mapping'}</small>
+            </div>
+            {/* 输出 */}
+            <div className="setting-group">
+              <label>{language === 'zh-CN' ? '输出格式' : 'Format'}</label>
+              <select value={options.outputFormat} onChange={(e) => setOptions(pp => ({ ...pp, outputFormat: e.target.value as OutputFormat }))} disabled={isProcessing}>
+                <option value="png">PNG ({language === 'zh-CN' ? '无损' : 'Lossless'})</option>
                 <option value="jpg">JPG</option>
-                <option value="png">PNG</option>
                 <option value="webp">WebP</option>
               </select>
             </div>
-
-            {/* 输出质量 */}
             <div className="setting-group">
-              <label>
-                {language === 'zh-CN' ? '输出质量' : 'Output Quality'}: {options.outputQuality}
-              </label>
-              <input
-                type="range"
-                min="50"
-                max="100"
-                value={options.outputQuality}
-                onChange={(e) => setOptions(prev => ({ ...prev, outputQuality: Number(e.target.value) }))}
-                disabled={isProcessing}
-              />
-              <small>
-                {language === 'zh-CN' 
-                  ? '50-100，数值越高质量越好（文件越大）'
-                  : '50-100, higher is better quality (larger file)'}
-              </small>
+              <label>{language === 'zh-CN' ? '输出质量' : 'Quality'}: {options.outputQuality}%</label>
+              <input type="range" min="50" max="100" value={options.outputQuality} onChange={(e) => setOptions(pp => ({ ...pp, outputQuality: +e.target.value }))} disabled={isProcessing} />
             </div>
           </div>
+        </div>
+      )}
 
-          <div className="action-buttons">
-            <button
-              className="process-button"
-              onClick={handleProcess}
-              disabled={isProcessing || opencvLoading || tasks.filter(t => t.status === 'pending').length === 0}
-            >
-              {isProcessing ? (
-                <>
-                  <Loader2 className="spinner" size={16} />
-                  <span>{language === 'zh-CN' ? '处理中...' : 'Processing...'}</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles size={16} />
-                  <span>{language === 'zh-CN' ? '开始修复' : 'Start Restoration'}</span>
-                </>
-              )}
-            </button>
-          </div>
+      {/* Action */}
+      {tasks.length > 0 && (
+        <div className="action-bar">
+          <button className="process-button" onClick={handleProcess} disabled={isProcessing || opencvLoading || tasks.filter(t => t.status === 'pending').length === 0}>
+            {isProcessing ? (
+              <><Loader2 className="spinner" size={18} /><span>{language === 'zh-CN' ? '修复中...' : 'Processing...'}</span></>
+            ) : (
+              <><Sparkles size={18} /><span>{language === 'zh-CN' ? '✨ 开始修复' : '✨ Start Restoration'}</span></>
+            )}
+          </button>
+          <span className="action-hint">
+            {language === 'zh-CN'
+              ? `${tasks.filter(t => t.status === 'pending').length} 张待处理 · ${options.preset === 'quick' ? '快速' : options.preset === 'standard' ? '标准' : '专业'}模式 · 10阶段引擎`
+              : `${tasks.filter(t => t.status === 'pending').length} pending · ${options.preset} mode · 10-stage engine`}
+          </span>
         </div>
       )}
     </div>
