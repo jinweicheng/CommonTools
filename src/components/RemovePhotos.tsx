@@ -1,16 +1,23 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
-import { Upload, Download, X, Settings, Loader2, Sparkles, RotateCcw, RotateCw, Wand2, Eraser, Paintbrush, Trash2, CheckSquare } from 'lucide-react'
+import {
+  Upload, Download, Loader2, Sparkles,
+  RotateCcw, RotateCw, Eraser, Paintbrush, Trash2,
+  Image as ImageIcon, Eye, EyeOff,
+  ZoomIn, ZoomOut, Layers, RefreshCw, ChevronDown, ChevronUp,
+  Settings, X, CheckCircle2, AlertCircle
+} from 'lucide-react'
 import { useI18n } from '../i18n/I18nContext'
 import { saveAs } from 'file-saver'
 import JSZip from 'jszip'
-import { removeBackground, type Config as RemBgConfig } from '@imgly/background-removal'
+import { removeBackground } from '@imgly/background-removal'
 import './RemovePhotos.css'
 
-const MAX_FILE_SIZE = 20 * 1024 * 1024 // 20MB
-const MAX_BATCH_FILES = 10 // 批量处理最大文件数
+/* ─── Constants ─── */
+const MAX_FILE_SIZE = 20 * 1024 * 1024
+const MAX_BATCH_FILES = 20
 
 type OutputFormat = 'png' | 'webp' | 'jpg'
-type BackgroundType = 'transparent' | 'color' | 'image' | 'blur'
+type BackgroundType = 'transparent' | 'color' | 'image' | 'blur' | 'gradient'
 
 interface ImageTask {
   id: string
@@ -27,1534 +34,926 @@ interface ImageTask {
   historyIndex: number
 }
 
-interface ProcessingState {
-  originalImage: HTMLImageElement | null
-  originalCanvas: HTMLCanvasElement | null
-  maskCanvas: HTMLCanvasElement | null
-  resultCanvas: HTMLCanvasElement | null
-  mask: ImageData | null
-  history: ImageData[]
-  historyIndex: number
-  // 画笔相关
-  brushPath: { x: number; y: number }[]
-  isDrawing: boolean
-  lastPoint: { x: number; y: number } | null
-}
-
 interface BackgroundOptions {
   type: BackgroundType
   color: string
+  gradientStart: string
+  gradientEnd: string
+  gradientAngle: number
   imageFile: File | null
-  blurAmount: number // 0-100
+  imageUrl: string | null
+  imageFit: 'cover' | 'contain' | 'stretch' | 'tile'
+  blurAmount: number
 }
 
+const COLOR_PRESETS = [
+  '#ffffff', '#000000', '#f44336', '#e91e63', '#9c27b0',
+  '#673ab7', '#3f51b5', '#2196f3', '#03a9f4', '#00bcd4',
+  '#009688', '#4caf50', '#8bc34a', '#cddc39', '#ffeb3b',
+  '#ffc107', '#ff9800', '#ff5722', '#795548', '#607d8b'
+]
+
+const GRADIENT_PRESETS = [
+  { start: '#667eea', end: '#764ba2', label: 'Purple' },
+  { start: '#f093fb', end: '#f5576c', label: 'Pink' },
+  { start: '#4facfe', end: '#00f2fe', label: 'Blue' },
+  { start: '#43e97b', end: '#38f9d7', label: 'Green' },
+  { start: '#fa709a', end: '#fee140', label: 'Sunset' },
+  { start: '#a18cd1', end: '#fbc2eb', label: 'Lavender' },
+  { start: '#fccb90', end: '#d57eeb', label: 'Peach' },
+  { start: '#e0c3fc', end: '#8ec5fc', label: 'Sky' },
+]
+
+/* ─── GPU-accelerated blur via CSS filter (instant, unlike pixel-loop) ─── */
+function blurImageCanvas(sourceCanvas: HTMLCanvasElement, radius: number): HTMLCanvasElement {
+  const c = document.createElement('canvas')
+  c.width = sourceCanvas.width
+  c.height = sourceCanvas.height
+  const ctx = c.getContext('2d')!
+  ctx.filter = `blur(${radius}px)`
+  ctx.drawImage(sourceCanvas, 0, 0)
+  return c
+}
+
+/* ═══════════════════════ Main Component ═══════════════════════ */
 export default function RemovePhotos() {
   const { language } = useI18n()
-  
-  // 批量处理任务列表
+  const t = useCallback((zh: string, en: string) => language === 'zh-CN' ? zh : en, [language])
+
+  // Core state
   const [tasks, setTasks] = useState<ImageTask[]>([])
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
-  
-  // AI 模型状态
   const [modelReady, setModelReady] = useState(false)
   const [modelProgress, setModelProgress] = useState('')
-  
-  // 当前选中任务的状态
-  const currentTask = useMemo(() => tasks.find(t => t.id === selectedTaskId), [tasks, selectedTaskId])
+
+  // Editor state
+  const [showCompare, setShowCompare] = useState(true)
   const [compareSlider, setCompareSlider] = useState(50)
-  const [showBrushTool, setShowBrushTool] = useState(false)
-  const [showInpaintTool, setShowInpaintTool] = useState(false)
-  const [inpaintMode, setInpaintMode] = useState<'erase' | 'blur'>('erase')
-  const [inpaintBlur, setInpaintBlur] = useState(25)
+  const [zoom, setZoom] = useState(1)
 
-  // 处理状态（每个任务独立）
-  const stateRef = useRef<ProcessingState>({
-    originalImage: null,
-    originalCanvas: null,
-    maskCanvas: null,
-    resultCanvas: null,
-    mask: null,
-    history: [],
-    historyIndex: -1,
-    brushPath: [],
-    isDrawing: false,
-    lastPoint: null
-  })
+  // Brush state
+  const [showBrush, setShowBrush] = useState(false)
+  const [brushSize, setBrushSize] = useState(20)
+  const [brushMode, setBrushMode] = useState<'add' | 'remove'>('remove')
+  const [brushOpacity, setBrushOpacity] = useState(100)
 
-  // 设置
-  const [edgeFeather, setEdgeFeather] = useState(2) // 0-10
+  // Settings
+  const [edgeFeather, setEdgeFeather] = useState(1)
   const [outputFormat, setOutputFormat] = useState<OutputFormat>('png')
-  const [outputQuality, setOutputQuality] = useState(95) // 50-100
+  const [outputQuality, setOutputQuality] = useState(95)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+
+  // Background
   const [backgroundOptions, setBackgroundOptions] = useState<BackgroundOptions>({
     type: 'transparent',
     color: '#ffffff',
+    gradientStart: '#667eea',
+    gradientEnd: '#764ba2',
+    gradientAngle: 135,
     imageFile: null,
-    blurAmount: 50
+    imageUrl: null,
+    imageFit: 'cover',
+    blurAmount: 15
   })
-  const [defringeEdges, setDefringeEdges] = useState(true)
 
-  // 画笔设置
-  const [brushSize, setBrushSize] = useState(20)
-  const [brushMode, setBrushMode] = useState<'add' | 'remove'>('remove')
-
+  // Refs
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const backgroundInputRef = useRef<HTMLInputElement>(null)
+  const bgImageInputRef = useRef<HTMLInputElement>(null)
   const maskCanvasRef = useRef<HTMLCanvasElement>(null)
-  const inpaintCanvasRef = useRef<HTMLCanvasElement>(null)
-  const inpaintStateRef = useRef({ isDrawing: false, lastPoint: null as { x: number; y: number } | null })
+  const brushStateRef = useRef({ isDrawing: false, lastPoint: null as { x: number; y: number } | null })
 
-  // 批量文件上传
+  const currentTask = useMemo(() => tasks.find(tk => tk.id === selectedTaskId), [tasks, selectedTaskId])
+
+  /* ═══════════════════════ File Upload ═══════════════════════ */
   const handleFileUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const uploadedFiles = event.target.files
     if (!uploadedFiles || uploadedFiles.length === 0) return
-
     const fileArray = Array.from(uploadedFiles)
-    
-    // 检查文件数量限制
     if (tasks.length + fileArray.length > MAX_BATCH_FILES) {
-      alert(
-        language === 'zh-CN' 
-          ? `最多只能处理 ${MAX_BATCH_FILES} 张图片`
-          : `Maximum ${MAX_BATCH_FILES} images allowed`
-      )
+      alert(t(`最多只能处理 ${MAX_BATCH_FILES} 张图片`, `Maximum ${MAX_BATCH_FILES} images allowed`))
       return
     }
-
     const newTasks: ImageTask[] = []
-
-    for (const uploadedFile of fileArray) {
-      if (!uploadedFile.type.startsWith('image/')) {
-        alert(
-          language === 'zh-CN' 
-            ? `不是图片文件: ${uploadedFile.name}`
-            : `Not an image file: ${uploadedFile.name}`
-        )
+    for (const file of fileArray) {
+      if (!file.type.startsWith('image/')) continue
+      if (file.size > MAX_FILE_SIZE) {
+        alert(t(`文件过大（最大 20MB）: ${file.name}`, `File too large (max 20MB): ${file.name}`))
         continue
       }
-
-      if (uploadedFile.size > MAX_FILE_SIZE) {
-        alert(
-          language === 'zh-CN' 
-            ? `文件过大（最大 20MB）: ${uploadedFile.name}`
-            : `File too large (max 20MB): ${uploadedFile.name}`
-        )
-        continue
-      }
-
-      const taskId = `${Date.now()}-${Math.random()}`
-      const preview = URL.createObjectURL(uploadedFile)
-
-      // 加载图像
+      const taskId = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+      const preview = URL.createObjectURL(file)
       const img = new Image()
-      img.onload = () => {
-        setTasks(prev => prev.map(t => 
-          t.id === taskId ? { ...t, originalImage: img } : t
-        ))
-      }
+      img.onload = () => setTasks(prev => prev.map(tk => tk.id === taskId ? { ...tk, originalImage: img } : tk))
       img.src = preview
-
       newTasks.push({
-        id: taskId,
-        file: uploadedFile,
-        preview,
-        originalImage: null,
-        mask: null,
-        result: null,
-        resultUrl: null,
-        status: 'pending',
-        progress: 0,
-        history: [],
-        historyIndex: -1
+        id: taskId, file, preview, originalImage: null,
+        mask: null, result: null, resultUrl: null,
+        status: 'pending', progress: 0, history: [], historyIndex: -1
       })
     }
-
     setTasks(prev => [...prev, ...newTasks])
-    
-    // 自动选中第一个任务
-    if (newTasks.length > 0 && !selectedTaskId) {
-      setSelectedTaskId(newTasks[0].id)
-    }
+    if (newTasks.length > 0 && !selectedTaskId) setSelectedTaskId(newTasks[0].id)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }, [t, tasks.length, selectedTaskId])
 
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ''
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const files = e.dataTransfer.files
+    if (files.length > 0 && fileInputRef.current) {
+      const dt = new DataTransfer()
+      Array.from(files).forEach(f => dt.items.add(f))
+      fileInputRef.current.files = dt.files
+      fileInputRef.current.dispatchEvent(new Event('change', { bubbles: true }))
     }
-  }, [language, tasks.length, selectedTaskId])
-
-  // 重置处理状态
-  const resetProcessing = useCallback(() => {
-    stateRef.current.mask = null
-    stateRef.current.history = []
-    stateRef.current.historyIndex = -1
-    stateRef.current.brushPath = []
-    stateRef.current.isDrawing = false
-    stateRef.current.lastPoint = null
-    setCompareSlider(50)
   }, [])
 
-  // 应用背景到任务（前置以避免 TDZ）
-  const applyBackgroundToTask = useCallback(async (task: ImageTask, mask: ImageData): Promise<{ blob: Blob; url: string }> => {
-    if (!task.originalImage) throw new Error('Original image not found')
+  /* ═══════════════════════ Feathering ═══════════════════════ */
+  const applyFeathering = useCallback((mask: ImageData, radius: number): ImageData => {
+    if (radius <= 0) return mask
+    const { width: w, height: h } = mask
+    const feathered = new ImageData(w, h)
+    const md = mask.data, fd = feathered.data
+    const r = Math.max(1, Math.floor(radius))
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const idx = (y * w + x) * 4
+        const alpha = md[idx + 3]
+        if (alpha === 0 || alpha === 255) {
+          fd[idx] = md[idx]; fd[idx + 1] = md[idx + 1]; fd[idx + 2] = md[idx + 2]; fd[idx + 3] = alpha
+          continue
+        }
+        let sum = 0, wt = 0
+        for (let dy = -r; dy <= r; dy++) {
+          for (let dx = -r; dx <= r; dx++) {
+            const nx = x + dx, ny = y + dy
+            if (nx >= 0 && nx < w && ny >= 0 && ny < h) {
+              const dist = Math.sqrt(dx * dx + dy * dy)
+              if (dist <= r) {
+                const weight = 1 - dist / r
+                sum += md[(ny * w + nx) * 4 + 3] * weight
+                wt += weight
+              }
+            }
+          }
+        }
+        fd[idx] = md[idx]; fd[idx + 1] = md[idx + 1]; fd[idx + 2] = md[idx + 2]
+        fd[idx + 3] = wt > 0 ? Math.round(sum / wt) : alpha
+      }
+    }
+    return feathered
+  }, [])
 
-    const img = task.originalImage
+  /* ═══════════════════════ Composite Engine ═══════════════════════ */
+  const compositeResult = useCallback(async (
+    origImg: HTMLImageElement,
+    mask: ImageData,
+    bgOpts: BackgroundOptions
+  ): Promise<{ blob: Blob; url: string }> => {
+    const W = origImg.width, H = origImg.height
     const canvas = document.createElement('canvas')
-    canvas.width = img.width
-    canvas.height = img.height
+    canvas.width = W; canvas.height = H
     const ctx = canvas.getContext('2d')!
 
-    // 先绘制原始图片
-    ctx.drawImage(img, 0, 0)
-    const originalImageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-
-    // 绘制背景
-    if (backgroundOptions.type === 'transparent') {
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
-    } else if (backgroundOptions.type === 'color') {
-      ctx.fillStyle = backgroundOptions.color
-      ctx.fillRect(0, 0, canvas.width, canvas.height)
-    } else if (backgroundOptions.type === 'blur') {
-      const blurred = applyBlur(originalImageData, backgroundOptions.blurAmount)
-      ctx.putImageData(blurred, 0, 0)
-    } else if (backgroundOptions.type === 'image' && backgroundOptions.imageFile) {
+    // Step 1: Draw background
+    if (bgOpts.type === 'transparent') {
+      ctx.clearRect(0, 0, W, H)
+    } else if (bgOpts.type === 'color') {
+      ctx.fillStyle = bgOpts.color
+      ctx.fillRect(0, 0, W, H)
+    } else if (bgOpts.type === 'gradient') {
+      const angleRad = (bgOpts.gradientAngle * Math.PI) / 180
+      const cx = W / 2, cy = H / 2
+      const len = Math.max(W, H)
+      const grad = ctx.createLinearGradient(
+        cx - Math.cos(angleRad) * len / 2, cy - Math.sin(angleRad) * len / 2,
+        cx + Math.cos(angleRad) * len / 2, cy + Math.sin(angleRad) * len / 2
+      )
+      grad.addColorStop(0, bgOpts.gradientStart)
+      grad.addColorStop(1, bgOpts.gradientEnd)
+      ctx.fillStyle = grad
+      ctx.fillRect(0, 0, W, H)
+    } else if (bgOpts.type === 'blur') {
+      const srcCanvas = document.createElement('canvas')
+      srcCanvas.width = W; srcCanvas.height = H
+      srcCanvas.getContext('2d')!.drawImage(origImg, 0, 0)
+      const blurred = blurImageCanvas(srcCanvas, bgOpts.blurAmount)
+      ctx.drawImage(blurred, 0, 0)
+    } else if (bgOpts.type === 'image' && (bgOpts.imageFile || bgOpts.imageUrl)) {
       const bgImg = new Image()
-      await new Promise((resolve, reject) => {
-        bgImg.onload = resolve
+      bgImg.crossOrigin = 'anonymous'
+      await new Promise<void>((resolve, reject) => {
+        bgImg.onload = () => resolve()
         bgImg.onerror = reject
-        bgImg.src = URL.createObjectURL(backgroundOptions.imageFile!)
+        bgImg.src = bgOpts.imageUrl || URL.createObjectURL(bgOpts.imageFile!)
       })
-      ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height)
-    }
-
-    const maskData = mask.data
-    const resultData = new ImageData(canvas.width, canvas.height)
-    const backgroundData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-    const bgColor = defringeEdges ? estimateBackgroundColor(originalImageData) : null
-
-    for (let i = 0; i < originalImageData.data.length; i += 4) {
-      const maskAlpha = maskData[i + 3] / 255
-      if (backgroundOptions.type === 'transparent') {
-        resultData.data[i] = originalImageData.data[i]
-        resultData.data[i + 1] = originalImageData.data[i + 1]
-        resultData.data[i + 2] = originalImageData.data[i + 2]
-        resultData.data[i + 3] = Math.round(originalImageData.data[i + 3] * maskAlpha)
-        if (defringeEdges && bgColor) {
-          const a = resultData.data[i + 3] / 255
-          if (a > 0 && a < 1) {
-            resultData.data[i] = clampColor((resultData.data[i] - bgColor.r * (1 - a)) / a)
-            resultData.data[i + 1] = clampColor((resultData.data[i + 1] - bgColor.g * (1 - a)) / a)
-            resultData.data[i + 2] = clampColor((resultData.data[i + 2] - bgColor.b * (1 - a)) / a)
-          } else if (a === 0) {
-            resultData.data[i] = 0
-            resultData.data[i + 1] = 0
-            resultData.data[i + 2] = 0
-          }
-        }
-      } else {
-        const fgAlpha = maskAlpha
-        const bgAlpha = 1 - fgAlpha
-        resultData.data[i] = Math.round(originalImageData.data[i] * fgAlpha + backgroundData.data[i] * bgAlpha)
-        resultData.data[i + 1] = Math.round(originalImageData.data[i + 1] * fgAlpha + backgroundData.data[i + 1] * bgAlpha)
-        resultData.data[i + 2] = Math.round(originalImageData.data[i + 2] * fgAlpha + backgroundData.data[i + 2] * bgAlpha)
-        resultData.data[i + 3] = Math.round(originalImageData.data[i + 3] * fgAlpha + backgroundData.data[i + 3] * bgAlpha)
+      if (bgOpts.imageFit === 'cover') {
+        const scale = Math.max(W / bgImg.width, H / bgImg.height)
+        const w = bgImg.width * scale, h = bgImg.height * scale
+        ctx.drawImage(bgImg, (W - w) / 2, (H - h) / 2, w, h)
+      } else if (bgOpts.imageFit === 'contain') {
+        const scale = Math.min(W / bgImg.width, H / bgImg.height)
+        const w = bgImg.width * scale, h = bgImg.height * scale
+        ctx.fillStyle = '#000'
+        ctx.fillRect(0, 0, W, H)
+        ctx.drawImage(bgImg, (W - w) / 2, (H - h) / 2, w, h)
+      } else if (bgOpts.imageFit === 'stretch') {
+        ctx.drawImage(bgImg, 0, 0, W, H)
+      } else if (bgOpts.imageFit === 'tile') {
+        const pattern = ctx.createPattern(bgImg, 'repeat')
+        if (pattern) { ctx.fillStyle = pattern; ctx.fillRect(0, 0, W, H) }
       }
     }
 
-    ctx.putImageData(resultData, 0, 0)
+    // Step 2: Composite foreground over background using mask
+    const bgData = ctx.getImageData(0, 0, W, H)
+    const origCanvas = document.createElement('canvas')
+    origCanvas.width = W; origCanvas.height = H
+    origCanvas.getContext('2d')!.drawImage(origImg, 0, 0)
+    const origData = origCanvas.getContext('2d')!.getImageData(0, 0, W, H)
+    const result = new ImageData(W, H)
 
-    return new Promise((resolve) => {
-      canvas.toBlob((blob) => {
-        if (blob) {
-          const url = URL.createObjectURL(blob)
-          resolve({ blob, url })
-        }
-      }, `image/${outputFormat}`, outputFormat === 'png' ? undefined : outputQuality / 100)
+    for (let i = 0; i < origData.data.length; i += 4) {
+      const a = mask.data[i + 3] / 255
+      if (bgOpts.type === 'transparent') {
+        result.data[i] = origData.data[i]
+        result.data[i + 1] = origData.data[i + 1]
+        result.data[i + 2] = origData.data[i + 2]
+        result.data[i + 3] = Math.round(origData.data[i + 3] * a)
+      } else {
+        const bg = 1 - a
+        result.data[i] = Math.round(origData.data[i] * a + bgData.data[i] * bg)
+        result.data[i + 1] = Math.round(origData.data[i + 1] * a + bgData.data[i + 1] * bg)
+        result.data[i + 2] = Math.round(origData.data[i + 2] * a + bgData.data[i + 2] * bg)
+        result.data[i + 3] = 255
+      }
+    }
+
+    ctx.putImageData(result, 0, 0)
+    const mimeType = outputFormat === 'jpg' ? 'image/jpeg' : `image/${outputFormat}`
+    return new Promise(resolve => {
+      canvas.toBlob(blob => {
+        if (blob) resolve({ blob, url: URL.createObjectURL(blob) })
+      }, mimeType, outputFormat === 'png' ? undefined : outputQuality / 100)
     })
-  }, [backgroundOptions, outputFormat, outputQuality, defringeEdges])
+  }, [outputFormat, outputQuality])
 
-  // 遮罩变更时更新结果
-  const updateTaskResultWithMask = useCallback(async (taskId: string, mask: ImageData) => {
-    const task = tasks.find(t => t.id === taskId)
-    if (!task || !task.originalImage) return
+  /* ═══════════════════════ Refresh after mask/bg change ═══════════════════════ */
+  const refreshTaskResult = useCallback(async (taskId: string, mask: ImageData, bgOpts?: BackgroundOptions) => {
+    const task = tasks.find(tk => tk.id === taskId)
+    if (!task?.originalImage) return
+    const feathered = applyFeathering(mask, edgeFeather)
+    const result = await compositeResult(task.originalImage, feathered, bgOpts || backgroundOptions)
+    setTasks(prev => prev.map(tk => {
+      if (tk.id !== taskId) return tk
+      if (tk.resultUrl) URL.revokeObjectURL(tk.resultUrl)
+      return { ...tk, mask: feathered, result: result.blob, resultUrl: result.url }
+    }))
+  }, [tasks, edgeFeather, compositeResult, backgroundOptions, applyFeathering])
 
-    const featheredMask = applyFeathering(mask, task.originalImage.width, task.originalImage.height, edgeFeather)
-    const result = await applyBackgroundToTask(task, featheredMask)
-
-    setTasks(prev => prev.map(t => 
-      t.id === taskId
-        ? (() => {
-            if (t.resultUrl) URL.revokeObjectURL(t.resultUrl)
-            return { ...t, mask: featheredMask, result: result.blob, resultUrl: result.url }
-          })()
-        : t
-    ))
-  }, [tasks, edgeFeather, applyBackgroundToTask])
-
-  // ========== AI 背景去除（@imgly/background-removal） ==========
+  /* ═══════════════════════ AI Background Removal ═══════════════════════ */
   const removeBackgroundAI = useCallback(async (task: ImageTask): Promise<ImageData | null> => {
     if (!task.originalImage) return null
-
     try {
       const img = task.originalImage
-
-      setTasks(prev => prev.map(t =>
-        t.id === task.id ? { ...t, progress: 10, progressMessage: language === 'zh-CN' ? '正在加载 AI 模型...' : 'Loading AI model...' } : t
+      setTasks(prev => prev.map(tk =>
+        tk.id === task.id ? { ...tk, progress: 5, progressMessage: t('初始化 AI 引擎...', 'Initializing AI engine...') } : tk
       ))
 
-      // 将 HTMLImageElement 转为 Blob 以供 @imgly/background-removal
       const inputCanvas = document.createElement('canvas')
-      inputCanvas.width = img.width
-      inputCanvas.height = img.height
-      const inputCtx = inputCanvas.getContext('2d')!
-      inputCtx.drawImage(img, 0, 0)
-      const inputBlob: Blob = await new Promise((resolve) => {
-        inputCanvas.toBlob((b) => resolve(b!), 'image/png')
-      })
+      inputCanvas.width = img.width; inputCanvas.height = img.height
+      inputCanvas.getContext('2d')!.drawImage(img, 0, 0)
+      const inputBlob: Blob = await new Promise(r => inputCanvas.toBlob(b => r(b!), 'image/png'))
 
-      const config: Partial<RemBgConfig> = {
-        output: {
-          format: 'image/png' as const,
-          quality: 1.0,
-        },
+      // Call the library — it auto-downloads models from CDN
+      const resultBlob = await removeBackground(inputBlob, {
         progress: (key: string, current: number, total: number) => {
           const pct = total > 0 ? Math.round((current / total) * 100) : 0
-          let msg = ''
+          let msg: string
           if (key.includes('fetch') || key.includes('download')) {
-            msg = language === 'zh-CN' ? `下载模型中... ${pct}%` : `Downloading model... ${pct}%`
+            msg = t(`下载 AI 模型... ${pct}%`, `Downloading model... ${pct}%`)
           } else if (key.includes('compute') || key.includes('inference')) {
-            msg = language === 'zh-CN' ? `AI 推理中... ${pct}%` : `AI inference... ${pct}%`
+            msg = t(`AI 分析中... ${pct}%`, `AI analyzing... ${pct}%`)
           } else {
-            msg = language === 'zh-CN' ? `处理中... ${pct}%` : `Processing... ${pct}%`
+            msg = t(`处理中... ${pct}%`, `Processing... ${pct}%`)
           }
           setModelProgress(msg)
-          const overallProgress = 10 + Math.round(pct * 0.7) // 10-80
-          setTasks(prev => prev.map(t =>
-            t.id === task.id ? { ...t, progress: overallProgress, progressMessage: msg } : t
+          setTasks(prev => prev.map(tk =>
+            tk.id === task.id ? { ...tk, progress: 10 + Math.round(pct * 0.75), progressMessage: msg } : tk
           ))
-        }
-      }
+        },
+        output: { format: 'image/png', quality: 1.0 }
+      })
 
-      // 调用 AI 去背景
-      const resultBlob = await removeBackground(inputBlob, config)
       setModelReady(true)
-
-      setTasks(prev => prev.map(t =>
-        t.id === task.id ? { ...t, progress: 85, progressMessage: language === 'zh-CN' ? '生成遮罩...' : 'Generating mask...' } : t
+      setTasks(prev => prev.map(tk =>
+        tk.id === task.id ? { ...tk, progress: 88, progressMessage: t('生成遮罩...', 'Generating mask...') } : tk
       ))
 
-      // 从 AI 结果中提取 alpha 通道作为 mask
+      // Convert result blob → mask (alpha channel)
       const resultImg = new Image()
+      const resultUrl = URL.createObjectURL(resultBlob)
       await new Promise<void>((resolve, reject) => {
         resultImg.onload = () => resolve()
         resultImg.onerror = reject
-        resultImg.src = URL.createObjectURL(resultBlob)
+        resultImg.src = resultUrl
       })
 
       const maskCanvas = document.createElement('canvas')
-      maskCanvas.width = img.width
-      maskCanvas.height = img.height
+      maskCanvas.width = img.width; maskCanvas.height = img.height
       const maskCtx = maskCanvas.getContext('2d')!
       maskCtx.drawImage(resultImg, 0, 0, img.width, img.height)
-      const resultImageData = maskCtx.getImageData(0, 0, img.width, img.height)
+      const rd = maskCtx.getImageData(0, 0, img.width, img.height)
 
-      // 提取 alpha 通道创建 mask（白色=前景，黑色=背景）
       const mask = new ImageData(img.width, img.height)
-      for (let i = 0; i < resultImageData.data.length; i += 4) {
-        const alpha = resultImageData.data[i + 3]
-        mask.data[i] = alpha
-        mask.data[i + 1] = alpha
-        mask.data[i + 2] = alpha
-        mask.data[i + 3] = alpha
+      for (let i = 0; i < rd.data.length; i += 4) {
+        const a = rd.data[i + 3]
+        mask.data[i] = a; mask.data[i + 1] = a; mask.data[i + 2] = a; mask.data[i + 3] = a
       }
-
-      URL.revokeObjectURL(resultImg.src)
+      URL.revokeObjectURL(resultUrl)
       return mask
     } catch (err) {
       console.error('AI background removal failed:', err)
       return null
     }
-  }, [language])
+  }, [t])
 
-  // ========== 画笔功能 ==========
-  const initBrushCanvas = useCallback(() => {
-    if (!maskCanvasRef.current || !currentTask?.originalImage) return
-
-    const canvas = maskCanvasRef.current
-    const img = currentTask.originalImage
-    canvas.width = img.width
-    canvas.height = img.height
-    const ctx = canvas.getContext('2d')!
-    
-    // 绘制当前遮罩
-    if (currentTask.mask) {
-      ctx.putImageData(currentTask.mask, 0, 0)
-    }
-  }, [currentTask])
-
-  const handleBrushStart = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!maskCanvasRef.current || !currentTask) return
-
-    const canvas = maskCanvasRef.current
-    const rect = canvas.getBoundingClientRect()
-    const scaleX = canvas.width / rect.width
-    const scaleY = canvas.height / rect.height
-    
-    const x = (e.clientX - rect.left) * scaleX
-    const y = (e.clientY - rect.top) * scaleY
-
-    stateRef.current.isDrawing = true
-    stateRef.current.lastPoint = { x, y }
-    stateRef.current.brushPath = [{ x, y }]
-
-    drawBrushStroke(x, y, x, y)
-  }, [currentTask])
-
-  const handleBrushMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!stateRef.current.isDrawing || !maskCanvasRef.current || !currentTask) return
-
-    const canvas = maskCanvasRef.current
-    const rect = canvas.getBoundingClientRect()
-    const scaleX = canvas.width / rect.width
-    const scaleY = canvas.height / rect.height
-    
-    const x = (e.clientX - rect.left) * scaleX
-    const y = (e.clientY - rect.top) * scaleY
-
-    if (stateRef.current.lastPoint) {
-      drawBrushStroke(stateRef.current.lastPoint.x, stateRef.current.lastPoint.y, x, y)
-      stateRef.current.lastPoint = { x, y }
-      stateRef.current.brushPath.push({ x, y })
-    }
-  }, [currentTask])
-
-  const handleBrushEnd = useCallback(() => {
-    if (!stateRef.current.isDrawing || !maskCanvasRef.current || !currentTask) return
-
-    stateRef.current.isDrawing = false
-    
-    // 保存到历史记录
-    const canvas = maskCanvasRef.current
-    const mask = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height)
-    
-    setTasks(prev => prev.map(t => {
-      if (t.id === currentTask.id) {
-        const newHistory = [...t.history.slice(0, t.historyIndex + 1), mask]
-        return {
-          ...t,
-          mask,
-          history: newHistory,
-          historyIndex: newHistory.length - 1
-        }
-      }
-      return t
-    }))
-
-    updateTaskResultWithMask(currentTask.id, mask)
-
-    stateRef.current.brushPath = []
-    stateRef.current.lastPoint = null
-  }, [currentTask, updateTaskResultWithMask])
-
-  const drawBrushStroke = (x1: number, y1: number, x2: number, y2: number) => {
-    if (!maskCanvasRef.current) return
-
-    const ctx = maskCanvasRef.current.getContext('2d')!
-    ctx.globalCompositeOperation = brushMode === 'add' ? 'source-over' : 'destination-out'
-    ctx.strokeStyle = brushMode === 'add' ? 'rgba(255, 255, 255, 1)' : 'rgba(0, 0, 0, 1)'
-    ctx.lineWidth = brushSize
-    ctx.lineCap = 'round'
-    ctx.lineJoin = 'round'
-    
-    ctx.beginPath()
-    ctx.moveTo(x1, y1)
-    ctx.lineTo(x2, y2)
-    ctx.stroke()
-  }
-
-  // ========== Inpainting 画布绘制 ==========
-  const initInpaintCanvas = useCallback(() => {
-    if (!inpaintCanvasRef.current || !currentTask?.originalImage) return
-
-    const canvas = inpaintCanvasRef.current
-    const img = currentTask.originalImage
-    canvas.width = img.width
-    canvas.height = img.height
-    const ctx = canvas.getContext('2d')!
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-    ctx.lineCap = 'round'
-    ctx.lineJoin = 'round'
-    ctx.strokeStyle = 'rgba(255, 0, 0, 0.6)'
-    ctx.lineWidth = brushSize
-  }, [currentTask, brushSize])
-
-  const handleInpaintStart = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!inpaintCanvasRef.current || !currentTask) return
-
-    const canvas = inpaintCanvasRef.current
-    const rect = canvas.getBoundingClientRect()
-    const scaleX = canvas.width / rect.width
-    const scaleY = canvas.height / rect.height
-    const x = (e.clientX - rect.left) * scaleX
-    const y = (e.clientY - rect.top) * scaleY
-
-    inpaintStateRef.current.isDrawing = true
-    inpaintStateRef.current.lastPoint = { x, y }
-
-    const ctx = canvas.getContext('2d')!
-    ctx.beginPath()
-    ctx.moveTo(x, y)
-  }, [currentTask])
-
-  const handleInpaintMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!inpaintCanvasRef.current || !inpaintStateRef.current.isDrawing) return
-    const canvas = inpaintCanvasRef.current
-    const rect = canvas.getBoundingClientRect()
-    const scaleX = canvas.width / rect.width
-    const scaleY = canvas.height / rect.height
-    const x = (e.clientX - rect.left) * scaleX
-    const y = (e.clientY - rect.top) * scaleY
-    const ctx = canvas.getContext('2d')!
-    ctx.lineWidth = brushSize
-    ctx.strokeStyle = 'rgba(255, 0, 0, 0.6)'
-    ctx.lineTo(x, y)
-    ctx.stroke()
-    inpaintStateRef.current.lastPoint = { x, y }
-  }, [brushSize])
-
-  const applyInpaintMask = useCallback(async (task: ImageTask, paintMask: ImageData) => {
-    if (!task.originalImage) return
-
-    const img = task.originalImage
-    const canvas = document.createElement('canvas')
-    canvas.width = img.width
-    canvas.height = img.height
-    const ctx = canvas.getContext('2d')!
-
-    // 如果已有结果，用结果作为基底，否则用原图套用当前遮罩结果
-    if (task.resultUrl) {
-      const baseImg = new Image()
-      await new Promise((resolve, reject) => {
-        baseImg.onload = resolve
-        baseImg.onerror = reject
-        baseImg.src = task.resultUrl!
-      })
-      ctx.drawImage(baseImg, 0, 0)
-    } else {
-      ctx.drawImage(img, 0, 0)
-    }
-
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-    const baseData = imageData.data
-    const maskData = paintMask.data
-
-    if (inpaintMode === 'erase') {
-      for (let i = 0; i < maskData.length; i += 4) {
-        if (maskData[i + 3] > 10) {
-          baseData[i + 3] = 0
-        }
-      }
-    } else {
-      const blurred = applyBlur(imageData, inpaintBlur)
-      const blurredData = blurred.data
-      for (let i = 0; i < maskData.length; i += 4) {
-        if (maskData[i + 3] > 10) {
-          baseData[i] = blurredData[i]
-          baseData[i + 1] = blurredData[i + 1]
-          baseData[i + 2] = blurredData[i + 2]
-          baseData[i + 3] = blurredData[i + 3]
-        }
-      }
-    }
-
-    ctx.putImageData(imageData, 0, 0)
-
-    canvas.toBlob((blob) => {
-      if (!blob) return
-      const url = URL.createObjectURL(blob)
-      setTasks(prev => prev.map(t =>
-        t.id === task.id
-          ? (() => {
-              if (t.resultUrl) URL.revokeObjectURL(t.resultUrl)
-              return { ...t, result: blob, resultUrl: url }
-            })()
-          : t
-      ))
-    }, `image/${outputFormat}`, outputFormat === 'png' ? undefined : outputQuality / 100)
-  }, [inpaintMode, inpaintBlur, outputFormat, outputQuality])
-
-  const handleInpaintEnd = useCallback(async () => {
-    if (!inpaintCanvasRef.current || !currentTask) return
-    inpaintStateRef.current.isDrawing = false
-    const canvas = inpaintCanvasRef.current
-    const mask = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height)
-    await applyInpaintMask(currentTask, mask)
-    const ctx = canvas.getContext('2d')!
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-  }, [currentTask, applyInpaintMask])
-
-  // 批量处理所有待处理任务
-  const processBatch = useCallback(async () => {
-    const pendingTasks = tasks.filter(t => t.status === 'pending')
-    if (pendingTasks.length === 0) return
-
-    setIsProcessing(true)
-
-    for (const task of pendingTasks) {
-      try {
-        await processSingleTask(task)
-      } catch (err) {
-        console.error(`Failed to process ${task.file.name}:`, err)
-        setTasks(prev => prev.map(t => 
-          t.id === task.id 
-            ? { ...t, status: 'failed', progressMessage: err instanceof Error ? err.message : String(err) }
-            : t
-        ))
-      }
-    }
-
-    setIsProcessing(false)
-  }, [tasks])
-
-  // 处理单个任务（使用 AI 去背景）
+  /* ═══════════════════════ Process Task ═══════════════════════ */
   const processSingleTask = useCallback(async (task: ImageTask) => {
     if (!task.originalImage) return
-
-    setTasks(prev => prev.map(t => 
-      t.id === task.id ? { ...t, status: 'processing', progress: 0 } : t
+    setTasks(prev => prev.map(tk =>
+      tk.id === task.id ? { ...tk, status: 'processing', progress: 0 } : tk
     ))
-
-    // 使用 AI 去背景
     const mask = await removeBackgroundAI(task)
-
     if (!mask) {
-      setTasks(prev => prev.map(t => 
-        t.id === task.id ? { ...t, status: 'failed', progressMessage: language === 'zh-CN' ? '处理失败' : 'Processing failed' } : t
+      setTasks(prev => prev.map(tk =>
+        tk.id === task.id ? { ...tk, status: 'failed', progressMessage: t('处理失败，请重试', 'Failed, please retry') } : tk
       ))
       return
     }
-
-    setTasks(prev => prev.map(t => 
-      t.id === task.id ? { ...t, progress: 90, progressMessage: language === 'zh-CN' ? '应用背景...' : 'Applying background...' } : t
+    setTasks(prev => prev.map(tk =>
+      tk.id === task.id ? { ...tk, progress: 92, progressMessage: t('合成结果...', 'Compositing...') } : tk
     ))
-
-    // 应用边缘羽化
-    const featheredMask = applyFeathering(
-      mask,
-      task.originalImage.width,
-      task.originalImage.height,
-      edgeFeather
-    )
-
-    // 应用背景并生成结果
-    const result = await applyBackgroundToTask(task, featheredMask)
-
-    setTasks(prev => prev.map(t => 
-      t.id === task.id 
-        ? {
-            ...t,
-            status: 'completed',
-            mask: featheredMask,
-            result: result.blob,
-            resultUrl: result.url,
-            progress: 100,
-            progressMessage: language === 'zh-CN' ? '完成！' : 'Completed!',
-            history: [featheredMask],
-            historyIndex: 0
-          }
-        : t
+    const feathered = applyFeathering(mask, edgeFeather)
+    const result = await compositeResult(task.originalImage, feathered, backgroundOptions)
+    setTasks(prev => prev.map(tk =>
+      tk.id === task.id
+        ? { ...tk, status: 'completed', mask: feathered, result: result.blob, resultUrl: result.url, progress: 100, progressMessage: t('完成！', 'Done!'), history: [feathered], historyIndex: 0 }
+        : tk
     ))
-  }, [edgeFeather, language, removeBackgroundAI])
+  }, [edgeFeather, t, removeBackgroundAI, compositeResult, backgroundOptions, applyFeathering])
 
-  const clampColor = (value: number) => Math.max(0, Math.min(255, Math.round(value)))
-
-  const estimateBackgroundColor = (imageData: ImageData) => {
-    const { data, width, height } = imageData
-    const step = Math.max(1, Math.floor(Math.min(width, height) / 20))
-    let r = 0
-    let g = 0
-    let b = 0
-    let count = 0
-
-    const sample = (x: number, y: number) => {
-      const idx = (y * width + x) * 4
-      r += data[idx]
-      g += data[idx + 1]
-      b += data[idx + 2]
-      count++
-    }
-
-    for (let x = 0; x < width; x += step) {
-      sample(x, 0)
-      sample(x, height - 1)
-    }
-    for (let y = 0; y < height; y += step) {
-      sample(0, y)
-      sample(width - 1, y)
-    }
-
-    return {
-      r: count ? r / count : 255,
-      g: count ? g / count : 255,
-      b: count ? b / count : 255
-    }
-  }
-
-  // 应用边缘羽化
-  const applyFeathering = (mask: ImageData, width: number, height: number, featherRadius: number): ImageData => {
-    if (featherRadius === 0) return mask
-
-    const feathered = new ImageData(width, height)
-    const maskData = mask.data
-    const featheredData = feathered.data
-
-    const radius = Math.max(1, Math.floor(featherRadius))
-
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        const idx = (y * width + x) * 4
-        const centerAlpha = maskData[idx + 3]
-
-        // 仅在边缘带做模糊，实心区域直接复制，加速且减少过度平滑
-        if (centerAlpha === 0 || centerAlpha === 255) {
-          featheredData[idx] = maskData[idx]
-          featheredData[idx + 1] = maskData[idx + 1]
-          featheredData[idx + 2] = maskData[idx + 2]
-          featheredData[idx + 3] = maskData[idx + 3]
-          continue
-        }
-
-        let sum = 0
-        let count = 0
-
-        for (let dy = -radius; dy <= radius; dy++) {
-          for (let dx = -radius; dx <= radius; dx++) {
-            const nx = x + dx
-            const ny = y + dy
-            if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-              const nIdx = (ny * width + nx) * 4
-              const dist = Math.sqrt(dx * dx + dy * dy)
-              if (dist <= radius) {
-                const weight = 1 - dist / radius
-                sum += maskData[nIdx + 3] * weight
-                count += weight
-              }
-            }
-          }
-        }
-
-        const alpha = count > 0 ? Math.round(sum / count) : centerAlpha
-        featheredData[idx] = maskData[idx]
-        featheredData[idx + 1] = maskData[idx + 1]
-        featheredData[idx + 2] = maskData[idx + 2]
-        featheredData[idx + 3] = alpha
-      }
-    }
-
-    return feathered
-  }
-
-
-  // 模糊效果
-  const applyBlur = (imageData: ImageData, radius: number): ImageData => {
-    const data = imageData.data
-    const width = imageData.width
-    const height = imageData.height
-    const blurred = new ImageData(width, height)
-    const blurredData = blurred.data
-
-    const r = Math.max(1, Math.floor(radius / 10))
-
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        let rSum = 0, gSum = 0, bSum = 0, aSum = 0, count = 0
-
-        for (let dy = -r; dy <= r; dy++) {
-          for (let dx = -r; dx <= r; dx++) {
-            const nx = x + dx
-            const ny = y + dy
-            if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-              const idx = (ny * width + nx) * 4
-              rSum += data[idx]
-              gSum += data[idx + 1]
-              bSum += data[idx + 2]
-              aSum += data[idx + 3]
-              count++
-            }
-          }
-        }
-
-        const idx = (y * width + x) * 4
-        blurredData[idx] = Math.round(rSum / count)
-        blurredData[idx + 1] = Math.round(gSum / count)
-        blurredData[idx + 2] = Math.round(bSum / count)
-        blurredData[idx + 3] = Math.round(aSum / count)
-      }
-    }
-
-    return blurred
-  }
-
-
-  // 背景选项或边缘羽化变化时重新应用（针对当前任务）
-  useEffect(() => {
-    if (currentTask && currentTask.mask && currentTask.originalImage) {
-      const featheredMask = applyFeathering(
-        currentTask.history[0] || currentTask.mask,
-        currentTask.originalImage.width,
-        currentTask.originalImage.height,
-        edgeFeather
-      )
-      applyBackgroundToTask(currentTask, featheredMask).then(result => {
-        setTasks(prev => prev.map(t => 
-          t.id === currentTask.id 
-            ? { ...t, mask: featheredMask, result: result.blob, resultUrl: result.url }
-            : t
+  const processBatch = useCallback(async () => {
+    const pending = tasks.filter(tk => tk.status === 'pending')
+    if (pending.length === 0) return
+    setIsProcessing(true)
+    for (const task of pending) {
+      try { await processSingleTask(task) }
+      catch (err) {
+        console.error(`Failed: ${task.file.name}`, err)
+        setTasks(prev => prev.map(tk =>
+          tk.id === task.id ? { ...tk, status: 'failed', progressMessage: String(err) } : tk
         ))
-      })
+      }
     }
-  }, [backgroundOptions, edgeFeather, currentTask, applyBackgroundToTask])
+    setIsProcessing(false)
+  }, [tasks, processSingleTask])
+
+  /* ═══════════════════════ Reapply background ═══════════════════════ */
+  const reapplyBackground = useCallback(async () => {
+    if (!currentTask?.mask || !currentTask?.originalImage) return
+    const baseMask = currentTask.history[0] || currentTask.mask
+    const feathered = applyFeathering(baseMask, edgeFeather)
+    const result = await compositeResult(currentTask.originalImage, feathered, backgroundOptions)
+    setTasks(prev => prev.map(tk => {
+      if (tk.id !== currentTask.id) return tk
+      if (tk.resultUrl) URL.revokeObjectURL(tk.resultUrl)
+      return { ...tk, mask: feathered, result: result.blob, resultUrl: result.url }
+    }))
+  }, [currentTask, edgeFeather, compositeResult, backgroundOptions, applyFeathering])
 
   useEffect(() => {
-    if (showBrushTool) {
-      initBrushCanvas()
+    if (currentTask?.mask && currentTask?.originalImage && currentTask.status === 'completed') {
+      reapplyBackground()
     }
-  }, [showBrushTool, currentTask, initBrushCanvas])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [backgroundOptions, edgeFeather])
+
+  /* ═══════════════════════ Brush ═══════════════════════ */
+  const initBrushCanvas = useCallback(() => {
+    if (!maskCanvasRef.current || !currentTask?.originalImage) return
+    const canvas = maskCanvasRef.current
+    canvas.width = currentTask.originalImage.width
+    canvas.height = currentTask.originalImage.height
+    if (currentTask.mask) canvas.getContext('2d')!.putImageData(currentTask.mask, 0, 0)
+  }, [currentTask])
 
   useEffect(() => {
-    if (showInpaintTool) {
-      initInpaintCanvas()
-    }
-  }, [showInpaintTool, currentTask, initInpaintCanvas])
+    if (showBrush) initBrushCanvas()
+  }, [showBrush, currentTask, initBrushCanvas])
 
+  const drawBrushStroke = useCallback((x1: number, y1: number, x2: number, y2: number) => {
+    if (!maskCanvasRef.current) return
+    const ctx = maskCanvasRef.current.getContext('2d')!
+    ctx.globalCompositeOperation = brushMode === 'add' ? 'source-over' : 'destination-out'
+    const alpha = brushOpacity / 100
+    ctx.strokeStyle = brushMode === 'add' ? `rgba(255,255,255,${alpha})` : `rgba(0,0,0,${alpha})`
+    ctx.lineWidth = brushSize; ctx.lineCap = 'round'; ctx.lineJoin = 'round'
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke()
+  }, [brushMode, brushOpacity, brushSize])
+
+  const handleBrushStart = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!maskCanvasRef.current || !currentTask) return
+    const rect = maskCanvasRef.current.getBoundingClientRect()
+    const x = (e.clientX - rect.left) * (maskCanvasRef.current.width / rect.width)
+    const y = (e.clientY - rect.top) * (maskCanvasRef.current.height / rect.height)
+    brushStateRef.current.isDrawing = true
+    brushStateRef.current.lastPoint = { x, y }
+    drawBrushStroke(x, y, x, y)
+  }, [currentTask, drawBrushStroke])
+
+  const handleBrushMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!brushStateRef.current.isDrawing || !maskCanvasRef.current) return
+    const rect = maskCanvasRef.current.getBoundingClientRect()
+    const x = (e.clientX - rect.left) * (maskCanvasRef.current.width / rect.width)
+    const y = (e.clientY - rect.top) * (maskCanvasRef.current.height / rect.height)
+    if (brushStateRef.current.lastPoint) {
+      drawBrushStroke(brushStateRef.current.lastPoint.x, brushStateRef.current.lastPoint.y, x, y)
+      brushStateRef.current.lastPoint = { x, y }
+    }
+  }, [drawBrushStroke])
+
+  const handleBrushEnd = useCallback(() => {
+    if (!brushStateRef.current.isDrawing || !maskCanvasRef.current || !currentTask) return
+    brushStateRef.current.isDrawing = false
+    brushStateRef.current.lastPoint = null
+    const canvas = maskCanvasRef.current
+    const mask = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height)
+    const taskId = currentTask.id
+    setTasks(prev => prev.map(tk => {
+      if (tk.id !== taskId) return tk
+      const newHistory = [...tk.history.slice(0, tk.historyIndex + 1), mask]
+      return { ...tk, mask, history: newHistory, historyIndex: newHistory.length - 1 }
+    }))
+    refreshTaskResult(taskId, mask)
+  }, [currentTask, refreshTaskResult])
+
+  const undo = useCallback(() => {
+    if (!currentTask || currentTask.historyIndex <= 0) return
+    const idx = currentTask.historyIndex - 1
+    const mask = currentTask.history[idx]
+    setTasks(prev => prev.map(tk => tk.id === currentTask.id ? { ...tk, mask, historyIndex: idx } : tk))
+    refreshTaskResult(currentTask.id, mask)
+  }, [currentTask, refreshTaskResult])
+
+  const redo = useCallback(() => {
+    if (!currentTask || currentTask.historyIndex >= currentTask.history.length - 1) return
+    const idx = currentTask.historyIndex + 1
+    const mask = currentTask.history[idx]
+    setTasks(prev => prev.map(tk => tk.id === currentTask.id ? { ...tk, mask, historyIndex: idx } : tk))
+    refreshTaskResult(currentTask.id, mask)
+  }, [currentTask, refreshTaskResult])
+
+  /* ═══════════════════════ Download ═══════════════════════ */
+  const downloadCurrent = useCallback(() => {
+    if (!currentTask?.result) return
+    const name = currentTask.file.name.replace(/\.[^/.]+$/, '') + `_no_bg.${outputFormat}`
+    saveAs(currentTask.result, name)
+  }, [currentTask, outputFormat])
+
+  const downloadAll = useCallback(async () => {
+    const completed = tasks.filter(tk => tk.status === 'completed' && tk.result)
+    if (completed.length === 0) return
+    if (completed.length === 1 && completed[0].result) {
+      saveAs(completed[0].result, completed[0].file.name.replace(/\.[^/.]+$/, '') + `_no_bg.${outputFormat}`)
+      return
+    }
+    const zip = new JSZip()
+    completed.forEach(task => {
+      if (task.result) zip.file(task.file.name.replace(/\.[^/.]+$/, '') + `_no_bg.${outputFormat}`, task.result)
+    })
+    const blob = await zip.generateAsync({ type: 'blob' })
+    saveAs(blob, 'removed_backgrounds.zip')
+  }, [tasks, outputFormat])
+
+  /* ═══════════════════════ Task Management ═══════════════════════ */
+  const clearAll = useCallback(() => {
+    tasks.forEach(tk => { if (tk.preview) URL.revokeObjectURL(tk.preview); if (tk.resultUrl) URL.revokeObjectURL(tk.resultUrl) })
+    setTasks([]); setSelectedTaskId(null); setShowBrush(false)
+  }, [tasks])
+
+  const removeTask = useCallback((id: string) => {
+    const task = tasks.find(tk => tk.id === id)
+    if (task) { if (task.preview) URL.revokeObjectURL(task.preview); if (task.resultUrl) URL.revokeObjectURL(task.resultUrl) }
+    setTasks(prev => prev.filter(tk => tk.id !== id))
+    if (selectedTaskId === id) setSelectedTaskId(tasks.find(tk => tk.id !== id)?.id || null)
+  }, [tasks, selectedTaskId])
+
+  const handleBgImageUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      const url = URL.createObjectURL(file)
+      setBackgroundOptions(prev => ({ ...prev, imageFile: file, imageUrl: url, type: 'image' }))
+    }
+  }, [])
+
+  const pendingCount = tasks.filter(tk => tk.status === 'pending').length
+  const completedCount = tasks.filter(tk => tk.status === 'completed').length
+  const processingCount = tasks.filter(tk => tk.status === 'processing').length
+
+  /* ═══════════════════════════ RENDER ═══════════════════════════ */
   return (
-    <div className="remove-photos">
+    <div className="rp" onDrop={handleDrop} onDragOver={e => { e.preventDefault(); e.stopPropagation() }}>
       {/* Header */}
-      <div className="remove-header">
-        <div className="header-content">
-          <h1 className="tool-title">
-            <Wand2 />
-            {language === 'zh-CN' ? '智能去背景' : 'Remove Background'}
-          </h1>
-          <p className="tool-description">
-            {language === 'zh-CN'
-              ? 'AI 驱动的智能去背景工具：自动识别前景、去除背景、替换背景。支持透明背景、纯色背景、图片背景和模糊背景。100% 本地处理，保护隐私。'
-              : 'AI-powered background removal tool: Auto-detect foreground, remove background, replace background. Supports transparent, solid color, image, and blur backgrounds. 100% local processing, privacy protected.'}
-          </p>
-        </div>
-      </div>
+      <header className="rp-header">
+        <h1 className="rp-title">
+          <Sparkles size={28} />
+          {t('AI 智能去背景', 'AI Background Remover')}
+        </h1>
+        <p className="rp-desc">
+          {t(
+            'AI 驱动 · 一键去除背景 · 自定义替换 · 画笔精修 · 批量处理 · 100% 本地运算',
+            'AI-Powered · One-Click Removal · Custom Background · Brush Refine · Batch · 100% Local'
+          )}
+        </p>
+      </header>
 
-      {/* Upload Section */}
-      <div className="upload-section">
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          multiple
-          onChange={handleFileUpload}
-          style={{ display: 'none' }}
-          disabled={isProcessing}
-        />
-        
-        {tasks.length === 0 ? (
-          <div
-            className="upload-button"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <Upload size={48} />
-            <span>{language === 'zh-CN' ? '上传图片（支持批量）' : 'Upload Images (Batch Supported)'}</span>
-            <small>
-              {language === 'zh-CN' 
-                ? `支持 JPG, PNG, WebP 等格式，最多 ${MAX_BATCH_FILES} 张，每张最大 20MB`
-                : `Supports JPG, PNG, WebP, max ${MAX_BATCH_FILES} images, 20MB each`}
-            </small>
-          </div>
-        ) : (
-          <>
-            {/* 任务列表 */}
-            <div className="task-list">
-              {tasks.map((task) => (
-                <div 
-                  key={task.id} 
-                  className={`task-item ${task.id === selectedTaskId ? 'active' : ''} ${task.status}`}
-                  onClick={() => setSelectedTaskId(task.id)}
+      {/* Upload Area */}
+      {tasks.length === 0 && (
+        <div className="rp-upload-area" onClick={() => fileInputRef.current?.click()}>
+          <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleFileUpload} style={{ display: 'none' }} />
+          <div className="rp-upload-icon"><Upload size={48} /></div>
+          <h2>{t('上传图片', 'Upload Images')}</h2>
+          <p>{t('点击或拖拽图片到这里，支持批量', 'Click or drag images here')}</p>
+          <span className="rp-upload-hint">
+            {t(`JPG / PNG / WebP · 最多 ${MAX_BATCH_FILES} 张 · 单张最大 20MB`, `JPG / PNG / WebP · Max ${MAX_BATCH_FILES} · 20MB each`)}
+          </span>
+        </div>
+      )}
+
+      {/* Workspace */}
+      {tasks.length > 0 && (
+        <div className="rp-workspace">
+          <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleFileUpload} style={{ display: 'none' }} />
+          <input ref={bgImageInputRef} type="file" accept="image/*" onChange={handleBgImageUpload} style={{ display: 'none' }} />
+
+          {/* ─── Left Sidebar ─── */}
+          <aside className="rp-sidebar">
+            <div className="rp-sidebar-header">
+              <h3><ImageIcon size={15} /> {t('图片', 'Images')} <span className="rp-badge">{tasks.length}</span></h3>
+              <button className="rp-icon-btn" onClick={() => fileInputRef.current?.click()} title={t('添加', 'Add')}>
+                <Upload size={15} />
+              </button>
+            </div>
+
+            <div className="rp-task-list">
+              {tasks.map(task => (
+                <div
+                  key={task.id}
+                  className={`rp-task ${task.id === selectedTaskId ? 'active' : ''} ${task.status}`}
+                  onClick={() => { setSelectedTaskId(task.id); setShowBrush(false) }}
                 >
-                  <div className="task-preview">
-                    <img src={task.preview} alt={task.file.name} />
+                  <div className="rp-task-thumb">
+                    <img src={task.resultUrl || task.preview} alt="" />
                     {task.status === 'processing' && (
-                      <div className="task-progress-overlay">
-                        <Loader2 className="spinner" size={20} />
-                        <div className="task-progress-bar">
-                          <div className="task-progress-fill" style={{ width: `${task.progress}%` }}></div>
-                        </div>
-                        <span>{task.progressMessage || `${task.progress}%`}</span>
+                      <div className="rp-task-loading">
+                        <Loader2 className="rp-spin" size={16} />
+                        <div className="rp-task-pbar"><div className="rp-task-pfill" style={{ width: `${task.progress}%` }} /></div>
                       </div>
                     )}
-                    {task.status === 'completed' && (
-                      <div className="task-completed-badge">
-                        <CheckSquare size={16} />
-                      </div>
-                    )}
+                    {task.status === 'completed' && <div className="rp-task-done"><CheckCircle2 size={13} /></div>}
+                    {task.status === 'failed' && <div className="rp-task-fail"><AlertCircle size={13} /></div>}
                   </div>
-                  <div className="task-info">
-                    <span className="task-name">{task.file.name}</span>
-                    <span className="task-size">{(task.file.size / 1024 / 1024).toFixed(2)} MB</span>
+                  <div className="rp-task-meta">
+                    <span className="rp-task-name">{task.file.name}</span>
+                    <span className="rp-task-size">{(task.file.size / 1024 / 1024).toFixed(1)} MB</span>
                   </div>
-                  <button
-                    className="task-remove-btn"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setTasks(prev => prev.filter(t => t.id !== task.id))
-                      if (selectedTaskId === task.id) {
-                        setSelectedTaskId(tasks.find(t => t.id !== task.id)?.id || null)
-                      }
-                    }}
-                  >
-                    <X size={16} />
-                  </button>
+                  <button className="rp-task-del" onClick={e => { e.stopPropagation(); removeTask(task.id) }}><X size={13} /></button>
                 </div>
               ))}
             </div>
 
-            {/* 主预览区域 */}
-            {currentTask && (
-              <div className="preview-section">
-                {/* 对比预览 - 专业裁切滑块 */}
-                {currentTask.resultUrl && (
-                  <div className="compare-container">
-                    <div
-                      className="compare-wrapper"
-                      style={{ position: 'relative', overflow: 'hidden', cursor: 'ew-resize' }}
-                    >
-                      {/* 原图（全宽显示） */}
-                      <img
-                        src={currentTask.preview}
-                        alt="Original"
-                        className="compare-image original"
-                        style={{ width: '100%', display: 'block' }}
-                      />
-                      {/* 结果图（用 clip-path 裁切左侧部分） */}
-                      <img
-                        src={currentTask.resultUrl}
-                        alt="Result"
-                        className="compare-image result"
-                        style={{
-                          position: 'absolute',
-                          top: 0,
-                          left: 0,
-                          width: '100%',
-                          display: 'block',
-                          clipPath: `inset(0 ${100 - compareSlider}% 0 0)`
-                        }}
-                      />
-                      {/* 滑块线 */}
-                      <div
-                        className="compare-line"
-                        style={{
-                          position: 'absolute',
-                          top: 0,
-                          bottom: 0,
-                          left: `${compareSlider}%`,
-                          width: 3,
-                          backgroundColor: '#fff',
-                          boxShadow: '0 0 6px rgba(0,0,0,.5)',
-                          zIndex: 3,
-                          pointerEvents: 'none'
-                        }}
-                      >
-                        <div style={{
-                          position: 'absolute',
-                          top: '50%',
-                          left: '50%',
-                          transform: 'translate(-50%, -50%)',
-                          width: 32,
-                          height: 32,
-                          borderRadius: '50%',
-                          backgroundColor: '#fff',
-                          boxShadow: '0 2px 8px rgba(0,0,0,.3)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: 14,
-                          fontWeight: 'bold',
-                          color: '#333',
-                          userSelect: 'none'
-                        }}>⇔</div>
-                      </div>
-                      {/* 标签 */}
-                      <span style={{
-                        position: 'absolute', top: 8, left: 8, background: 'rgba(0,0,0,.6)',
-                        color: '#fff', padding: '2px 8px', borderRadius: 4, fontSize: 12, zIndex: 4
-                      }}>{language === 'zh-CN' ? '结果' : 'Result'}</span>
-                      <span style={{
-                        position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,.6)',
-                        color: '#fff', padding: '2px 8px', borderRadius: 4, fontSize: 12, zIndex: 4
-                      }}>{language === 'zh-CN' ? '原图' : 'Original'}</span>
-                      {/* 透明输入滑块覆盖 */}
-                      <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        value={compareSlider}
-                        onChange={(e) => setCompareSlider(Number(e.target.value))}
-                        style={{
-                          position: 'absolute',
-                          top: 0,
-                          left: 0,
-                          width: '100%',
-                          height: '100%',
-                          opacity: 0,
-                          cursor: 'ew-resize',
-                          zIndex: 5,
-                          margin: 0
-                        }}
-                      />
-                    </div>
+            <div className="rp-sidebar-actions">
+              {pendingCount > 0 && (
+                <button className="rp-btn primary full" onClick={processBatch} disabled={isProcessing}>
+                  <Sparkles size={15} /> {isProcessing ? t('处理中...', 'Processing...') : t(`开始处理 (${pendingCount})`, `Process All (${pendingCount})`)}
+                </button>
+              )}
+              {completedCount > 0 && (
+                <button className="rp-btn secondary full" onClick={downloadAll}>
+                  <Download size={15} /> {t(`下载全部 (${completedCount})`, `Download All (${completedCount})`)}
+                </button>
+              )}
+              <button className="rp-btn danger full" onClick={clearAll}>
+                <Trash2 size={15} /> {t('清除全部', 'Clear All')}
+              </button>
+            </div>
+          </aside>
 
-                    {/* 终态预览（暗色棋盘背景） */}
-                    <div
-                      style={{
-                        marginTop: 12,
-                        padding: 12,
-                        borderRadius: 8,
-                        border: '1px solid #2f3136',
-                        backgroundImage:
-                          'linear-gradient(45deg, #2b2b2b 25%, transparent 25%), linear-gradient(-45deg, #2b2b2b 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #2b2b2b 75%), linear-gradient(-45deg, transparent 75%, #2b2b2b 75%)',
-                        backgroundColor: '#1f1f1f',
-                        backgroundSize: '20px 20px',
-                        backgroundPosition: '0 0, 0 10px, 10px -10px, -10px 0'
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                        <strong style={{ fontSize: 14, color: '#e5e7eb' }}>
-                          {language === 'zh-CN' ? '最终预览（透明背景）' : 'Final Preview (Transparent)'}
-                        </strong>
-                        <small style={{ color: '#9ca3af' }}>{outputFormat.toUpperCase()}</small>
-                      </div>
-                      <img
-                        src={currentTask.resultUrl}
-                        alt="Result preview"
-                        style={{
-                          width: '100%',
-                          maxHeight: 360,
-                          objectFit: 'contain',
-                          display: 'block'
-                        }}
-                      />
-                    </div>
+          {/* ─── Center: Main Editor ─── */}
+          <main className="rp-main">
+            {currentTask ? (
+              <>
+                {/* Top Toolbar */}
+                <div className="rp-toolbar-top">
+                  <div className="rp-toolbar-left">
+                    {currentTask.status === 'pending' && (
+                      <button className="rp-btn primary sm" onClick={() => processSingleTask(currentTask)} disabled={isProcessing || !currentTask.originalImage}>
+                        <Sparkles size={14} /> {t('去背景', 'Remove BG')}
+                      </button>
+                    )}
+                    {currentTask.status === 'failed' && (
+                      <button className="rp-btn primary sm" onClick={() => {
+                        setTasks(prev => prev.map(tk => tk.id === currentTask.id ? { ...tk, status: 'pending' as const } : tk))
+                        setTimeout(() => processSingleTask(currentTask), 100)
+                      }}>
+                        <RefreshCw size={14} /> {t('重试', 'Retry')}
+                      </button>
+                    )}
+
+                    {currentTask.status === 'completed' && (
+                      <>
+                        <button className={`rp-btn ghost sm ${showCompare ? 'active' : ''}`} onClick={() => setShowCompare(!showCompare)}>
+                          {showCompare ? <EyeOff size={14} /> : <Eye size={14} />}
+                          {showCompare ? t('纯结果', 'Result') : t('对比', 'Compare')}
+                        </button>
+                        <button className={`rp-btn ghost sm ${showBrush ? 'active' : ''}`} onClick={() => setShowBrush(!showBrush)}>
+                          <Paintbrush size={14} /> {t('精修', 'Refine')}
+                        </button>
+                        <div className="rp-divider" />
+                        <button className="rp-btn ghost sm" onClick={undo} disabled={currentTask.historyIndex <= 0} title={t('撤销', 'Undo')}>
+                          <RotateCcw size={14} />
+                        </button>
+                        <button className="rp-btn ghost sm" onClick={redo} disabled={currentTask.historyIndex >= currentTask.history.length - 1} title={t('重做', 'Redo')}>
+                          <RotateCw size={14} />
+                        </button>
+                      </>
+                    )}
                   </div>
-                )}
 
-                {/* 单图预览 + 画笔/Inpainting 画布 */}
-                {!currentTask.resultUrl && (
-                  <div className="single-preview-container">
-                    <div className="single-preview">
-                      <img src={currentTask.preview} alt="Preview" />
-                      {/* 画笔画布 */}
-                      {showBrushTool && currentTask.mask && (
+                  <div className="rp-toolbar-right">
+                    <div className="rp-zoom-controls">
+                      <button className="rp-icon-btn sm" onClick={() => setZoom(z => Math.max(0.25, z - 0.25))}><ZoomOut size={13} /></button>
+                      <span className="rp-zoom-label">{Math.round(zoom * 100)}%</span>
+                      <button className="rp-icon-btn sm" onClick={() => setZoom(z => Math.min(3, z + 0.25))}><ZoomIn size={13} /></button>
+                    </div>
+                    {currentTask.resultUrl && (
+                      <button className="rp-btn primary sm" onClick={downloadCurrent}>
+                        <Download size={14} /> {t('下载', 'Download')}
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Canvas Area */}
+                <div className="rp-canvas-area">
+                  {showBrush && currentTask.mask ? (
+                    <div className="rp-brush-editor" style={{ transform: `scale(${zoom})` }}>
+                      <div className="rp-brush-canvas-wrap">
+                        <img src={currentTask.preview} alt="Original" className="rp-brush-base" draggable={false} />
                         <canvas
                           ref={maskCanvasRef}
-                          className="brush-canvas"
+                          className="rp-brush-canvas"
                           onMouseDown={handleBrushStart}
                           onMouseMove={handleBrushMove}
                           onMouseUp={handleBrushEnd}
                           onMouseLeave={handleBrushEnd}
                         />
-                      )}
-                      {/* Inpainting 画布 */}
-                      {showInpaintTool && (
-                        <canvas
-                          ref={inpaintCanvasRef}
-                          className="inpaint-canvas"
-                          onMouseDown={handleInpaintStart}
-                          onMouseMove={handleInpaintMove}
-                          onMouseUp={handleInpaintEnd}
-                          onMouseLeave={handleInpaintEnd}
+                      </div>
+                    </div>
+                  ) : currentTask.resultUrl && showCompare ? (
+                    <div className="rp-preview" style={{ transform: `scale(${zoom})` }}>
+                      <div className="rp-compare">
+                        <img src={currentTask.preview} alt="Original" className="rp-compare-img" draggable={false} />
+                        <img
+                          src={currentTask.resultUrl}
+                          alt="Result"
+                          className="rp-compare-img rp-compare-result"
+                          draggable={false}
+                          style={{ clipPath: `inset(0 ${100 - compareSlider}% 0 0)` }}
                         />
-                      )}
+                        <div className="rp-compare-line" style={{ left: `${compareSlider}%` }}>
+                          <div className="rp-compare-handle">⇔</div>
+                        </div>
+                        <span className="rp-compare-label left">{t('结果', 'Result')}</span>
+                        <span className="rp-compare-label right">{t('原图', 'Original')}</span>
+                        <input
+                          type="range" min="0" max="100" value={compareSlider}
+                          onChange={e => setCompareSlider(Number(e.target.value))}
+                          className="rp-compare-slider"
+                        />
+                      </div>
                     </div>
-                  </div>
-                )}
-
-                {/* 操作按钮 */}
-                <div className="preview-actions">
-
-                  {/* 批量处理按钮 */}
-                  {tasks.filter(t => t.status === 'pending').length > 0 && (
-                    <button
-                      className="action-btn primary"
-                      onClick={processBatch}
-                      disabled={isProcessing}
-                    >
-                      <Sparkles size={16} />
-                      {language === 'zh-CN' 
-                        ? `批量处理 (${tasks.filter(t => t.status === 'pending').length})`
-                        : `Process Batch (${tasks.filter(t => t.status === 'pending').length})`}
-                    </button>
-                  )}
-
-                  {/* 单图处理按钮 */}
-                  {currentTask && currentTask.status === 'pending' && (
-                    <button
-                      className="action-btn primary"
-                      onClick={async () => {
-                        if (currentTask && currentTask.originalImage) {
-                          await processSingleTask(currentTask)
-                        }
-                      }}
-                      disabled={isProcessing || !currentTask.originalImage}
-                    >
-                      <Sparkles size={16} />
-                      {language === 'zh-CN' ? '处理此图片' : 'Process This Image'}
-                    </button>
-                  )}
-                  
-                  {/* 如果没有待处理任务，显示提示 */}
-                  {tasks.length > 0 && tasks.filter(t => t.status === 'pending').length === 0 && tasks.filter(t => t.status === 'processing').length === 0 && (
-                    <div className="no-pending-tasks">
-                      {language === 'zh-CN' 
-                        ? '所有任务已完成！可以下载结果。'
-                        : 'All tasks completed! You can download the results.'}
+                  ) : currentTask.resultUrl ? (
+                    <div className="rp-preview" style={{ transform: `scale(${zoom})` }}>
+                      <div className={`rp-result-preview ${backgroundOptions.type === 'transparent' ? 'checkerboard' : ''}`}>
+                        <img src={currentTask.resultUrl} alt="Result" draggable={false} />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rp-preview" style={{ transform: `scale(${zoom})` }}>
+                      <div className="rp-original-preview">
+                        <img src={currentTask.preview} alt="Original" draggable={false} />
+                        {currentTask.status === 'processing' && (
+                          <div className="rp-processing-overlay">
+                            <Loader2 className="rp-spin" size={36} />
+                            <div className="rp-pbar"><div className="rp-pfill" style={{ width: `${currentTask.progress}%` }} /></div>
+                            <p>{currentTask.progressMessage}</p>
+                          </div>
+                        )}
+                        {currentTask.status === 'failed' && (
+                          <div className="rp-processing-overlay failed">
+                            <AlertCircle size={36} />
+                            <p>{currentTask.progressMessage || t('处理失败', 'Failed')}</p>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
-
-                  {/* 画笔工具 */}
-                  {currentTask && currentTask.mask && (
-                    <button
-                      className={`action-btn ${showBrushTool ? 'active' : ''}`}
-                      onClick={() => {
-                        setShowBrushTool(!showBrushTool)
-                        setShowInpaintTool(false)
-                        if (!showBrushTool) {
-                          setTimeout(initBrushCanvas, 100)
-                        }
-                      }}
-                      title={language === 'zh-CN' ? '画笔工具' : 'Brush Tool'}
-                    >
-                      <Paintbrush size={16} />
-                    </button>
-                  )}
-
-                  {/* Inpainting 工具 */}
-                  {currentTask && (
-                    <button
-                      className={`action-btn ${showInpaintTool ? 'active' : ''}`}
-                      onClick={async () => {
-                        const next = !showInpaintTool
-                        setShowInpaintTool(next)
-                        setShowBrushTool(false)
-                        if (next) {
-                          setTimeout(() => initInpaintCanvas(), 50)
-                        }
-                      }}
-                      title={language === 'zh-CN' ? '物体擦除' : 'Remove Object'}
-                    >
-                      <Eraser size={16} />
-                    </button>
-                  )}
-
-                  {/* 撤销/重做 */}
-                  {currentTask && currentTask.history.length > 0 && (
-                    <>
-                      <button
-                        className="action-btn"
-                        onClick={() => {
-                          if (currentTask && currentTask.historyIndex > 0) {
-                            const newIndex = currentTask.historyIndex - 1
-                            const newMask = currentTask.history[newIndex]
-                            setTasks(prev => prev.map(t => 
-                              t.id === currentTask.id 
-                                ? { ...t, mask: newMask, historyIndex: newIndex }
-                                : t
-                            ))
-                            updateTaskResultWithMask(currentTask.id, newMask)
-                          }
-                        }}
-                        disabled={!currentTask || currentTask.historyIndex <= 0}
-                        title={language === 'zh-CN' ? '撤销' : 'Undo'}
-                      >
-                        <RotateCcw size={16} />
-                      </button>
-                      <button
-                        className="action-btn"
-                        onClick={() => {
-                          if (currentTask && currentTask.historyIndex < currentTask.history.length - 1) {
-                            const newIndex = currentTask.historyIndex + 1
-                            const newMask = currentTask.history[newIndex]
-                            setTasks(prev => prev.map(t => 
-                              t.id === currentTask.id 
-                                ? { ...t, mask: newMask, historyIndex: newIndex }
-                                : t
-                            ))
-                            updateTaskResultWithMask(currentTask.id, newMask)
-                          }
-                        }}
-                        disabled={!currentTask || currentTask.historyIndex >= currentTask.history.length - 1}
-                        title={language === 'zh-CN' ? '重做' : 'Redo'}
-                      >
-                        <RotateCw size={16} />
-                      </button>
-                    </>
-                  )}
-
-                  {/* 下载按钮 */}
-                  {currentTask && currentTask.resultUrl && (
-                    <button
-                      className="action-btn"
-                      onClick={() => {
-                        if (currentTask?.result) {
-                          const ext = outputFormat
-                          const fileName = currentTask.file.name.replace(/\.[^/.]+$/, '') + `_removed.${ext}`
-                          saveAs(currentTask.result, fileName)
-                        }
-                      }}
-                      title={language === 'zh-CN' ? '下载' : 'Download'}
-                    >
-                      <Download size={16} />
-                    </button>
-                  )}
-
-                  {/* 批量下载 */}
-                  {tasks.filter(t => t.status === 'completed' && t.result).length > 0 && (
-                    <button
-                      className="action-btn"
-                      onClick={async () => {
-                        const completedTasks = tasks.filter(t => t.status === 'completed' && t.result)
-                        if (completedTasks.length === 1) {
-                          // 单个文件直接下载
-                          if (completedTasks[0].result) {
-                            const ext = outputFormat
-                            const fileName = completedTasks[0].file.name.replace(/\.[^/.]+$/, '') + `_removed.${ext}`
-                            saveAs(completedTasks[0].result, fileName)
-                          }
-                        } else {
-                          // 多个文件打包下载
-                          const zip = new JSZip()
-                          completedTasks.forEach((task) => {
-                            if (task.result) {
-                              const ext = outputFormat
-                              const fileName = task.file.name.replace(/\.[^/.]+$/, '') + `_removed.${ext}`
-                              zip.file(fileName, task.result)
-                            }
-                          })
-                          const blob = await zip.generateAsync({ type: 'blob' })
-                          saveAs(blob, 'removed_backgrounds.zip')
-                        }
-                      }}
-                      title={language === 'zh-CN' ? '批量下载' : 'Download All'}
-                    >
-                      <Download size={16} />
-                      {tasks.filter(t => t.status === 'completed' && t.result).length}
-                    </button>
-                  )}
-
-                  {/* 清除所有 */}
-                  <button
-                    className="action-btn"
-                    onClick={() => {
-                      tasks.forEach(t => {
-                        if (t.preview) URL.revokeObjectURL(t.preview)
-                        if (t.resultUrl) URL.revokeObjectURL(t.resultUrl)
-                      })
-                      setTasks([])
-                      setSelectedTaskId(null)
-                      resetProcessing()
-                    }}
-                    title={language === 'zh-CN' ? '清除所有' : 'Clear All'}
-                  >
-                    <Trash2 size={16} />
-                  </button>
                 </div>
+              </>
+            ) : (
+              <div className="rp-empty-state">
+                <ImageIcon size={48} />
+                <p>{t('选择一张图片开始编辑', 'Select an image to start')}</p>
               </div>
             )}
-          </>
-        )}
-      </div>
+          </main>
 
-      {/* Settings Section */}
-      {tasks.length > 0 && (
-        <div className="settings-section">
-          <h3>
-            <Settings />
-            {language === 'zh-CN' ? '设置' : 'Settings'}
-          </h3>
-
-          <div className="settings-grid">
-            {/* AI 模型状态 */}
-            <div className="setting-group">
-              <label>
-                {language === 'zh-CN' ? 'AI 引擎' : 'AI Engine'}
-              </label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{
-                  display: 'inline-block',
-                  width: 8,
-                  height: 8,
-                  borderRadius: '50%',
-                  backgroundColor: modelReady ? '#22c55e' : isProcessing ? '#f59e0b' : '#6b7280'
-                }}></span>
-                <span style={{ fontSize: 13, color: '#d1d5db' }}>
-                  {modelReady
-                    ? (language === 'zh-CN' ? '模型已就绪' : 'Model ready')
-                    : isProcessing
-                      ? (modelProgress || (language === 'zh-CN' ? '加载中...' : 'Loading...'))
-                      : (language === 'zh-CN' ? '首次处理时自动加载' : 'Auto-loads on first process')}
+          {/* ─── Right Panel ─── */}
+          <aside className="rp-panel">
+            {/* AI Status */}
+            <div className="rp-panel-section">
+              <h4><Sparkles size={14} /> {t('AI 引擎', 'AI Engine')}</h4>
+              <div className="rp-ai-status">
+                <span className={`rp-status-dot ${modelReady ? 'ready' : isProcessing ? 'loading' : 'idle'}`} />
+                <span>
+                  {modelReady ? t('模型已就绪', 'Model Ready')
+                    : isProcessing ? (modelProgress || t('加载中...', 'Loading...'))
+                    : t('首次处理自动加载', 'Auto-loads on first use')}
                 </span>
               </div>
-              <small>
-                {language === 'zh-CN'
-                  ? '使用 ISNet 深度学习模型，100% 浏览器本地运行'
-                  : 'Powered by ISNet deep learning model, 100% local in browser'}
-              </small>
+              <small className="rp-muted">{t('ISNet 模型 · 浏览器本地推理 · 无需服务器', 'ISNet Model · Browser-Local · No Server')}</small>
             </div>
 
-            {/* 画笔设置 */}
-            {showBrushTool && (
-              <>
-                <div className="setting-group">
-                  <label>
-                    {language === 'zh-CN' ? '画笔大小' : 'Brush Size'}: {brushSize}
-                  </label>
-                  <input
-                    type="range"
-                    min="5"
-                    max="100"
-                    value={brushSize}
-                    onChange={(e) => setBrushSize(Number(e.target.value))}
-                  />
-                </div>
-                <div className="setting-group">
-                  <label>
-                    {language === 'zh-CN' ? '画笔模式' : 'Brush Mode'}
-                  </label>
-                  <div className="brush-mode-selector">
+            {/* Background Settings (visible after completed) */}
+            {currentTask?.status === 'completed' && (
+              <div className="rp-panel-section">
+                <h4><Layers size={14} /> {t('背景设置', 'Background')}</h4>
+                <div className="rp-bg-types">
+                  {([
+                    { type: 'transparent' as BackgroundType, icon: '⊘', label: t('透明', 'None') },
+                    { type: 'color' as BackgroundType, icon: '◼', label: t('纯色', 'Color') },
+                    { type: 'gradient' as BackgroundType, icon: '◩', label: t('渐变', 'Gradient') },
+                    { type: 'image' as BackgroundType, icon: '🖼', label: t('图片', 'Image') },
+                    { type: 'blur' as BackgroundType, icon: '◎', label: t('模糊', 'Blur') },
+                  ]).map(({ type, icon, label }) => (
                     <button
-                      className={`brush-mode-btn ${brushMode === 'add' ? 'active' : ''}`}
-                      onClick={() => setBrushMode('add')}
+                      key={type}
+                      className={`rp-bg-type-btn ${backgroundOptions.type === type ? 'active' : ''}`}
+                      onClick={() => setBackgroundOptions(prev => ({ ...prev, type }))}
                     >
-                      {language === 'zh-CN' ? '添加' : 'Add'}
+                      <span className="rp-bg-type-icon">{icon}</span>
+                      <span>{label}</span>
                     </button>
-                    <button
-                      className={`brush-mode-btn ${brushMode === 'remove' ? 'active' : ''}`}
-                      onClick={() => setBrushMode('remove')}
-                    >
-                      {language === 'zh-CN' ? '移除' : 'Remove'}
-                    </button>
-                  </div>
+                  ))}
                 </div>
-              </>
-            )}
 
-            {showInpaintTool && (
-              <>
-                <div className="setting-group">
-                  <label>{language === 'zh-CN' ? '擦除模式' : 'Remove Mode'}</label>
-                  <div className="brush-mode-selector">
-                    <button
-                      className={`brush-mode-btn ${inpaintMode === 'erase' ? 'active' : ''}`}
-                      onClick={() => setInpaintMode('erase')}
-                    >
-                      {language === 'zh-CN' ? '区域透明' : 'Transparent'}
-                    </button>
-                    <button
-                      className={`brush-mode-btn ${inpaintMode === 'blur' ? 'active' : ''}`}
-                      onClick={() => setInpaintMode('blur')}
-                    >
-                      {language === 'zh-CN' ? '区域模糊' : 'Blur'}
-                    </button>
-                  </div>
-                </div>
-                {inpaintMode === 'blur' && (
-                  <div className="setting-group">
-                    <label>{language === 'zh-CN' ? '模糊程度' : 'Blur Strength'}: {inpaintBlur}</label>
-                    <input
-                      type="range"
-                      min="5"
-                      max="80"
-                      value={inpaintBlur}
-                      onChange={(e) => setInpaintBlur(Number(e.target.value))}
-                    />
+                {backgroundOptions.type === 'color' && (
+                  <div className="rp-bg-config">
+                    <div className="rp-color-presets">
+                      {COLOR_PRESETS.map(c => (
+                        <button key={c} className={`rp-color-swatch ${backgroundOptions.color === c ? 'active' : ''}`} style={{ backgroundColor: c }} onClick={() => setBackgroundOptions(prev => ({ ...prev, color: c }))} />
+                      ))}
+                    </div>
+                    <div className="rp-color-custom">
+                      <label>{t('自定义', 'Custom')}</label>
+                      <input type="color" value={backgroundOptions.color} onChange={e => setBackgroundOptions(prev => ({ ...prev, color: e.target.value }))} />
+                    </div>
                   </div>
                 )}
-              </>
+
+                {backgroundOptions.type === 'gradient' && (
+                  <div className="rp-bg-config">
+                    <div className="rp-gradient-presets">
+                      {GRADIENT_PRESETS.map((g, i) => (
+                        <button key={i} className={`rp-gradient-swatch ${backgroundOptions.gradientStart === g.start && backgroundOptions.gradientEnd === g.end ? 'active' : ''}`} style={{ background: `linear-gradient(135deg, ${g.start}, ${g.end})` }} onClick={() => setBackgroundOptions(prev => ({ ...prev, gradientStart: g.start, gradientEnd: g.end }))} title={g.label} />
+                      ))}
+                    </div>
+                    <div className="rp-gradient-custom">
+                      <div className="rp-row">
+                        <label>{t('起始色', 'Start')}</label>
+                        <input type="color" value={backgroundOptions.gradientStart} onChange={e => setBackgroundOptions(prev => ({ ...prev, gradientStart: e.target.value }))} />
+                      </div>
+                      <div className="rp-row">
+                        <label>{t('结束色', 'End')}</label>
+                        <input type="color" value={backgroundOptions.gradientEnd} onChange={e => setBackgroundOptions(prev => ({ ...prev, gradientEnd: e.target.value }))} />
+                      </div>
+                      <div className="rp-row">
+                        <label>{t('角度', 'Angle')}: {backgroundOptions.gradientAngle}°</label>
+                        <input type="range" min="0" max="360" value={backgroundOptions.gradientAngle} onChange={e => setBackgroundOptions(prev => ({ ...prev, gradientAngle: Number(e.target.value) }))} />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {backgroundOptions.type === 'image' && (
+                  <div className="rp-bg-config">
+                    <button className="rp-upload-bg-btn" onClick={() => bgImageInputRef.current?.click()}>
+                      <Upload size={15} />
+                      {backgroundOptions.imageFile ? backgroundOptions.imageFile.name : t('选择背景图片', 'Select Background Image')}
+                    </button>
+                    {backgroundOptions.imageUrl && (
+                      <div className="rp-bg-image-preview">
+                        <img src={backgroundOptions.imageUrl} alt="BG" />
+                      </div>
+                    )}
+                    <div className="rp-row">
+                      <label>{t('适应模式', 'Fit')}</label>
+                      <select value={backgroundOptions.imageFit} onChange={e => setBackgroundOptions(prev => ({ ...prev, imageFit: e.target.value as BackgroundOptions['imageFit'] }))}>
+                        <option value="cover">{t('覆盖', 'Cover')}</option>
+                        <option value="contain">{t('适应', 'Contain')}</option>
+                        <option value="stretch">{t('拉伸', 'Stretch')}</option>
+                        <option value="tile">{t('平铺', 'Tile')}</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+
+                {backgroundOptions.type === 'blur' && (
+                  <div className="rp-bg-config">
+                    <div className="rp-row">
+                      <label>{t('模糊强度', 'Blur')}: {backgroundOptions.blurAmount}px</label>
+                      <input type="range" min="5" max="50" value={backgroundOptions.blurAmount} onChange={e => setBackgroundOptions(prev => ({ ...prev, blurAmount: Number(e.target.value) }))} />
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
 
-            {/* 边缘羽化 */}
-            <div className="setting-group">
-              <label>
-                {language === 'zh-CN' ? '边缘羽化' : 'Edge Feathering'}: {edgeFeather}
-              </label>
-              <input
-                type="range"
-                min="0"
-                max="10"
-                value={edgeFeather}
-                onChange={(e) => setEdgeFeather(Number(e.target.value))}
-                disabled={isProcessing}
-              />
-              <small>
-                {language === 'zh-CN' 
-                  ? '柔化边缘，数值越大边缘越柔和'
-                  : 'Soften edges, higher value = softer edges'}
-              </small>
+            {/* Brush Settings */}
+            {showBrush && currentTask?.mask && (
+              <div className="rp-panel-section">
+                <h4><Paintbrush size={14} /> {t('画笔精修', 'Brush Refine')}</h4>
+                <div className="rp-brush-modes">
+                  <button className={`rp-brush-mode ${brushMode === 'add' ? 'active' : ''}`} onClick={() => setBrushMode('add')}>
+                    <Paintbrush size={14} /> {t('恢复', 'Restore')}
+                  </button>
+                  <button className={`rp-brush-mode ${brushMode === 'remove' ? 'active' : ''}`} onClick={() => setBrushMode('remove')}>
+                    <Eraser size={14} /> {t('擦除', 'Erase')}
+                  </button>
+                </div>
+                <div className="rp-row">
+                  <label>{t('笔刷大小', 'Size')}: {brushSize}px</label>
+                  <input type="range" min="3" max="150" value={brushSize} onChange={e => setBrushSize(Number(e.target.value))} />
+                </div>
+                <div className="rp-row">
+                  <label>{t('不透明度', 'Opacity')}: {brushOpacity}%</label>
+                  <input type="range" min="10" max="100" value={brushOpacity} onChange={e => setBrushOpacity(Number(e.target.value))} />
+                </div>
+              </div>
+            )}
+
+            {/* Advanced Settings */}
+            <div className="rp-panel-section">
+              <button className="rp-section-toggle" onClick={() => setSettingsOpen(!settingsOpen)}>
+                <Settings size={14} />
+                <span>{t('高级设置', 'Advanced')}</span>
+                {settingsOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              </button>
+              {settingsOpen && (
+                <div className="rp-advanced-settings">
+                  <div className="rp-row">
+                    <label>{t('边缘羽化', 'Feather')}: {edgeFeather}px</label>
+                    <input type="range" min="0" max="10" value={edgeFeather} onChange={e => setEdgeFeather(Number(e.target.value))} />
+                  </div>
+                  <div className="rp-row">
+                    <label>{t('输出格式', 'Format')}</label>
+                    <select value={outputFormat} onChange={e => setOutputFormat(e.target.value as OutputFormat)}>
+                      <option value="png">PNG ({t('支持透明', 'Transparent')})</option>
+                      <option value="webp">WebP</option>
+                      <option value="jpg">JPG</option>
+                    </select>
+                  </div>
+                  {outputFormat !== 'png' && (
+                    <div className="rp-row">
+                      <label>{t('质量', 'Quality')}: {outputQuality}%</label>
+                      <input type="range" min="50" max="100" value={outputQuality} onChange={e => setOutputQuality(Number(e.target.value))} />
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
+          </aside>
+        </div>
+      )}
 
-            {/* 背景类型 */}
-            <div className="setting-group">
-              <label>
-                {language === 'zh-CN' ? '背景类型' : 'Background Type'}
-              </label>
-              <select
-                value={backgroundOptions.type}
-                onChange={(e) => setBackgroundOptions(prev => ({ 
-                  ...prev, 
-                  type: e.target.value as BackgroundType 
-                }))}
-                disabled={isProcessing}
-              >
-                <option value="transparent">
-                  {language === 'zh-CN' ? '透明' : 'Transparent'}
-                </option>
-                <option value="color">
-                  {language === 'zh-CN' ? '纯色' : 'Solid Color'}
-                </option>
-                <option value="blur">
-                  {language === 'zh-CN' ? '模糊' : 'Blur'}
-                </option>
-                <option value="image">
-                  {language === 'zh-CN' ? '图片' : 'Image'}
-                </option>
-              </select>
-            </div>
-
-            {/* 边缘去污 */}
-            <div className="setting-group">
-              <label>
-                {language === 'zh-CN' ? '边缘去污' : 'Edge Defringe'}
-              </label>
-              <div className="brush-mode-selector">
-                <button
-                  className={`brush-mode-btn ${defringeEdges ? 'active' : ''}`}
-                  onClick={() => setDefringeEdges(true)}
-                  disabled={isProcessing}
-                >
-                  {language === 'zh-CN' ? '开启' : 'On'}
-                </button>
-                <button
-                  className={`brush-mode-btn ${!defringeEdges ? 'active' : ''}`}
-                  onClick={() => setDefringeEdges(false)}
-                  disabled={isProcessing}
-                >
-                  {language === 'zh-CN' ? '关闭' : 'Off'}
-                </button>
-              </div>
-              <small>
-                {language === 'zh-CN'
-                  ? '减少背景色溢出，利于后期商业合成'
-                  : 'Reduces color spill on edges for cleaner compositing'}
-              </small>
-            </div>
-
-            {/* 纯色背景 */}
-            {backgroundOptions.type === 'color' && (
-              <div className="setting-group">
-                <label>
-                  {language === 'zh-CN' ? '背景颜色' : 'Background Color'}
-                </label>
-                <input
-                  type="color"
-                  value={backgroundOptions.color}
-                  onChange={(e) => setBackgroundOptions(prev => ({ 
-                    ...prev, 
-                    color: e.target.value 
-                  }))}
-                  disabled={isProcessing}
-                />
-              </div>
-            )}
-
-            {/* 模糊背景 */}
-            {backgroundOptions.type === 'blur' && (
-              <div className="setting-group">
-                <label>
-                  {language === 'zh-CN' ? '模糊程度' : 'Blur Amount'}: {backgroundOptions.blurAmount}
-                </label>
-                <input
-                  type="range"
-                  min="10"
-                  max="100"
-                  value={backgroundOptions.blurAmount}
-                  onChange={(e) => setBackgroundOptions(prev => ({ 
-                    ...prev, 
-                    blurAmount: Number(e.target.value) 
-                  }))}
-                  disabled={isProcessing}
-                />
-              </div>
-            )}
-
-            {/* 图片背景 */}
-            {backgroundOptions.type === 'image' && (
-              <div className="setting-group">
-                <label>
-                  {language === 'zh-CN' ? '背景图片' : 'Background Image'}
-                </label>
-                <input
-                  ref={backgroundInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0]
-                    if (file) {
-                      setBackgroundOptions(prev => ({ ...prev, imageFile: file }))
-                    }
-                  }}
-                  style={{ display: 'none' }}
-                  disabled={isProcessing}
-                />
-                <button
-                  className="upload-bg-btn"
-                  onClick={() => backgroundInputRef.current?.click()}
-                  disabled={isProcessing}
-                >
-                  {backgroundOptions.imageFile 
-                    ? backgroundOptions.imageFile.name 
-                    : (language === 'zh-CN' ? '选择图片' : 'Select Image')}
-                </button>
-              </div>
-            )}
-
-            {/* 输出格式 */}
-            <div className="setting-group">
-              <label>
-                {language === 'zh-CN' ? '输出格式' : 'Output Format'}
-              </label>
-              <select
-                value={outputFormat}
-                onChange={(e) => setOutputFormat(e.target.value as OutputFormat)}
-                disabled={isProcessing}
-              >
-                <option value="png">PNG (透明背景)</option>
-                <option value="webp">WebP</option>
-                <option value="jpg">JPG</option>
-              </select>
-            </div>
-
-            {/* 输出质量 */}
-            {outputFormat !== 'png' && (
-              <div className="setting-group">
-                <label>
-                  {language === 'zh-CN' ? '输出质量' : 'Output Quality'}: {outputQuality}
-                </label>
-                <input
-                  type="range"
-                  min="50"
-                  max="100"
-                  value={outputQuality}
-                  onChange={(e) => setOutputQuality(Number(e.target.value))}
-                  disabled={isProcessing}
-                />
-              </div>
-            )}
-          </div>
+      {/* Global processing indicator */}
+      {isProcessing && processingCount > 0 && (
+        <div className="rp-global-progress">
+          <Loader2 className="rp-spin" size={16} />
+          {t(`正在处理 ${processingCount} 张图片...`, `Processing ${processingCount} image(s)...`)}
         </div>
       )}
     </div>

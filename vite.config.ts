@@ -93,11 +93,15 @@ export default defineConfig(({ mode }) => ({
     port: 5180, // Updated the development server to use port 5180
     host: '127.0.0.1',
     open: true,
-    // 添加响应头以支持 FFmpeg.wasm（SharedArrayBuffer）
+    // 配置文件服务，确保 WASM 和 worker 文件正确提供
+    fs: {
+      allow: ['..', '.']
+    },
+    // 添加响应头以支持 FFmpeg.wasm（SharedArrayBuffer）和 ONNX Runtime WASM
     headers: {
-      // 'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data: https:; media-src 'self' blob: data: https:; object-src 'self' blob: data:; connect-src 'self' blob: data: https: ws: wss:; worker-src 'self' blob:; child-src 'self' blob:;",
       'Cross-Origin-Opener-Policy': 'same-origin',
-      'Cross-Origin-Embedder-Policy': 'require-corp',
+      // credentialless: 启用 SharedArrayBuffer 的同时允许跨域资源（AI 模型 CDN）
+      'Cross-Origin-Embedder-Policy': 'credentialless',
       'Cross-Origin-Resource-Policy': 'cross-origin'
     },
     // 注意：Vite 默认支持 SPA 路由，无需额外配置
@@ -116,17 +120,21 @@ export default defineConfig(({ mode }) => ({
     port: 3000,
     // 添加响应头以支持 FFmpeg.wasm（SharedArrayBuffer）
     headers: {
-      // 'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data: https:; media-src 'self' blob: data: https:; object-src 'self' blob: data:; connect-src 'self' blob: data: https:; worker-src 'self' blob:; child-src 'self' blob:;",
       'Cross-Origin-Opener-Policy': 'same-origin',
-      'Cross-Origin-Embedder-Policy': 'require-corp'
-      // 'Cross-Origin-Resource-Policy': 'cross-origin'
+      'Cross-Origin-Embedder-Policy': 'credentialless'
     }
     // 注意：Vite 预览模式默认支持 SPA 路由
   },
 
   // 🔥 添加：优化 WASM 和大文件处理
   optimizeDeps: {
-    exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util']
+    exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util', 'onnxruntime-web'],
+    include: ['@imgly/background-removal']
+  },
+
+  // 🔥 配置 WASM 文件处理以支持 ONNX Runtime
+  worker: {
+    format: 'es'
   }
 }))
 
