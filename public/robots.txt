@@ -82,6 +82,11 @@ User-agent: Bingbot
 Crawl-delay: 1
 Allow: /tools/
 
+# Perplexity
+User-agent: PerplexityBot
+Crawl-delay: 1
+Allow: /tools/
+
 # Baidu (如果需要中国市场)
 User-agent: Baiduspider
 Crawl-delay: 2
@@ -96,6 +101,8 @@ Allow: /tools/
 User-agent: DuckDuckBot
 Crawl-delay: 1
 Allow: /tools/
+
+
 
 # ===== 爬虫优化 =====
 # 通用爬虫延迟（保护服务器）
