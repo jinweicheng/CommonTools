@@ -90,7 +90,8 @@ export default defineConfig(({ mode }) => ({
     chunkSizeWarningLimit: 1000
   },
   server: {
-    port: 3000,
+    port: 5180, // Updated the development server to use port 5180
+    host: '127.0.0.1',
     open: true,
     // 添加响应头以支持 FFmpeg.wasm（SharedArrayBuffer）
     headers: {
