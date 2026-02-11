@@ -62,6 +62,7 @@ export default {
     removePhotos: '智能去背景',
     imageWatermark: '图片水印',
     imageEncryption: '图片加密',
+    imageMosaic: '图片马赛克',
     // 视频转换子菜单
     screenRecording: '屏幕录像',
     videoCompression: '视频压缩',
@@ -1363,5 +1364,61 @@ export default {
     faq2A: '支持多页签名。切换到不同页面后添加签名，每个页面的签名会独立管理。您可以在页面缩略图中看到每页的签名数量。',
     faq3Q: '签名后的PDF可以编辑吗？',
     faq3A: '签名会被嵌入为PDF的图片元素，生成后无法通过本工具移除。建议在应用前仔细调整签名位置和大小。',
+  },
+
+  // 图片马赛克
+  imageMosaic: {
+    pageTitle: '图片马赛克',
+    pageSubtitle: '精确选区打码、多种马赛克效果、画笔涂抹，保护隐私信息，所有操作在浏览器本地完成',
+    badgePrecise: '精确选区',
+    badgeMultiMode: '多种模式',
+    badgeLocal: '本地处理',
+    // 上传区
+    uploadTitle: '拖拽图片到这里，或点击上传',
+    uploadHint: '支持粘贴 · 拖放 · JPG/PNG/WEBP/GIF 等',
+    // 工具模式
+    toolRect: '矩形选区',
+    toolBrush: '画笔涂抹',
+    toolSelect: '选择移动',
+    // 马赛克类型
+    mosaicType: '马赛克类型',
+    typePixelate: '像素化',
+    typeBlur: '高斯模糊',
+    typeSolid: '纯色覆盖',
+    typeCrosshatch: '交叉网格',
+    // 参数
+    params: '参数设置',
+    intensity: '效果强度',
+    brushSize: '画笔大小',
+    presetLight: '轻微',
+    presetMedium: '中等',
+    presetStrong: '较强',
+    presetMax: '最强',
+    // 区域列表
+    regionList: '选区列表',
+    noRegions: '暂无选区，请在图片上框选需要打码的区域',
+    // 快捷操作
+    quickActions: '快捷操作',
+    fullImageMosaic: '全图马赛克',
+    // 操作
+    undo: '撤销',
+    redo: '重做',
+    clearAll: '清除全部',
+    changeImage: '更换图片',
+    exportImage: '导出图片',
+    processing: '正在处理...',
+    // 缩放
+    zoomFit: '适应窗口',
+    // 信息
+    imageInfo: '图片尺寸',
+    regionsCount: '选区数量',
+    // 使用提示
+    tipsTitle: '使用提示',
+    tip1: '选择「矩形选区」工具，在图片上拖拽框选需要打码的区域',
+    tip2: '选择「画笔涂抹」工具，自由涂抹需要遮挡的区域',
+    tip3: '支持4种马赛克效果：像素化、高斯模糊、纯色覆盖、交叉网格',
+    tip4: '快捷键：Ctrl+Z 撤销，Ctrl+Y 重做，Delete 删除选区',
+    tip5: '所有处理在浏览器本地完成，图片不上传到服务器，保护隐私',
+    tip6: '导出图片为原始分辨率 PNG 格式，马赛克效果按比例精确缩放',
   },
 }

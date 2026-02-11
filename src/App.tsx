@@ -23,6 +23,7 @@ import OldPhotoRestorationPage from './pages/OldPhotoRestorationPage'
 import RemovePhotosPage from './pages/RemovePhotosPage'
 import ImageWatermarkPage from './pages/ImageWatermarkPage'
 import ImageEncryptionPage from './pages/ImageEncryptionPage'
+import ImageMosaicPage from './pages/ImageMosaicPage'
 import PDFEncryptHTMLPage from './pages/PDFEncryptHTMLPage'
 import PDFEncryptPage from './pages/PDFEncryptPage'
 import PDFWatermarkToolPage from './pages/PDFWatermarkToolPage'
@@ -108,6 +109,9 @@ function App() {
               
               {/* 图片加密 */}
               <Route path="/image-encryption" element={<ImageEncryptionPage />} />
+              
+              {/* 图片马赛克 */}
+              <Route path="/image-mosaic" element={<ImageMosaicPage />} />
               
               {/* PDF加密HTML */}
               <Route path="/pdf-encrypt-html" element={<PDFEncryptHTMLPage />} />

@@ -62,6 +62,7 @@ export default {
     removePhotos: 'Remove Background',
     imageWatermark: 'Image Watermark',
     imageEncryption: 'Image Encryption',
+    imageMosaic: 'Image Mosaic',
     // Video conversion submenu
     screenRecording: 'Screen Recording',
     videoCompression: 'Video Compression',
@@ -1363,5 +1364,61 @@ export default {
     faq2A: 'Yes, multi-page signing is supported. Switch to different pages and add signatures independently. You can see the signature count for each page in the thumbnail navigation.',
     faq3Q: 'Can signed PDFs be edited?',
     faq3A: 'Signatures are embedded as image elements in the PDF and cannot be removed by this tool after generation. Carefully adjust signature position and size before applying.',
+  },
+
+  // Image Mosaic
+  imageMosaic: {
+    pageTitle: 'Image Mosaic',
+    pageSubtitle: 'Precise area selection, multiple mosaic effects, brush painting — protect private information, all processed locally in your browser',
+    badgePrecise: 'Precise Selection',
+    badgeMultiMode: 'Multi Mode',
+    badgeLocal: 'Local Processing',
+    // Upload
+    uploadTitle: 'Drag & drop image here, or click to upload',
+    uploadHint: 'Supports paste · drag & drop · JPG/PNG/WEBP/GIF',
+    // Tool modes
+    toolRect: 'Rectangle',
+    toolBrush: 'Brush',
+    toolSelect: 'Select',
+    // Mosaic types
+    mosaicType: 'Mosaic Type',
+    typePixelate: 'Pixelate',
+    typeBlur: 'Gaussian Blur',
+    typeSolid: 'Solid Cover',
+    typeCrosshatch: 'Crosshatch',
+    // Parameters
+    params: 'Parameters',
+    intensity: 'Intensity',
+    brushSize: 'Brush Size',
+    presetLight: 'Light',
+    presetMedium: 'Medium',
+    presetStrong: 'Strong',
+    presetMax: 'Max',
+    // Region list
+    regionList: 'Regions',
+    noRegions: 'No regions yet. Draw on the image to add mosaic areas.',
+    // Quick actions
+    quickActions: 'Quick Actions',
+    fullImageMosaic: 'Full Image Mosaic',
+    // Actions
+    undo: 'Undo',
+    redo: 'Redo',
+    clearAll: 'Clear All',
+    changeImage: 'Change Image',
+    exportImage: 'Export Image',
+    processing: 'Processing...',
+    // Zoom
+    zoomFit: 'Fit to Window',
+    // Info
+    imageInfo: 'Image Size',
+    regionsCount: 'Regions',
+    // Tips
+    tipsTitle: 'Tips',
+    tip1: 'Use the Rectangle tool to drag and select areas you want to censor',
+    tip2: 'Use the Brush tool to freely paint over areas to conceal',
+    tip3: 'Choose from 4 mosaic effects: Pixelate, Gaussian Blur, Solid Cover, Crosshatch',
+    tip4: 'Shortcuts: Ctrl+Z to undo, Ctrl+Y to redo, Delete to remove selection',
+    tip5: 'All processing is done locally in your browser — images are never uploaded',
+    tip6: 'Export at original resolution in PNG format with precisely scaled mosaic effects',
   },
 }
