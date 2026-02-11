@@ -51,6 +51,7 @@ export default function Layout({ children }: LayoutProps) {
         { path: '/old-photo-restoration', icon: <ImageIcon size={18} />, label: t('nav.oldPhotoRestoration') },
         { path: '/remove-photos', icon: <Wand2 size={18} />, label: t('nav.removePhotos') },
         { path: '/image-watermark', icon: <Droplet size={18} />, label: t('nav.imageWatermark') },
+        { path: '/image-encryption', icon: <Shield size={18} />, label: t('nav.imageEncryption') },
       ],
     },
     {
