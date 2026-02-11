@@ -890,6 +890,10 @@
   background: rgba(15, 23, 42, 0.4);
   border-radius: 12px;
   border: 1px solid rgba(99, 102, 241, 0.08);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
 }
 
 .iw-tips-section h3 {
@@ -903,9 +907,10 @@
   list-style: none;
   padding: 0;
   margin: 0;
-  display: flex;
+  display: inline-flex;
   flex-direction: column;
   gap: 0.4rem;
+  text-align: left;
 }
 
 .iw-tips-list li {
