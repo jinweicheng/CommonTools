@@ -16,7 +16,7 @@ export default function PDFSignatureToolPage() {
           {t('pdfSignatureTool.pageSubtitle')}
         </p>
         
-        <div className="features-badges">
+        <div className="features-badges" style={{ display: 'flex', justifyContent: 'center' }}>
           <span className="feature-badge">
             <span className="badge-icon">🖊️</span>
             {t('pdfSignatureTool.badgeHandwritten')}

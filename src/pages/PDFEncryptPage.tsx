@@ -16,7 +16,7 @@ export default function PDFEncryptPage() {
           {t('pdfEncryptAES.pageSubtitle')}
         </p>
         
-        <div className="features-badges">
+        <div className="features-badges" style={{ display: 'flex', justifyContent: 'center' }}>
           <span className="feature-badge">
             <span className="badge-icon">🛡️</span>
             {t('pdfEncryptAES.badgeAES256')}
