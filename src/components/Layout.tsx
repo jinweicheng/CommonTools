@@ -1,6 +1,6 @@
 import { ReactNode, useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Shield, Repeat, Droplet, PenTool, Archive, Image as ImageIcon, Camera as CameraIcon, FileImage, Layers, Video, Menu, X, Globe, ChevronDown, ChevronRight, Minimize2, Film, Wand2 } from 'lucide-react'
+import { Shield, Repeat, Droplet, PenTool, Archive, Image as ImageIcon, Camera as CameraIcon, FileImage, Layers, Video, Menu, X, Globe, ChevronDown, ChevronRight, Minimize2, Film, Wand2, FileLock } from 'lucide-react'
 import { useI18n } from '../i18n/I18nContext'
 import TrustBadges from './TrustBadges'
 import './Layout.css'
@@ -26,7 +26,7 @@ export default function Layout({ children }: LayoutProps) {
   const location = useLocation()
   const { t, language, setLanguage } = useI18n()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['imageTools', 'videoTools', 'fileTools']))
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['imageTools', 'pdfTools', 'videoTools', 'fileTools']))
   
   // 独立菜单项（不在分类下）
   const standaloneNavItems: NavItem[] = [
@@ -52,6 +52,17 @@ export default function Layout({ children }: LayoutProps) {
         { path: '/remove-photos', icon: <Wand2 size={18} />, label: t('nav.removePhotos') },
         { path: '/image-watermark', icon: <Droplet size={18} />, label: t('nav.imageWatermark') },
         { path: '/image-encryption', icon: <Shield size={18} />, label: t('nav.imageEncryption') },
+      ],
+    },
+    {
+      id: 'pdfTools',
+      label: t('nav.pdfTools'),
+      icon: <FileLock size={18} />,
+      items: [
+        { path: '/pdf-encrypt-html', icon: <FileLock size={18} />, label: t('nav.pdfEncryptHTML') },
+        { path: '/pdf-encrypt', icon: <Shield size={18} />, label: t('nav.pdfEncrypt') },
+        { path: '/pdf-watermark', icon: <Droplet size={18} />, label: t('nav.pdfWatermark') },
+        { path: '/pdf-signature', icon: <PenTool size={18} />, label: t('nav.pdfSignature') },
       ],
     },
     {

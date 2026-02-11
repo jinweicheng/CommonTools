@@ -24,6 +24,21 @@ Allow: /tools/remove-photos
 # Image Watermark - 🔥 重点功能（新增）
 Allow: /tools/image-watermark
 
+# Image Encryption - 🔥 重点功能（新增）
+Allow: /tools/image-encryption
+
+# PDF Encrypt HTML - 🔥 重点功能（新增）
+Allow: /tools/pdf-encrypt-html
+
+# PDF Encrypt AES-256 - 🔥 重点功能（新增）
+Allow: /tools/pdf-encrypt
+
+# PDF Watermark - 🔥 重点功能（新增）
+Allow: /tools/pdf-watermark
+
+# PDF Signature - 🔥 重点功能（新增）
+Allow: /tools/pdf-signature
+
 # iPhone Screen Recording Processor - 🔥 重点功能
 Allow: /tools/screen-recording
 

@@ -1,0 +1,280 @@
+/* ========================================
+   PDF Signature Tool - Professional Styling
+   ======================================== */
+
+.pst-container { max-width: 1200px; margin: 0 auto; position: relative; }
+
+/* Toast */
+.pst-toast {
+  position: fixed; top: 24px; right: 24px; z-index: 9999;
+  display: flex; align-items: center; gap: 10px; padding: 14px 20px;
+  border-radius: 12px; font-size: 0.9rem; font-weight: 500;
+  backdrop-filter: blur(16px); animation: pstToastIn 0.3s ease-out;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3); max-width: 400px;
+}
+@keyframes pstToastIn { from { opacity:0; transform:translateX(40px); } to { opacity:1; transform:translateX(0); } }
+.pst-toast-success { background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.4); color: #34d399; }
+.pst-toast-error { background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.4); color: #fca5a5; }
+.pst-toast-info { background: rgba(59,130,246,0.15); border: 1px solid rgba(59,130,246,0.4); color: #93c5fd; }
+.pst-toast-close { background: none; border: none; color: inherit; cursor: pointer; padding: 2px; opacity: 0.7; }
+.pst-toast-close:hover { opacity: 1; }
+
+/* Modal */
+.pst-modal-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(0,0,0,0.6); backdrop-filter: blur(6px);
+  display: flex; align-items: center; justify-content: center;
+  animation: pstFadeIn 0.2s ease;
+}
+@keyframes pstFadeIn { from { opacity:0; } to { opacity:1; } }
+.pst-modal {
+  background: #1e293b; border: 1px solid rgba(71,85,105,0.4);
+  border-radius: 16px; padding: 24px; max-width: 640px; width: 90%;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+.pst-modal-header {
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;
+}
+.pst-modal-header h3 { display: flex; align-items: center; gap: 8px; color: #e2e8f0; font-size: 1.05rem; margin: 0; }
+.pst-modal-close { background: none; border: none; color: #94a3b8; cursor: pointer; padding: 4px; }
+.pst-modal-close:hover { color: #e2e8f0; }
+.pst-pen-control {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 12px;
+}
+.pst-pen-control label { font-size: 0.85rem; color: #94a3b8; white-space: nowrap; }
+.pst-canvas-wrap {
+  background: #fff; border-radius: 10px; overflow: hidden;
+  display: flex; align-items: center; justify-content: center; margin-bottom: 16px;
+}
+.pst-sig-canvas { cursor: crosshair; }
+.pst-modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+.pst-btn-secondary {
+  display: flex; align-items: center; gap: 6px;
+  padding: 10px 18px; background: rgba(71,85,105,0.3); border: 1px solid rgba(71,85,105,0.4);
+  border-radius: 10px; color: #94a3b8; cursor: pointer; font-size: 0.9rem; font-weight: 600;
+}
+.pst-btn-secondary:hover { background: rgba(71,85,105,0.5); color: #e2e8f0; }
+.pst-btn-primary {
+  display: flex; align-items: center; gap: 6px;
+  padding: 10px 18px; background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+  border: none; border-radius: 10px; color: #fff; cursor: pointer; font-size: 0.9rem; font-weight: 600;
+}
+.pst-btn-primary:hover { box-shadow: 0 4px 16px rgba(139,92,246,0.3); }
+
+/* Main Layout */
+.pst-main-layout { display: grid; grid-template-columns: 340px 1fr; gap: 24px; margin-bottom: 32px; }
+.pst-left-panel, .pst-right-panel { display: flex; flex-direction: column; gap: 20px; }
+
+/* Cards */
+.pst-card {
+  background: rgba(15,23,42,0.6); border: 1px solid rgba(71,85,105,0.3);
+  border-radius: 16px; padding: 24px; backdrop-filter: blur(12px);
+}
+.pst-card-title {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 1.05rem; font-weight: 700; color: #e2e8f0;
+  margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid rgba(71,85,105,0.3);
+}
+
+/* Fields */
+.pst-field { margin-bottom: 16px; }
+.pst-field label {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 0.85rem; font-weight: 600; color: #94a3b8; margin-bottom: 8px;
+}
+.pst-color-row { display: flex; align-items: center; gap: 10px; }
+.pst-color-picker {
+  width: 36px; height: 36px; border: none; border-radius: 8px; cursor: pointer; background: none; padding: 0;
+}
+.pst-color-picker::-webkit-color-swatch-wrapper { padding: 0; }
+.pst-color-picker::-webkit-color-swatch { border-radius: 8px; border: 2px solid rgba(71,85,105,0.4); }
+.pst-color-value { font-size: 0.8rem; color: #64748b; font-family: monospace; }
+.pst-color-presets { display: flex; gap: 6px; margin-left: auto; }
+.pst-color-preset {
+  width: 22px; height: 22px; border-radius: 6px; border: 2px solid rgba(71,85,105,0.3);
+  cursor: pointer; transition: all 0.2s; padding: 0;
+}
+.pst-color-preset:hover { transform: scale(1.15); }
+.pst-color-preset.active { border-color: #8b5cf6; box-shadow: 0 0 8px rgba(139,92,246,0.3); }
+
+/* Tool buttons */
+.pst-tool-buttons { display: flex; gap: 10px; }
+.pst-tool-btn {
+  flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 12px 16px; border: none; border-radius: 12px;
+  color: #fff; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.2s;
+}
+.pst-tool-signature { background: linear-gradient(135deg, #8b5cf6, #7c3aed); }
+.pst-tool-signature:hover { box-shadow: 0 4px 16px rgba(139,92,246,0.3); transform: translateY(-1px); }
+.pst-tool-date { background: linear-gradient(135deg, #f59e0b, #d97706); }
+.pst-tool-date:hover { box-shadow: 0 4px 16px rgba(245,158,11,0.3); transform: translateY(-1px); }
+
+/* Slider */
+.pst-slider {
+  flex: 1; height: 6px; -webkit-appearance: none; appearance: none;
+  background: rgba(71,85,105,0.4); border-radius: 3px; outline: none;
+}
+.pst-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%;
+  background: linear-gradient(135deg, #8b5cf6, #7c3aed); cursor: pointer;
+  border: 2px solid rgba(15,23,42,0.8);
+}
+
+/* Dropzone */
+.pst-dropzone {
+  border: 2px dashed rgba(71,85,105,0.4); border-radius: 14px;
+  padding: 32px; text-align: center; cursor: pointer; transition: all 0.3s;
+  background: rgba(15,23,42,0.3); min-height: 120px;
+  display: flex; align-items: center; justify-content: center;
+}
+.pst-dropzone:hover { border-color: rgba(139,92,246,0.4); background: rgba(139,92,246,0.03); }
+.pst-dropzone.dragging { border-color: rgba(139,92,246,0.6); background: rgba(139,92,246,0.08); }
+.pst-dropzone.has-file { border-style: solid; border-color: rgba(71,85,105,0.3); cursor: default; padding: 14px; min-height: auto; }
+.pst-drop-content { display: flex; flex-direction: column; align-items: center; gap: 8px; color: #64748b; }
+.pst-drop-content svg { color: #475569; }
+.pst-drop-title { font-size: 1rem; font-weight: 600; color: #94a3b8; margin: 0; }
+.pst-drop-hint { font-size: 0.8rem; color: #64748b; margin: 0; }
+.pst-file-preview { display: flex; align-items: center; gap: 14px; width: 100%; }
+.pst-file-icon { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: rgba(139,92,246,0.1); border-radius: 10px; color: #8b5cf6; flex-shrink: 0; }
+.pst-file-info { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pst-file-name { font-size: 0.85rem; font-weight: 600; color: #e2e8f0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pst-file-size { font-size: 0.75rem; color: #64748b; }
+.pst-remove-btn { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2); border-radius: 8px; color: #fca5a5; cursor: pointer; padding: 8px; }
+.pst-remove-btn:hover { background: rgba(239,68,68,0.2); }
+
+/* Signature list */
+.pst-sig-list { display: flex; flex-direction: column; gap: 8px; }
+.pst-sig-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; background: rgba(15,23,42,0.4); border-radius: 10px;
+}
+.pst-sig-item-preview { width: 60px; height: 30px; background: #fff; border-radius: 6px; overflow: hidden; flex-shrink: 0; }
+.pst-sig-item-preview img { width: 100%; height: 100%; object-fit: contain; }
+.pst-sig-item-info { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.pst-sig-item-label { font-size: 0.8rem; font-weight: 600; color: #e2e8f0; }
+.pst-sig-item-page { font-size: 0.7rem; color: #64748b; }
+.pst-sig-item-del { background: none; border: none; color: #94a3b8; cursor: pointer; padding: 4px; }
+.pst-sig-item-del:hover { color: #fca5a5; }
+
+/* Page nav */
+.pst-page-nav {
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  background: rgba(15,23,42,0.6); border: 1px solid rgba(71,85,105,0.3);
+  border-radius: 12px; padding: 10px 16px;
+}
+.pst-page-btn {
+  background: rgba(71,85,105,0.2); border: 1px solid rgba(71,85,105,0.3);
+  border-radius: 8px; color: #94a3b8; cursor: pointer; padding: 6px 10px;
+  display: flex; align-items: center;
+}
+.pst-page-btn:hover:not(:disabled) { background: rgba(71,85,105,0.4); color: #e2e8f0; }
+.pst-page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.pst-page-indicator { display: flex; align-items: center; gap: 6px; }
+.pst-current-page { font-size: 1.1rem; font-weight: 700; color: #8b5cf6; }
+.pst-page-sep { color: #475569; }
+.pst-total-pages { color: #94a3b8; }
+.pst-page-badge { background: rgba(139,92,246,0.15); color: #a78bfa; font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; margin-left: 8px; }
+
+/* Thumbnails */
+.pst-thumbnails {
+  display: flex; gap: 8px; overflow-x: auto; padding: 8px 0;
+  scrollbar-width: thin; scrollbar-color: rgba(71,85,105,0.3) transparent;
+}
+.pst-thumb {
+  flex-shrink: 0; width: 60px; cursor: pointer; border: 2px solid rgba(71,85,105,0.3);
+  border-radius: 8px; overflow: hidden; transition: all 0.2s; background: rgba(15,23,42,0.5);
+}
+.pst-thumb:hover { border-color: rgba(139,92,246,0.4); }
+.pst-thumb.active { border-color: #8b5cf6; box-shadow: 0 0 12px rgba(139,92,246,0.2); }
+.pst-thumb.has-sig { border-color: rgba(245,158,11,0.4); }
+.pst-thumb img { width: 100%; display: block; }
+.pst-thumb span { display: flex; align-items: center; justify-content: center; height: 70px; color: #64748b; font-size: 0.8rem; }
+.pst-thumb-label { display: flex; align-items: center; justify-content: center; gap: 4px; padding: 2px; font-size: 0.65rem; color: #94a3b8; }
+.pst-thumb-badge { background: #f59e0b; color: #000; border-radius: 50%; width: 14px; height: 14px; display: flex; align-items: center; justify-content: center; font-size: 0.6rem; font-weight: 700; }
+
+/* Preview */
+.pst-preview-card { position: relative; }
+.pst-preview-wrap {
+  position: relative; background: rgba(15,23,42,0.5); border-radius: 10px;
+  overflow: hidden; min-height: 300px; display: flex; align-items: center; justify-content: center;
+}
+.pst-pdf-wrapper { position: relative; display: flex; align-items: center; justify-content: center; }
+.pst-pdf-canvas { max-width: 100%; display: block; }
+.pst-no-preview { display: flex; flex-direction: column; align-items: center; gap: 12px; color: #475569; padding: 40px; }
+.pst-no-preview p { margin: 0; font-size: 0.9rem; }
+
+/* Signatures on PDF */
+.pst-sig-on-pdf {
+  position: absolute; pointer-events: auto; cursor: move;
+  border: 2px solid rgba(139,92,246,0.5); border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  transition: border-color 0.2s;
+}
+.pst-sig-on-pdf:hover { border-color: #8b5cf6; }
+.pst-sig-img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+.pst-sig-actions {
+  position: absolute; top: -28px; right: 0;
+  display: none; gap: 4px; align-items: center;
+}
+.pst-sig-on-pdf:hover .pst-sig-actions { display: flex; }
+.pst-sig-color { width: 20px; height: 20px; border: none; border-radius: 4px; cursor: pointer; padding: 0; }
+.pst-sig-delete { background: rgba(239,68,68,0.8); border: none; border-radius: 4px; color: #fff; cursor: pointer; padding: 2px; }
+.pst-resize-handle {
+  position: absolute; bottom: -3px; right: -3px; cursor: nwse-resize;
+  background: #8b5cf6; border-radius: 3px; padding: 2px; color: #fff; pointer-events: auto;
+}
+
+/* Actions */
+.pst-actions { display: flex; gap: 12px; }
+.pst-process-btn {
+  flex: 1; display: flex; align-items: center; justify-content: center; gap: 10px;
+  padding: 16px 24px; background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+  border: none; border-radius: 14px; color: #fff; font-size: 1rem; font-weight: 700;
+  cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 20px rgba(139,92,246,0.3);
+}
+.pst-process-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(139,92,246,0.4); }
+.pst-process-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.pst-spinner {
+  width: 18px; height: 18px; border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: #fff; border-radius: 50%; animation: pstSpin 0.6s linear infinite;
+}
+@keyframes pstSpin { to { transform: rotate(360deg); } }
+
+/* Result */
+.pst-result-card { border-color: rgba(16,185,129,0.3); background: rgba(16,185,129,0.05); }
+.pst-result-header { display: flex; align-items: center; gap: 10px; color: #34d399; font-weight: 700; font-size: 1rem; margin-bottom: 16px; }
+.pst-result-info { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+.pst-result-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 12px; background: rgba(15,23,42,0.4); border-radius: 8px; font-size: 0.85rem;
+}
+.pst-result-row span { color: #94a3b8; }
+.pst-result-row strong { color: #e2e8f0; }
+.pst-download-btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; padding: 14px; background: linear-gradient(135deg, #10b981, #059669);
+  border: none; border-radius: 12px; color: #fff; font-size: 0.95rem; font-weight: 700;
+  cursor: pointer; transition: all 0.2s;
+}
+.pst-download-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(16,185,129,0.3); }
+
+/* FAQ */
+.pst-faq-section {
+  background: rgba(15,23,42,0.5); border: 1px solid rgba(71,85,105,0.2);
+  border-radius: 14px; padding: 24px;
+}
+.pst-faq-section h3 { display: flex; align-items: center; gap: 8px; font-size: 1rem; color: #e2e8f0; margin-bottom: 16px; }
+.pst-faq-item { border-bottom: 1px solid rgba(71,85,105,0.2); }
+.pst-faq-item:last-child { border-bottom: none; }
+.pst-faq-q {
+  display: flex; align-items: center; justify-content: space-between; width: 100%;
+  padding: 12px 0; background: none; border: none; color: #e2e8f0;
+  font-size: 0.875rem; font-weight: 600; cursor: pointer; text-align: left; gap: 8px;
+}
+.pst-faq-q svg { color: #64748b; transition: transform 0.2s; flex-shrink: 0; }
+.pst-faq-item.open .pst-faq-q svg { transform: rotate(180deg); }
+.pst-faq-a { color: #94a3b8; font-size: 0.825rem; line-height: 1.6; padding-bottom: 12px; }
+
+/* Responsive */
+@media (max-width: 1024px) { .pst-main-layout { grid-template-columns: 1fr; } }
+@media (max-width: 768px) { .pst-card { padding: 18px; } .pst-modal { padding: 18px; } }

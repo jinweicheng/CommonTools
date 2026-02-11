@@ -91,11 +91,18 @@
     ✓ HEIC to JPG Converter for iPhone photos
     ✓ Image Watermark Tool (text/image watermarks, batch, tile/grid/border modes)
     
+    ## Image Security Tools
+    ✓ Image Encryption (AES-256-GCM, Batch Processing)
+    ✓ Image Watermark Tool (text/image watermarks, batch, tile/grid/border modes)
+    
+    ## PDF Tools
+    ✓ PDF Encrypt HTML (Self-Contained Encrypted HTML, SHA-256)
+    ✓ PDF Encrypt AES-256-GCM (Encrypt/Decrypt)
+    ✓ PDF Watermark (Text, Custom Color/Opacity/Angle, Live Preview)
+    ✓ PDF Signature (Handwritten, Multi-Page, Drag & Resize)
+    
     ## File Tools
-    ✓ PDF Encryption/Decryption with password protection
     ✓ Military-grade File Encryption (AES-256-GCM)
-    ✓ Professional PDF Watermark (text and image)
-    ✓ Electronic Signature with drag-and-drop
     ✓ ZIP Archive Compression/Decompression
     
     ## General Features
@@ -111,7 +118,9 @@
     video to GIF converter, MP4 to GIF, MOV to GIF, animated GIF maker
     video compression, image compression, batch compression
     image converter, video converter, format converter
-    PDF tools, PDF encryption, file encryption, watermark tool
+    PDF tools, PDF encryption, PDF encrypt HTML, PDF AES-256 encryption, PDF password protection
+    PDF watermark, add watermark to PDF, PDF signature, handwritten signature on PDF
+    image encryption, encrypt images online, AES-256-GCM image encryption
     electronic signature, file compression, HEIC converter, HEIF converter
     ProRAW converter, screen recording editor, live photo converter
     privacy tools, local processing, browser tools, no upload tools

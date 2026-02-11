@@ -147,6 +147,46 @@
     <changefreq>weekly</changefreq>
     <priority>0.95</priority>
   </url>
+
+  <!-- 图片加密 -->
+  <url>
+    <loc>https://commontools.top/tools/image-encryption</loc>
+    <lastmod>2026-02-11</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.95</priority>
+  </url>
+
+  <!-- PDF加密HTML（自包含HTML加密） -->
+  <url>
+    <loc>https://commontools.top/tools/pdf-encrypt-html</loc>
+    <lastmod>2026-02-11</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.95</priority>
+  </url>
+
+  <!-- PDF加密（AES-256-GCM） -->
+  <url>
+    <loc>https://commontools.top/tools/pdf-encrypt</loc>
+    <lastmod>2026-02-11</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.95</priority>
+  </url>
+
+  <!-- PDF水印 -->
+  <url>
+    <loc>https://commontools.top/tools/pdf-watermark</loc>
+    <lastmod>2026-02-11</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.95</priority>
+  </url>
+
+  <!-- PDF电子签名 -->
+  <url>
+    <loc>https://commontools.top/tools/pdf-signature</loc>
+    <lastmod>2026-02-11</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.95</priority>
+  </url>
   
   <!-- 支持页面 -->
   <url>

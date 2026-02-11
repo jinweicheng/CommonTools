@@ -23,6 +23,10 @@ import OldPhotoRestorationPage from './pages/OldPhotoRestorationPage'
 import RemovePhotosPage from './pages/RemovePhotosPage'
 import ImageWatermarkPage from './pages/ImageWatermarkPage'
 import ImageEncryptionPage from './pages/ImageEncryptionPage'
+import PDFEncryptHTMLPage from './pages/PDFEncryptHTMLPage'
+import PDFEncryptPage from './pages/PDFEncryptPage'
+import PDFWatermarkToolPage from './pages/PDFWatermarkToolPage'
+import PDFSignatureToolPage from './pages/PDFSignatureToolPage'
 import LoginPage from './pages/LoginPage'
 import SupportPage from './pages/SupportPage'
 import SupportPolicyPage from './pages/SupportPolicyPage'
@@ -104,6 +108,18 @@ function App() {
               
               {/* 图片加密 */}
               <Route path="/image-encryption" element={<ImageEncryptionPage />} />
+              
+              {/* PDF加密HTML */}
+              <Route path="/pdf-encrypt-html" element={<PDFEncryptHTMLPage />} />
+              
+              {/* PDF加密（AES-256） */}
+              <Route path="/pdf-encrypt" element={<PDFEncryptPage />} />
+              
+              {/* PDF水印 */}
+              <Route path="/pdf-watermark" element={<PDFWatermarkToolPage />} />
+              
+              {/* PDF签名 */}
+              <Route path="/pdf-signature" element={<PDFSignatureToolPage />} />
               
               {/* Support & Policy Pages */}
               <Route path="/support" element={<SupportPage />} />
