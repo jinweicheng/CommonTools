@@ -150,6 +150,18 @@
       ]
     },
     {
+      "name": "Image Watermark",
+      "short_name": "Watermark",
+      "description": "Add professional text or image watermarks to photos in batch with real-time preview",
+      "url": "/tools/image-watermark",
+      "icons": [
+        {
+          "src": "/favicon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
       "name": "Contact Us",
       "short_name": "Contact",
       "description": "Get in touch with us",

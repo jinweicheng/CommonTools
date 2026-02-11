@@ -17,7 +17,7 @@
     Libraries: FFmpeg.wasm, PDF.js, JSZip, heic2any, GIF.js, file-saver
 
 # SITE
-    Last update: 2026-01-30
+    Last update: 2026-02-11
     Language: English, Chinese (Simplified)
     Standards: HTML5, CSS3, ES2022, WebAssembly
     Components: React 18.2+, TypeScript 5.0+, Vite 4.0+
@@ -89,6 +89,7 @@
     ✓ Legacy Image Format Converter (BMP/TGA/PCX/TIFF)
     ✓ Modern Image Format Converter (PNG/JPG/WebP/AVIF/GIF)
     ✓ HEIC to JPG Converter for iPhone photos
+    ✓ Image Watermark Tool (text/image watermarks, batch, tile/grid/border modes)
     
     ## File Tools
     ✓ PDF Encryption/Decryption with password protection
@@ -114,6 +115,7 @@
     electronic signature, file compression, HEIC converter, HEIF converter
     ProRAW converter, screen recording editor, live photo converter
     privacy tools, local processing, browser tools, no upload tools
+    image watermark, add watermark to photo, batch watermark, text watermark, logo watermark
     batch processing, format conversion, image optimization
     web tools, productivity tools, utility tools, online image tools
     online video tools, online file tools, free online tools 2026
@@ -188,4 +190,4 @@
     Automated deployment via CI/CD
 
 # LAST UPDATE
-    2026-01-30
+    2026-02-11

@@ -139,6 +139,14 @@
     <changefreq>weekly</changefreq>
     <priority>0.95</priority>
   </url>
+
+  <!-- 图片水印 -->
+  <url>
+    <loc>https://commontools.top/tools/image-watermark</loc>
+    <lastmod>2026-02-11</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.95</priority>
+  </url>
   
   <!-- 支持页面 -->
   <url>
