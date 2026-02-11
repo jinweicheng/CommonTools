@@ -325,7 +325,7 @@ export default function OldPhotoRestoration() {
     const cv = opencvRef.current
     const startTime = Date.now()
     const yieldToUI = () => new Promise(resolve => setTimeout(resolve, 0))
-    const totalStages = 10
+    // const totalStages = 10
 
     const updateProgress = (progress: number, msg: string, stage?: string) => {
       setTasks(prev => prev.map(t =>
@@ -508,7 +508,7 @@ export default function OldPhotoRestoration() {
         }
 
         // 用分析结果动态调整强度
-        const adaptStrength = (base: number, factor: number) => Math.min(100, Math.max(0, base * factor))
+        // const adaptStrength = (base: number, factor: number) => Math.min(100, Math.max(0, base * factor))
 
         // ================================================================
         //  阶段 2/${totalStages}: 高级白平衡 + 色偏校正
