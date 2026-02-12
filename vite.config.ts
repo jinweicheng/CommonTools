@@ -90,7 +90,8 @@ export default defineConfig(({ mode }) => ({
     chunkSizeWarningLimit: 1000
   },
   server: {
-    port: 5181, // Updated the development server to use port 5180
+    port: 3000, // Change the port to avoid conflicts
+    strictPort: true, // Fail if the port is already in use
     host: '127.0.0.1',
     open: true,
     // 配置文件服务，确保 WASM 和 worker 文件正确提供

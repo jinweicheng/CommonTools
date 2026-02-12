@@ -23,9 +23,9 @@ export default function ImageMosaicPage() {
 
       <div className="page-container image-mosaic-page">
         <div className="page-header">
+          <span className="title-emoji">🔳</span>
           <h1 className="page-title">
-            <span className="title-emoji" style={{ filter: 'none' }}>🟩</span>
-            <span className="title-text">{t('imageMosaic.pageTitle')}</span>
+            <div className="title-text">{t('imageMosaic.pageTitle')}</div>
           </h1>
           <p className="page-subtitle">
             {t('imageMosaic.pageSubtitle')}
