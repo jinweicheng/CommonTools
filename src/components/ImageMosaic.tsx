@@ -388,6 +388,17 @@ export default function ImageMosaic() {
     })
   }, [regions, displaySize, applyMosaicEffect])
 
+  // 图片加载后，确保 canvas 尺寸正确并绘制
+  useEffect(() => {
+    if (imageLoaded && originalImageRef.current && canvasRef.current) {
+      const canvas = canvasRef.current
+      // 如果 canvas 尺寸未正确设置（首次挂载时 drawImageToCanvas 可能因 canvas 未在 DOM 中而失败）
+      if (canvas.width !== displaySize.width || canvas.height !== displaySize.height) {
+        drawImageToCanvas(originalImageRef.current, displaySize.width, displaySize.height)
+      }
+    }
+  }, [imageLoaded, displaySize, drawImageToCanvas])
+
   // 区域变化时重绘
   useEffect(() => {
     if (imageLoaded) {
