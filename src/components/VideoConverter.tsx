@@ -627,7 +627,7 @@ export default function VideoConverter() {
   }, [])
 
   // 更新任务的目标格式
-  const handleFormatChange = useCallback((taskId: string, format: VideoFormat) => {
+  const handleFormatChange = useCallback((taskId: string, format: VideoOutputFormat) => {
     setTasks(prev => prev.map(t => 
       t.id === taskId ? { ...t, targetFormat: format } : t
     ))

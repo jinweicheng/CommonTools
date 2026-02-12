@@ -41,7 +41,7 @@ interface CompressionTask {
     height: number
     duration: number
   }
-  encodedCodec?: 'H.264' | 'VP9'
+  encodedCodec?: string
   qualityWarning?: string
   error?: string
   options: CompressionOptions
@@ -1113,7 +1113,7 @@ export default function VideoCompression() {
                 compressedSize: blob.size,
                 compressedPreview,
                 compressedInfo,
-                encodedCodec: optimizedOptions.codec === 'h264' ? 'H.264' : 'VP9',
+                encodedCodec: (optimizedOptions.codec === 'h264' ? 'H.264' : 'VP9') as 'H.264' | 'VP9',
                 qualityWarning
               }
             : t
@@ -1730,21 +1730,23 @@ export default function VideoCompression() {
 
   return (
     <div className="video-compression-container">
-      {/* FFmpeg 加载提示 */}
+      {/* FFmpeg 加载提示：轻量内联提示（不全屏阻塞） */}
       {ffmpegLoading && (
-        <div className="ffmpeg-loading">
-          <div className="loading-spinner"></div>
-          <p className="loading-title">
-            {language === 'zh-CN' ? '正在加载视频处理引擎...' : 'Loading video processing engine...'}
-          </p>
-          {loadingProgress && (
-            <p className="loading-progress">{loadingProgress}</p>
-          )}
-          <p className="loading-hint">
-            {language === 'zh-CN' 
-              ? '首次加载需要下载约 30MB 文件，请耐心等待...' 
-              : 'First load requires ~30MB download, please wait...'}
-          </p>
+        <div className="ffmpeg-inline-status" role="status" aria-live="polite">
+          <div className="ffmpeg-inline-row">
+            <div className="ffmpeg-inline-spinner" aria-hidden="true" />
+            <div className="ffmpeg-inline-text">
+              <div className="ffmpeg-inline-title">
+                {language === 'zh-CN' ? '正在加载 FFmpeg 引擎（仅首次需要）' : 'Loading FFmpeg engine (first time only)'}
+              </div>
+              <div className="ffmpeg-inline-subtitle">
+                {loadingProgress || (language === 'zh-CN' ? '准备中…' : 'Preparing…')}
+              </div>
+            </div>
+          </div>
+          <div className="ffmpeg-inline-bar" aria-hidden="true">
+            <div className="ffmpeg-inline-barFill" />
+          </div>
         </div>
       )}
 
@@ -1758,7 +1760,7 @@ export default function VideoCompression() {
           ref={fileInputRef}
           type="file"
           multiple
-          accept="video/*"
+          accept="video/*,.mp4,.mov,.mkv,.avi,.webm,.flv,.m4v,.3gp"
           onChange={handleFileUpload}
           style={{ display: 'none' }}
         />
@@ -1775,7 +1777,7 @@ export default function VideoCompression() {
           {language === 'zh-CN' ? '选择文件' : 'Select Files'}
         </button>
         <p className="supported-formats">
-          {language === 'zh-CN' ? '支持格式：' : 'Supported: '}MP4, MOV, AVI, WebM, M4V
+          {language === 'zh-CN' ? '支持格式：' : 'Supported: '}MP4, MOV, MKV, AVI, WebM, FLV, M4V, 3GP
         </p>
       </div>
 
@@ -1786,7 +1788,91 @@ export default function VideoCompression() {
             <Settings size={20} />
             {language === 'zh-CN' ? '压缩设置' : 'Compression Settings'}
           </h3>
-          <div className="settings-grid">
+
+          <div className="mode-toggle">
+            <button
+              className={`mode-btn ${uiMode === 'simple' ? 'active' : ''}`}
+              onClick={() => setUiMode('simple')}
+              disabled={isProcessing}
+            >
+              {language === 'zh-CN' ? '极简模式' : 'Simple'}
+            </button>
+            <button
+              className={`mode-btn ${uiMode === 'advanced' ? 'active' : ''}`}
+              onClick={() => setUiMode('advanced')}
+              disabled={isProcessing}
+            >
+              {language === 'zh-CN' ? '高级模式' : 'Advanced'}
+            </button>
+          </div>
+
+          {uiMode === 'simple' ? (
+            <div className="simple-settings">
+              <div className="setting-item">
+                <label>{language === 'zh-CN' ? '目标大小 (MB)' : 'Target Size (MB)'}</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="500"
+                  value={simpleTargetSize}
+                  onChange={(e) => {
+                    const v = clamp(parseInt(e.target.value || '50', 10), 1, 500)
+                    setSimpleTargetSize(v)
+                    const crf = getSimpleCrf(simpleLevel)
+                    setGlobalOptions(prev => ({ ...prev, mode: 'crf', crf, codec: 'h264', resolution: 'original', targetSize: v }))
+                  }}
+                  disabled={isProcessing}
+                />
+                <span>
+                  {language === 'zh-CN'
+                    ? '这是期望值：会尽量接近且优先保证清晰。'
+                    : 'A target: we try to get close while prioritizing clarity.'}
+                </span>
+              </div>
+
+              <div className="setting-item">
+                <label>{language === 'zh-CN' ? '压缩等级' : 'Compression Level'}</label>
+                <div className="level-toggle">
+                  <button
+                    className={`level-btn ${simpleLevel === 'low' ? 'active' : ''}`}
+                    onClick={() => {
+                      setSimpleLevel('low')
+                      setGlobalOptions(prev => ({ ...prev, mode: 'crf', crf: getSimpleCrf('low'), codec: 'h264', resolution: 'original', targetSize: simpleTargetSize }))
+                    }}
+                    disabled={isProcessing}
+                  >
+                    {language === 'zh-CN' ? 'Low（更清晰）' : 'Low (Clearer)'}
+                  </button>
+                  <button
+                    className={`level-btn ${simpleLevel === 'medium' ? 'active' : ''}`}
+                    onClick={() => {
+                      setSimpleLevel('medium')
+                      setGlobalOptions(prev => ({ ...prev, mode: 'crf', crf: getSimpleCrf('medium'), codec: 'h264', resolution: 'original', targetSize: simpleTargetSize }))
+                    }}
+                    disabled={isProcessing}
+                  >
+                    {language === 'zh-CN' ? 'Medium（推荐）' : 'Medium (Recommended)'}
+                  </button>
+                  <button
+                    className={`level-btn ${simpleLevel === 'high' ? 'active' : ''}`}
+                    onClick={() => {
+                      setSimpleLevel('high')
+                      setGlobalOptions(prev => ({ ...prev, mode: 'crf', crf: getSimpleCrf('high'), codec: 'h264', resolution: 'original', targetSize: simpleTargetSize }))
+                    }}
+                    disabled={isProcessing}
+                  >
+                    {language === 'zh-CN' ? 'High（更小）' : 'High (Smaller)'}
+                  </button>
+                </div>
+                <span>
+                  {language === 'zh-CN'
+                    ? `默认推荐：H.264 + CRF ${getSimpleCrf(simpleLevel)}（黄金平衡）`
+                    : `Recommended: H.264 + CRF ${getSimpleCrf(simpleLevel)} (sweet spot)`}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="settings-grid">
             <div className="setting-item">
               <label>{language === 'zh-CN' ? '压缩模式' : 'Mode'}</label>
               <select 
@@ -1858,12 +1944,14 @@ export default function VideoCompression() {
                 <option value="vp9">VP9 ({language === 'zh-CN' ? '高效' : 'Efficient'})</option>
               </select>
             </div>
-          </div>
+            </div>
+          )}
           
           <div className="settings-advanced-toggle">
             <button 
               className="btn-link"
               onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
+              disabled={uiMode !== 'advanced'}
             >
               <Maximize2 size={16} />
               {language === 'zh-CN' ? '高级设置' : 'Advanced Settings'}
@@ -1884,7 +1972,7 @@ export default function VideoCompression() {
             </button>
           </div>
           
-          {showAdvancedSettings && (
+          {uiMode === 'advanced' && showAdvancedSettings && (
             <div className="settings-advanced">
               <div className="settings-grid">
                 <div className="setting-item">
@@ -2022,21 +2110,70 @@ export default function VideoCompression() {
                 
                 {showPreview && (
                   <div className="task-preview">
-                    {task.originalPreview && (
-                      <video 
-                        src={task.originalPreview} 
-                        controls={false}
-                        muted
-                        style={{ maxHeight: '100px' }}
-                      />
-                    )}
-                    {task.compressedPreview && (
-                      <video 
-                        src={task.compressedPreview} 
-                        controls={false}
-                        muted
-                        style={{ maxHeight: '100px' }}
-                      />
+                    {task.originalPreview && task.compressedPreview ? (
+                      <div className="compare-wrap">
+                        <div
+                          className="compare-viewport"
+                          style={{ ['--compare' as any]: `${compareValue[task.id] ?? 50}%` }}
+                        >
+                          <video
+                            ref={(el) => {
+                              previewRefs.current[task.id] = { ...(previewRefs.current[task.id] || {}), original: el }
+                            }}
+                            src={task.originalPreview}
+                            controls
+                            muted
+                            playsInline
+                            onPlay={() => {
+                              const pair = previewRefs.current[task.id]
+                              if (pair?.compressed && pair?.compressed.paused) {
+                                pair.compressed.currentTime = pair.original?.currentTime || 0
+                                pair.compressed.play().catch(() => {})
+                              }
+                            }}
+                            onPause={() => {
+                              const pair = previewRefs.current[task.id]
+                              if (pair?.compressed && !pair.compressed.paused) pair.compressed.pause()
+                            }}
+                            onTimeUpdate={() => {
+                              const pair = previewRefs.current[task.id]
+                              if (!pair?.compressed || !pair?.original) return
+                              const diff = Math.abs(pair.compressed.currentTime - pair.original.currentTime)
+                              if (diff > 0.25) pair.compressed.currentTime = pair.original.currentTime
+                            }}
+                          />
+                          <div className="compare-top" aria-hidden="true">
+                            <video
+                              ref={(el) => {
+                                previewRefs.current[task.id] = { ...(previewRefs.current[task.id] || {}), compressed: el }
+                              }}
+                              src={task.compressedPreview}
+                              muted
+                              playsInline
+                            />
+                          </div>
+                        </div>
+                        <div className="compare-slider">
+                          <span className="compare-label">{language === 'zh-CN' ? '原始' : 'Original'}</span>
+                          <input
+                            type="range"
+                            min="0"
+                            max="100"
+                            value={compareValue[task.id] ?? 50}
+                            onChange={(e) => setCompareValue(prev => ({ ...prev, [task.id]: parseInt(e.target.value, 10) }))}
+                          />
+                          <span className="compare-label">{language === 'zh-CN' ? '压缩后' : 'Compressed'}</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        {task.originalPreview && (
+                          <video src={task.originalPreview} controls muted playsInline style={{ maxHeight: '100px' }} />
+                        )}
+                        {task.compressedPreview && (
+                          <video src={task.compressedPreview} controls muted playsInline style={{ maxHeight: '100px' }} />
+                        )}
+                      </>
                     )}
                   </div>
                 )}
@@ -2065,7 +2202,31 @@ export default function VideoCompression() {
                         </span>
                       </>
                     )}
+                    {task.compressedInfo && task.videoInfo && (
+                      <>
+                        <span>•</span>
+                        <span>
+                          {language === 'zh-CN' ? '分辨率' : 'Resolution'}: {task.videoInfo.width}×{task.videoInfo.height} → {task.compressedInfo.width}×{task.compressedInfo.height}
+                        </span>
+                        <span>•</span>
+                        <span>
+                          {language === 'zh-CN' ? '时长' : 'Duration'}: {formatDuration(task.compressedInfo.duration || task.videoInfo.duration || 0)}
+                        </span>
+                      </>
+                    )}
+                    {task.encodedCodec && (
+                      <>
+                        <span>•</span>
+                        <span>{language === 'zh-CN' ? '编码' : 'Codec'}: {task.encodedCodec}</span>
+                      </>
+                    )}
                   </div>
+                  {task.status === 'completed' && task.qualityWarning && (
+                    <div className="task-warning">
+                      <AlertCircle size={14} />
+                      {task.qualityWarning}
+                    </div>
+                  )}
                   {task.status === 'processing' && (
                     <div className="task-progress">
                       <div className="progress-bar">
