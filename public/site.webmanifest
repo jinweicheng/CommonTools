@@ -184,6 +184,20 @@
           "sizes": "192x192"
         }
       ]
+    },
+    {
+      "name": "Image Mosaic",
+      "short_name": "Mosaic",
+      "description": "Add mosaic effects to images with various styles and intensity settings.",
+      "url": "/tools/image-mosaic",
+      "icons": [
+        {
+          "src": "/favicon-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png",
+          "purpose": "any maskable"
+        }
+      ]
     }
   ],
   "prefer_related_applications": false,

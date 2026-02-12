@@ -51,6 +51,9 @@ Allow: /tools/modern-image-converter
 # Live Photo Converter (GIF/MP4) - 🔥 重点功能
 Allow: /tools/live-photo
 
+# Image Mosaic - 🔥 重点功能（新增）
+Allow: /tools/image-mosaic
+
 # ===== 图片转换工具 =====
 Allow: /tools/heic-to-jpg
 Allow: /tools/legacy-image-converter
