@@ -22,6 +22,7 @@ interface CompressionOptions {
   crf: number // 18-28 (越小质量越高)
   bitrate?: number // kbps
   targetSize?: number // MB
+  turbo?: boolean
   codec: VideoCodec
   resolution?: string // 'original' | '1080p' | '720p' | '480p'
   fps?: number // 帧率限制
@@ -42,6 +43,7 @@ interface CompressionTask {
     duration: number
   }
   encodedCodec?: string
+  processingRoute?: 'remux' | 'fast-encode' | 'fallback'
   qualityWarning?: string
   error?: string
   options: CompressionOptions
@@ -66,7 +68,19 @@ interface CompressionStats {
 }
 
 const MAX_FILES = 5
-const MAX_FILE_SIZE = 500 * 1024 * 1024 // 500MB
+const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB
+const SIMPLE_MIN_VIDEO_BITRATE_KBPS_SD = 400
+const SIMPLE_MIN_VIDEO_BITRATE_KBPS_HD = 500
+const SIMPLE_MIN_VIDEO_BITRATE_KBPS_FHD_PLUS = 600
+const WEBCODECS_COMPRESSION_MAX_DURATION_SEC = 180
+const WEBCODECS_COMPRESSION_MAX_INPUT_BYTES = 220 * 1024 * 1024
+const WEBCODECS_COMPRESSION_MAX_FRAME_COUNT = 960
+const WEBCODECS_COMPRESSION_MAX_SIDE = 1280
+
+interface WebCodecsCompressionResult {
+  videoBitstream: Uint8Array
+  fps: number
+}
 
 export default function VideoCompression() {
   const { language } = useI18n()
@@ -78,6 +92,8 @@ export default function VideoCompression() {
   const [uiMode, setUiMode] = useState<UiMode>('simple')
   const [simpleTargetSize, setSimpleTargetSize] = useState<number>(50)
   const [simpleLevel, setSimpleLevel] = useState<SimpleLevel>('medium')
+  const [simpleUseWebCodecs, setSimpleUseWebCodecs] = useState<boolean>(true)
+  const [simpleTurboMode, setSimpleTurboMode] = useState<boolean>(false)
 
   const [globalOptions, setGlobalOptions] = useState<CompressionOptions>({
     mode: 'crf',
@@ -99,6 +115,9 @@ export default function VideoCompression() {
   const tasksRef = useRef<CompressionTask[]>([])
   const isProcessingRef = useRef(false)
   const isPausedRef = useRef(false)
+  const uiModeRef = useRef<UiMode>('simple')
+  const simpleUseWebCodecsRef = useRef<boolean>(true)
+  const simpleTurboModeRef = useRef<boolean>(false)
 
   // 预览对比滑块状态 + video refs（用于原始/压缩对比）
   const [compareValue, setCompareValue] = useState<Record<string, number>>({})
@@ -123,10 +142,180 @@ export default function VideoCompression() {
     })
   }
 
+  const concatUint8Arrays = (chunks: Uint8Array[]): Uint8Array => {
+    const total = chunks.reduce((sum, c) => sum + c.byteLength, 0)
+    const out = new Uint8Array(total)
+    let offset = 0
+    for (const c of chunks) {
+      out.set(c, offset)
+      offset += c.byteLength
+    }
+    return out
+  }
+
+  const canUseWebCodecsCompressionPath = useCallback(async (task: CompressionTask, options: CompressionOptions): Promise<boolean> => {
+    if (uiModeRef.current !== 'simple' || !simpleUseWebCodecsRef.current) return false
+    if (simpleTurboModeRef.current || options.turbo) return false
+    if (options.codec !== 'h264') return false
+    if (!(options.mode === 'crf' && typeof options.targetSize === 'number')) return false
+    if (!task.videoInfo || !task.videoInfo.duration || task.videoInfo.duration <= 0) return false
+    if (task.videoInfo.duration > WEBCODECS_COMPRESSION_MAX_DURATION_SEC) return false
+    if (task.originalSize > WEBCODECS_COMPRESSION_MAX_INPUT_BYTES) return false
+    if (typeof VideoEncoder === 'undefined' || typeof VideoFrame === 'undefined') return false
+
+    const width = Math.max(2, task.videoInfo.width || 1280)
+    const height = Math.max(2, task.videoInfo.height || 720)
+    const fpsCap = Math.max(12, Math.min(30, task.videoInfo.fps || 30))
+    const estimatedFrames = Math.floor(task.videoInfo.duration * fpsCap)
+
+    // 当前实现为逐帧 seek + canvas draw，长视频会明显变慢
+    if (Math.max(width, height) > WEBCODECS_COMPRESSION_MAX_SIDE) return false
+    if (estimatedFrames > WEBCODECS_COMPRESSION_MAX_FRAME_COUNT) return false
+
+    try {
+      const support = await VideoEncoder.isConfigSupported({
+        codec: 'avc1.42001f',
+        width,
+        height,
+        bitrate: 2_500_000,
+        framerate: fpsCap,
+        avc: { format: 'annexb' },
+        hardwareAcceleration: 'prefer-hardware'
+      } as VideoEncoderConfig)
+      return !!support.supported
+    } catch {
+      return false
+    }
+  }, [])
+
+  const encodeToH264WithWebCodecsCompression = useCallback(async (
+    task: CompressionTask,
+    onProgress?: (progress: number) => void,
+  ): Promise<WebCodecsCompressionResult> => {
+    const srcWidth = Math.max(2, task.videoInfo?.width || 1280)
+    const srcHeight = Math.max(2, task.videoInfo?.height || 720)
+    const maxSide = Math.max(srcWidth, srcHeight)
+    const width = maxSide >= 2160 ? 1920 : srcWidth
+    const height = maxSide >= 2160 ? Math.max(2, Math.round((srcHeight / srcWidth) * width)) : srcHeight
+    const fps = Math.max(12, Math.min(30, Math.round(task.videoInfo?.fps || 30)))
+
+    const url = URL.createObjectURL(task.file)
+    const video = document.createElement('video')
+    video.preload = 'auto'
+    video.muted = true
+    video.playsInline = true
+    video.src = url
+
+    const waitMetadata = () => new Promise<void>((resolve, reject) => {
+      const onLoaded = () => {
+        video.removeEventListener('loadedmetadata', onLoaded)
+        video.removeEventListener('error', onError)
+        resolve()
+      }
+      const onError = () => {
+        video.removeEventListener('loadedmetadata', onLoaded)
+        video.removeEventListener('error', onError)
+        reject(new Error('Failed to load source metadata for WebCodecs path'))
+      }
+      video.addEventListener('loadedmetadata', onLoaded)
+      video.addEventListener('error', onError)
+    })
+
+    const seekTo = (timeSec: number) => new Promise<void>((resolve, reject) => {
+      const onSeeked = () => {
+        video.removeEventListener('seeked', onSeeked)
+        video.removeEventListener('error', onError)
+        resolve()
+      }
+      const onError = () => {
+        video.removeEventListener('seeked', onSeeked)
+        video.removeEventListener('error', onError)
+        reject(new Error('Seek failed during WebCodecs compression path'))
+      }
+      video.addEventListener('seeked', onSeeked)
+      video.addEventListener('error', onError)
+      video.currentTime = Math.max(0, Math.min(timeSec, Math.max((task.videoInfo?.duration || 0) - 0.01, 0)))
+    })
+
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
+    if (!ctx) {
+      URL.revokeObjectURL(url)
+      throw new Error('Failed to create canvas for WebCodecs compression path')
+    }
+
+    const chunks: Uint8Array[] = []
+    const encoder = new VideoEncoder({
+      output: (chunk) => {
+        const data = new Uint8Array(chunk.byteLength)
+        chunk.copyTo(data)
+        chunks.push(data)
+      },
+      error: (e) => {
+        console.error('WebCodecs compression encoder error:', e)
+      },
+    })
+
+    try {
+      await waitMetadata()
+      const bitrate = maxSide >= 1920 ? 4_200_000 : maxSide >= 1280 ? 3_000_000 : 1_800_000
+      encoder.configure({
+        codec: 'avc1.42001f',
+        width,
+        height,
+        bitrate,
+        framerate: fps,
+        avc: { format: 'annexb' },
+        hardwareAcceleration: 'prefer-hardware'
+      })
+
+      const durationSec = Math.max(0.1, task.videoInfo?.duration || video.duration || 0.1)
+      const frameCount = Math.max(1, Math.floor(durationSec * fps))
+      for (let i = 0; i < frameCount; i++) {
+        const ts = i / fps
+        await seekTo(ts)
+        ctx.drawImage(video, 0, 0, width, height)
+        const frame = new VideoFrame(canvas, { timestamp: Math.round(ts * 1_000_000) })
+        encoder.encode(frame, { keyFrame: i % Math.max(1, fps) === 0 })
+        frame.close()
+        onProgress?.(Math.round((i / frameCount) * 100))
+      }
+
+      await encoder.flush()
+      onProgress?.(100)
+
+      if (chunks.length === 0) {
+        throw new Error('WebCodecs compression path produced empty H.264 stream')
+      }
+
+      return {
+        videoBitstream: concatUint8Arrays(chunks),
+        fps,
+      }
+    } finally {
+      try { encoder.close() } catch {}
+      URL.revokeObjectURL(url)
+    }
+  }, [])
+
   // 同步 tasks 到 tasksRef
   useEffect(() => {
     tasksRef.current = tasks
   }, [tasks])
+
+  useEffect(() => {
+    uiModeRef.current = uiMode
+  }, [uiMode])
+
+  useEffect(() => {
+    simpleUseWebCodecsRef.current = simpleUseWebCodecs
+  }, [simpleUseWebCodecs])
+
+  useEffect(() => {
+    simpleTurboModeRef.current = simpleTurboMode
+  }, [simpleTurboMode])
 
   // 清理选中列表中未完成的任务（确保状态一致性）
   useEffect(() => {
@@ -803,8 +992,8 @@ export default function VideoCompression() {
       // 检查文件大小
       if (file.size > MAX_FILE_SIZE) {
         const message = language === 'zh-CN'
-          ? `文件 ${file.name} 超过 500MB 限制`
-          : `File ${file.name} exceeds 500MB limit`
+          ? `文件 ${file.name} 超过 100MB 限制`
+          : `File ${file.name} exceeds 100MB limit`
         alert(message)
         continue
       }
@@ -920,6 +1109,9 @@ export default function VideoCompression() {
     const PROGRESS_UPDATE_INTERVAL = 200 // 每 200ms 更新一次
     let isTaskCompleted = false // 标记任务是否已完成
     let logHandler: ((payload: { message: string; type: string }) => void) | undefined
+    let usedWebCodecs = false
+    let hadFallback = false
+    let processingRoute: CompressionTask['processingRoute'] | undefined
     
     // 进度处理器（需要在 try-catch 外部定义，以便在 catch 中移除）
     const progressHandler = ({ progress: prog }: { progress: number }) => {
@@ -978,6 +1170,12 @@ export default function VideoCompression() {
       // 构建 FFmpeg 命令（使用优化后的选项）
       const args = buildFFmpegArgs(optimizedOptions, task.videoInfo, task.originalSize)
       console.log('🚀 FFmpeg args (optimized for speed):', args.join(' '))
+
+      const originalMb = task.originalSize / (1024 * 1024)
+      const shouldSkipTranscode =
+        optimizedOptions.mode === 'crf' &&
+        typeof optimizedOptions.targetSize === 'number' &&
+        optimizedOptions.targetSize >= originalMb * 0.98
       
       // 设置日志监听（捕获错误和警告）
       logHandler = ({ message, type }: { message: string; type: string }) => {
@@ -994,10 +1192,94 @@ export default function VideoCompression() {
       // 注册进度监听器
       ffmpeg.on('progress', progressHandler)
 
-      // 执行压缩
-      console.log('🔄 Executing FFmpeg compression...')
-      await ffmpeg.exec(args)
-      console.log('✅ FFmpeg execution completed')
+      // 执行压缩：simple + MP4 路径可控启用 WebCodecs，失败自动回退 FFmpeg
+      let executed = false
+      const canUseWebCodecs = await canUseWebCodecsCompressionPath(task, optimizedOptions)
+
+      if (canUseWebCodecs) {
+        try {
+          const wcStartAt = Date.now()
+          let lastWcUpdate = 0
+          const encoded = await encodeToH264WithWebCodecsCompression(task, (p) => {
+            const now = Date.now()
+            if (now - lastWcUpdate < 200) return
+            lastWcUpdate = now
+
+            const elapsedSec = Math.max(0.1, (now - wcStartAt) / 1000)
+            const ratio = Math.max(0.01, p / 100)
+            const etaSec = Math.max(0, Math.round((elapsedSec / ratio) - elapsedSec))
+            const progressValue = Math.min(72, 12 + Math.round((p / 100) * 60))
+
+            setTasks(prev => {
+              const currentTask = prev.find(t => t.id === task.id)
+              if (currentTask?.status === 'completed') return prev
+              const newTasks = prev.map(t =>
+                t.id === task.id
+                  ? { ...t, progress: progressValue, status: 'processing' as TaskStatus }
+                  : t
+              )
+              tasksRef.current = newTasks
+              return newTasks
+            })
+
+            setLoadingProgress(
+              language === 'zh-CN'
+                ? `WebCodecs 编码中... ${p}% · 预计剩余 ${etaSec}s`
+                : `WebCodecs encoding... ${p}% · ETA ${etaSec}s`
+            )
+          })
+
+          await ffmpeg.writeFile('webcodecs.h264', encoded.videoBitstream)
+
+          const audioKbps = optimizedOptions.crf >= 26 ? 64 : 96
+          await ffmpeg.exec([
+            '-i', 'input.mp4',
+            '-f', 'h264',
+            '-r', String(encoded.fps),
+            '-i', 'webcodecs.h264',
+            '-map', '1:v:0',
+            '-map', '0:a?',
+            '-c:v', 'copy',
+            '-c:a', 'aac',
+            '-b:a', `${audioKbps}k`,
+            '-movflags', '+faststart',
+            '-shortest',
+            '-y', 'output.mp4',
+          ])
+
+          usedWebCodecs = true
+          executed = true
+          processingRoute = 'fast-encode'
+          setLoadingProgress('')
+        } catch (webErr) {
+          console.warn('WebCodecs compression path failed, fallback to FFmpeg:', webErr)
+          hadFallback = true
+          try {
+            await ffmpeg.deleteFile('webcodecs.h264')
+          } catch {
+            // ignore
+          }
+        }
+      }
+
+      if (!executed) {
+        if (shouldSkipTranscode) {
+          console.log('⚡ Target size is close to original, using stream copy for speed')
+          await ffmpeg.exec([
+            '-i', 'input.mp4',
+            '-c', 'copy',
+            '-movflags', '+faststart',
+            '-y',
+            'output.mp4',
+          ])
+          processingRoute = 'remux'
+        } else {
+          console.log('🔄 Executing FFmpeg compression...')
+          await ffmpeg.exec(args)
+          processingRoute = hadFallback ? 'fallback' : 'fast-encode'
+        }
+        console.log('✅ FFmpeg execution completed')
+      }
 
       // 检查输出文件是否存在
       try {
@@ -1115,7 +1397,10 @@ export default function VideoCompression() {
                 compressedSize: blob.size,
                 compressedPreview,
                 compressedInfo,
-                encodedCodec: (optimizedOptions.codec === 'h264' ? 'H.264' : 'VP9') as 'H.264' | 'VP9',
+                encodedCodec: usedWebCodecs
+                  ? 'H.264 (WebCodecs)'
+                  : ((optimizedOptions.codec === 'h264' ? 'H.264' : 'VP9') as 'H.264' | 'VP9'),
+                processingRoute,
                 qualityWarning
               }
             : t
@@ -1128,6 +1413,7 @@ export default function VideoCompression() {
       try {
         await ffmpeg.deleteFile('input.mp4')
         await ffmpeg.deleteFile('output.mp4')
+        await ffmpeg.deleteFile('webcodecs.h264')
       } catch (err) {
         console.warn('Failed to clean up FFmpeg files:', err)
       }
@@ -1174,19 +1460,47 @@ export default function VideoCompression() {
   // 构建 FFmpeg 参数（性能优化版本）
   const buildFFmpegArgs = useCallback((options: CompressionOptions, videoInfo?: CompressionTask['videoInfo'], originalSize?: number): string[] => {
     const args = ['-i', 'input.mp4']
+    const isSimpleModePath = options.mode === 'crf' && typeof options.targetSize === 'number'
+    const turboEnabled = !!options.turbo
+    const maxSide = Math.max(videoInfo?.width || 0, videoInfo?.height || 0)
+    const isHeavyInput =
+      (originalSize || 0) > 60 * 1024 * 1024 ||
+      (videoInfo?.duration || 0) > 90 ||
+      maxSide >= 1920
+
+    const getMinVideoBitrateKbps = () => {
+      const maxSide = Math.max(videoInfo?.width || 0, videoInfo?.height || 0)
+      if (maxSide >= 1920) return SIMPLE_MIN_VIDEO_BITRATE_KBPS_FHD_PLUS
+      if (maxSide >= 1280) return SIMPLE_MIN_VIDEO_BITRATE_KBPS_HD
+      return SIMPLE_MIN_VIDEO_BITRATE_KBPS_SD
+    }
 
     // 编码器
     if (options.codec === 'h264') {
       args.push('-c:v', 'libx264')
-      // 性能优化：小文件优先速度，大文件优先压缩率
-      const isSmall = typeof originalSize === 'number' && originalSize > 0 && originalSize <= 100 * 1024 * 1024
-      args.push('-preset', isSmall ? 'veryfast' : 'faster')
+      // 商业默认快速通道：simple 路径固定 fast preset；advanced 按文件大小调优
+      if (isSimpleModePath) {
+        const simplePreset = turboEnabled
+          ? (isHeavyInput ? 'ultrafast' : 'superfast')
+          : (isHeavyInput ? 'superfast' : 'fast')
+        args.push('-preset', simplePreset)
+        if (isHeavyInput || turboEnabled) {
+          args.push('-tune', 'zerolatency')
+        }
+      } else {
+        const isSmall = typeof originalSize === 'number' && originalSize > 0 && originalSize <= 100 * 1024 * 1024
+        args.push('-preset', isSmall ? 'veryfast' : 'faster')
+      }
       // 性能优化：自动使用所有 CPU 核心
       args.push('-threads', '0')
-      // 性能优化：适中的参考帧（平衡速度和压缩率）
-      args.push('-refs', '3')
-      // 性能优化：使用 B-frames 提升压缩率
-      args.push('-bf', '3')
+      // simple 大文件路径优先速度，降低参考帧和 B 帧开销
+      if (isSimpleModePath && (isHeavyInput || turboEnabled)) {
+        args.push('-refs', '1')
+        args.push('-bf', '0')
+      } else {
+        args.push('-refs', '2')
+        args.push('-bf', '2')
+      }
     } else {
       args.push('-c:v', 'libvpx-vp9')
       // VP9 性能优化：最快速度
@@ -1207,7 +1521,9 @@ export default function VideoCompression() {
       // - 简单模式会设置 targetSize，用目标大小估算 maxrate
       // - 否则使用原始码率的 65% 作为保守上限
       if (options.targetSize && videoInfo?.duration && videoInfo.duration > 0) {
-        const targetBitrate = Math.max(200, Math.floor((options.targetSize * 8 * 1024) / videoInfo.duration))
+        const minVideoKbps = getMinVideoBitrateKbps()
+        const targetBitrate = Math.max(minVideoKbps, Math.floor((options.targetSize * 8 * 1024) / videoInfo.duration))
+        args.push('-b:v', `${targetBitrate}k`)
         args.push('-maxrate', `${targetBitrate}k`)
         args.push('-bufsize', `${targetBitrate * 2}k`)
       } else if (videoInfo && videoInfo.bitrate) {
@@ -1220,7 +1536,7 @@ export default function VideoCompression() {
       args.push('-maxrate', `${options.bitrate * 1.2}k`)
       args.push('-bufsize', `${options.bitrate * 2}k`)
     } else if (options.mode === 'size' && options.targetSize && videoInfo?.duration) {
-      const targetBitrate = Math.floor((options.targetSize * 8 * 1024) / videoInfo.duration)
+      const targetBitrate = Math.max(getMinVideoBitrateKbps(), Math.floor((options.targetSize * 8 * 1024) / videoInfo.duration))
       args.push('-b:v', `${targetBitrate}k`)
       args.push('-maxrate', `${targetBitrate * 1.2}k`)
       args.push('-bufsize', `${targetBitrate * 2}k`)
@@ -1300,14 +1616,15 @@ export default function VideoCompression() {
     // 极简模式：将“目标大小 + 压缩等级”转换为专业参数，并同步到待处理任务
     if (uiMode === 'simple') {
       const crf = getSimpleCrf(simpleLevel)
-      const targetSize = clamp(simpleTargetSize || 0, 1, 500)
+      const targetSize = clamp(simpleTargetSize || 0, 1, 100)
 
       const nextOptions: CompressionOptions = {
         mode: 'crf',
         crf,
         codec: 'h264',
         resolution: 'original',
-        targetSize
+        targetSize,
+        turbo: simpleTurboMode
       }
 
       setGlobalOptions(nextOptions)
@@ -1341,7 +1658,7 @@ export default function VideoCompression() {
     setIsProcessing(true)
     setIsPaused(false)
     processQueue()
-  }, [tasks, uiMode, simpleLevel, simpleTargetSize, loadFFmpeg, processQueue, language])
+  }, [tasks, uiMode, simpleLevel, simpleTargetSize, simpleTurboMode, loadFFmpeg, processQueue, language])
 
   // 暂停
   const handlePause = useCallback(() => {
@@ -1410,6 +1727,8 @@ export default function VideoCompression() {
               progress: 0,
               compressedSize: undefined,
               compressedPreview: undefined,
+              encodedCodec: undefined,
+              processingRoute: undefined,
               error: undefined
             }
           : t
@@ -1738,6 +2057,13 @@ export default function VideoCompression() {
     return `${mins}:${secs.toString().padStart(2, '0')}`
   }
 
+  const getRouteLabel = (route?: CompressionTask['processingRoute']) => {
+    if (!route) return '-'
+    if (route === 'remux') return 'remux'
+    if (route === 'fast-encode') return 'fast-encode'
+    return 'fallback'
+  }
+
   return (
     <div className="video-compression-container">
       {/* FFmpeg 加载提示：轻量内联提示（不全屏阻塞） */}
@@ -1777,8 +2103,8 @@ export default function VideoCompression() {
         <Upload size={48} />
         <p className="upload-text">
           {language === 'zh-CN' 
-            ? `拖拽视频到此处或点击上传（最多${MAX_FILES}个，每个≤500MB）`
-            : `Drag videos here or click to upload (max ${MAX_FILES}, ≤500MB each)`}
+            ? `拖拽视频到此处或点击上传（最多${MAX_FILES}个，每个≤100MB）`
+            : `Drag videos here or click to upload (max ${MAX_FILES}, ≤100MB each)`}
         </p>
         <button 
           className="upload-button"
@@ -1823,13 +2149,13 @@ export default function VideoCompression() {
                 <input
                   type="number"
                   min="1"
-                  max="500"
+                  max="100"
                   value={simpleTargetSize}
                   onChange={(e) => {
-                    const v = clamp(parseInt(e.target.value || '50', 10), 1, 500)
+                    const v = clamp(parseInt(e.target.value || '50', 10), 1, 100)
                     setSimpleTargetSize(v)
                     const crf = getSimpleCrf(simpleLevel)
-                    setGlobalOptions(prev => ({ ...prev, mode: 'crf', crf, codec: 'h264', resolution: 'original', targetSize: v }))
+                    setGlobalOptions(prev => ({ ...prev, mode: 'crf', crf, codec: 'h264', resolution: 'original', targetSize: v, turbo: simpleTurboMode }))
                   }}
                   disabled={isProcessing}
                 />
@@ -1847,7 +2173,7 @@ export default function VideoCompression() {
                     className={`level-btn ${simpleLevel === 'low' ? 'active' : ''}`}
                     onClick={() => {
                       setSimpleLevel('low')
-                      setGlobalOptions(prev => ({ ...prev, mode: 'crf', crf: getSimpleCrf('low'), codec: 'h264', resolution: 'original', targetSize: simpleTargetSize }))
+                      setGlobalOptions(prev => ({ ...prev, mode: 'crf', crf: getSimpleCrf('low'), codec: 'h264', resolution: 'original', targetSize: simpleTargetSize, turbo: simpleTurboMode }))
                     }}
                     disabled={isProcessing}
                   >
@@ -1857,7 +2183,7 @@ export default function VideoCompression() {
                     className={`level-btn ${simpleLevel === 'medium' ? 'active' : ''}`}
                     onClick={() => {
                       setSimpleLevel('medium')
-                      setGlobalOptions(prev => ({ ...prev, mode: 'crf', crf: getSimpleCrf('medium'), codec: 'h264', resolution: 'original', targetSize: simpleTargetSize }))
+                      setGlobalOptions(prev => ({ ...prev, mode: 'crf', crf: getSimpleCrf('medium'), codec: 'h264', resolution: 'original', targetSize: simpleTargetSize, turbo: simpleTurboMode }))
                     }}
                     disabled={isProcessing}
                   >
@@ -1867,7 +2193,7 @@ export default function VideoCompression() {
                     className={`level-btn ${simpleLevel === 'high' ? 'active' : ''}`}
                     onClick={() => {
                       setSimpleLevel('high')
-                      setGlobalOptions(prev => ({ ...prev, mode: 'crf', crf: getSimpleCrf('high'), codec: 'h264', resolution: 'original', targetSize: simpleTargetSize }))
+                      setGlobalOptions(prev => ({ ...prev, mode: 'crf', crf: getSimpleCrf('high'), codec: 'h264', resolution: 'original', targetSize: simpleTargetSize, turbo: simpleTurboMode }))
                     }}
                     disabled={isProcessing}
                   >
@@ -1879,6 +2205,46 @@ export default function VideoCompression() {
                     ? `默认推荐：H.264 + CRF ${getSimpleCrf(simpleLevel)}（黄金平衡）`
                     : `Recommended: H.264 + CRF ${getSimpleCrf(simpleLevel)} (sweet spot)`}
                 </span>
+              </div>
+
+              <div className="setting-item">
+                <label>{language === 'zh-CN' ? 'WebCodecs 硬件编码（实验）' : 'WebCodecs Hardware Encode (Experimental)'}</label>
+                <div className="checkbox-row">
+                  <input
+                    id="simple-webcodecs"
+                    type="checkbox"
+                    checked={simpleUseWebCodecs}
+                    onChange={(e) => setSimpleUseWebCodecs(e.target.checked)}
+                    disabled={isProcessing}
+                  />
+                  <label htmlFor="simple-webcodecs">
+                    {language === 'zh-CN'
+                      ? '仅在 Simple + MP4 + H.264 时启用；不满足条件自动回退 FFmpeg.wasm。'
+                      : 'Enabled only for Simple + MP4 + H.264; auto-falls back to FFmpeg.wasm if unsupported.'}
+                  </label>
+                </div>
+              </div>
+
+              <div className="setting-item">
+                <label>{language === 'zh-CN' ? 'Turbo 模式' : 'Turbo Mode'}</label>
+                <div className="checkbox-row">
+                  <input
+                    id="simple-turbo"
+                    type="checkbox"
+                    checked={simpleTurboMode}
+                    onChange={(e) => {
+                      const checked = e.target.checked
+                      setSimpleTurboMode(checked)
+                      setGlobalOptions(prev => ({ ...prev, turbo: checked }))
+                    }}
+                    disabled={isProcessing}
+                  />
+                  <label htmlFor="simple-turbo">
+                    {language === 'zh-CN'
+                      ? '更偏向速度（可能稍增输出体积）；启用后会跳过 WebCodecs 逐帧路径。'
+                      : 'Prioritize speed (may slightly increase output size); skips per-frame WebCodecs path when enabled.'}
+                  </label>
+                </div>
               </div>
             </div>
           ) : (
@@ -1933,7 +2299,7 @@ export default function VideoCompression() {
                 <input 
                   type="number" 
                   min="1"
-                  max="500"
+                  max="100"
                   placeholder="50"
                   value={globalOptions.targetSize || ''}
                   onChange={(e) => setGlobalOptions(prev => ({ 
@@ -2228,6 +2594,12 @@ export default function VideoCompression() {
                       <>
                         <span>•</span>
                         <span>{language === 'zh-CN' ? '编码' : 'Codec'}: {task.encodedCodec}</span>
+                      </>
+                    )}
+                    {task.processingRoute && (
+                      <>
+                        <span>•</span>
+                        <span>{language === 'zh-CN' ? '路径' : 'Path'}: {getRouteLabel(task.processingRoute)}</span>
                       </>
                     )}
                   </div>

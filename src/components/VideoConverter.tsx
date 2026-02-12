@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { Upload, Download, X, Video, Settings, Loader2, AlertCircle, Play, CheckCircle2, RotateCcw } from 'lucide-react'
 import { useI18n } from '../i18n/I18nContext'
 import { FFmpeg } from '@ffmpeg/ffmpeg'
@@ -12,6 +12,32 @@ const SIMPLE_TARGET_SIZE_RATIO = 0.6 // 简单模式默认目标：源文件的 
 const SIMPLE_MIN_VIDEO_BITRATE_KBPS_SD = 400
 const SIMPLE_MIN_VIDEO_BITRATE_KBPS_HD = 500
 const SIMPLE_MIN_VIDEO_BITRATE_KBPS_FHD_PLUS = 600
+const SIMPLE_FORCED_OUTPUT_FORMAT: VideoOutputFormat = 'mp4'
+const WEBCODECS_MAX_DURATION_SEC = 180
+const WEBCODECS_MAX_INPUT_BYTES = 220 * 1024 * 1024
+const WEBCODECS_MAX_FRAME_COUNT = 960
+const WEBCODECS_MAX_SIDE = 1280
+
+// 性能基准测试
+interface BenchmarkResult {
+  fileSize: number
+  duration: number
+  throughputMBps: number
+  speedFactor: number // 相对于实时播放的倍数
+}
+
+const performBenchmark = (startTime: number, endTime: number, inputSize: number, videoDuration: number): BenchmarkResult => {
+  const processingTime = (endTime - startTime) / 1000 // 秒
+  const throughputMBps = (inputSize / (1024 * 1024)) / processingTime
+  const speedFactor = videoDuration / processingTime
+  
+  return {
+    fileSize: inputSize,
+    duration: processingTime,
+    throughputMBps: Math.round(throughputMBps * 100) / 100,
+    speedFactor: Math.round(speedFactor * 100) / 100
+  }
+}
 
 type VideoOutputFormat = 'mp4' | 'webm' | 'mov' | 'mkv' | 'avi'
 type VideoInputFormat = 'mp4' | 'mov' | 'mkv' | 'webm' | 'avi' | 'flv' | 'm4v' | '3gp'
@@ -34,9 +60,25 @@ interface ConversionTask {
   result?: Blob
   resultUrl?: string
   outputSize?: number
+  processingRoute?: 'remux' | 'fast-encode' | 'fallback'
   error?: string
   startTime?: number
   endTime?: number
+}
+
+interface WebCodecsEncodeResult {
+  videoBitstream: Uint8Array
+  fps: number
+  width: number
+  height: number
+}
+
+interface WebCodecsDynamicProfile {
+  maxDurationSec: number
+  maxInputBytes: number
+  fpsCap: number
+  width: number
+  height: number
 }
 
 export default function VideoConverter() {
@@ -51,6 +93,7 @@ export default function VideoConverter() {
   // 转换设置
   const [uiMode, setUiMode] = useState<UiMode>('simple')
   const [defaultFormat, setDefaultFormat] = useState<VideoOutputFormat>('mp4')
+  const [simpleTurboMode, setSimpleTurboMode] = useState(false)
 
   // Advanced
   const [codec, setCodec] = useState<VideoCodec>('h264')
@@ -120,10 +163,329 @@ export default function VideoConverter() {
     return 'video/x-msvideo'
   }
 
+  const getRouteLabel = (route?: ConversionTask['processingRoute']): string => {
+    if (!route) return '-'
+    if (route === 'remux') return 'remux'
+    if (route === 'fast-encode') return 'fast-encode'
+    return 'fallback'
+  }
+
   const canPreview = (mime: string): boolean => {
     const v = document.createElement('video')
     return v.canPlayType(mime) !== ''
   }
+
+  const concatUint8Arrays = (chunks: Uint8Array[]): Uint8Array => {
+    const total = chunks.reduce((sum, c) => sum + c.byteLength, 0)
+    const out = new Uint8Array(total)
+    let offset = 0
+    for (const c of chunks) {
+      out.set(c, offset)
+      offset += c.byteLength
+    }
+    return out
+  }
+
+  const getWebCodecsDynamicProfile = useCallback((task: ConversionTask): WebCodecsDynamicProfile => {
+    const srcWidth = Math.max(2, task.width || 1280)
+    const srcHeight = Math.max(2, task.height || 720)
+    const maxSide = Math.max(srcWidth, srcHeight)
+    const cores = typeof navigator !== 'undefined' ? (navigator.hardwareConcurrency || 4) : 4
+    const memoryGb = typeof navigator !== 'undefined' ? ((navigator as any).deviceMemory || 4) : 4
+
+    let maxDurationSec = WEBCODECS_MAX_DURATION_SEC
+    let maxInputBytes = WEBCODECS_MAX_INPUT_BYTES
+    let fpsCap = 30
+    let width = srcWidth
+    let height = srcHeight
+
+    if (maxSide >= 2160) {
+      width = 1920
+      height = Math.max(2, Math.round((srcHeight / srcWidth) * 1920))
+      fpsCap = 24
+      maxDurationSec = 90
+      maxInputBytes = 140 * 1024 * 1024
+    } else if (maxSide >= 1440) {
+      fpsCap = 24
+      maxDurationSec = 120
+      maxInputBytes = 180 * 1024 * 1024
+    }
+
+    if (cores <= 4 || memoryGb <= 4) {
+      maxDurationSec = Math.min(maxDurationSec, 90)
+      maxInputBytes = Math.min(maxInputBytes, 120 * 1024 * 1024)
+      fpsCap = Math.min(fpsCap, 24)
+    }
+
+    if (cores >= 12 && memoryGb >= 8) {
+      maxDurationSec = Math.min(240, maxDurationSec + 30)
+      maxInputBytes = Math.min(280 * 1024 * 1024, maxInputBytes + 40 * 1024 * 1024)
+    }
+
+    return {
+      maxDurationSec,
+      maxInputBytes,
+      fpsCap,
+      width,
+      height,
+    }
+  }, [])
+
+  // 轻量 probe：在尝试 remux 前先判断容器/编码是否匹配，避免无效回退双重耗时
+  const probeVideoCodec = useCallback(async (file: File): Promise<{
+    isH264: boolean
+    isRemuxCompatible: boolean
+    hasAudio: boolean
+  }> => {
+    try {
+      const chunk = await file.slice(0, Math.min(file.size, 2 * 1024 * 1024)).arrayBuffer()
+      const bytes = new Uint8Array(chunk)
+
+      const isIsoBmff = bytes.length > 12 && String.fromCharCode(bytes[4], bytes[5], bytes[6], bytes[7]) === 'ftyp'
+      const isRiffAvi = bytes.length > 12
+        && String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3]) === 'RIFF'
+        && String.fromCharCode(bytes[8], bytes[9], bytes[10], bytes[11]) === 'AVI '
+      const isFlv = bytes.length > 3 && String.fromCharCode(bytes[0], bytes[1], bytes[2]) === 'FLV'
+      const isMatroska = bytes.length > 4 && bytes[0] === 0x1a && bytes[1] === 0x45 && bytes[2] === 0xdf && bytes[3] === 0xa3
+
+      const sampleText = new TextDecoder('latin1').decode(bytes)
+      const sampleLower = sampleText.toLowerCase()
+
+      const hasH264Marker = sampleText.includes('avcC') || sampleLower.includes('avc1') || sampleText.includes('V_MPEG4/ISO/AVC')
+      const hasH265Marker = sampleText.includes('hvcC') || sampleLower.includes('hev1') || sampleLower.includes('hvc1') || sampleText.includes('V_MPEGH/ISO/HEVC')
+      const hasVp9Marker = sampleLower.includes('vp09') || sampleText.includes('V_VP9')
+      const hasAudioMarker = sampleLower.includes('mp4a') || sampleText.includes('A_AAC') || sampleText.includes('A_OPUS') || sampleLower.includes('opus') || sampleLower.includes('mp3')
+
+      const isLikelyH264 = hasH264Marker && !hasH265Marker && !hasVp9Marker
+
+      const containerCanRemuxToMp4 = isIsoBmff || isRiffAvi || isFlv || isMatroska
+      const isRemuxCompatible = containerCanRemuxToMp4 && isLikelyH264
+
+      return {
+        isH264: isLikelyH264,
+        isRemuxCompatible,
+        hasAudio: hasAudioMarker
+      }
+    } catch (err) {
+      console.warn('Probe failed, fallback to direct encode path:', err)
+      return { isH264: false, isRemuxCompatible: false, hasAudio: false }
+    }
+  }, [])
+
+  // WebCodecs 支持检测（为后续优化做准备）
+  const detectWebCodecsSupport = useCallback(() => {
+    const support = {
+      available: typeof VideoEncoder !== 'undefined' && typeof VideoDecoder !== 'undefined',
+      hardwareAcceleration: false,
+      supportedCodecs: [] as string[]
+    }
+
+    if (support.available) {
+      console.log('🧬 WebCodecs API available - potential for hardware-accelerated encoding')
+      
+      // 检测常用编码器支持（异步，不阻塞主流程）
+      const testConfigs = [
+        { codec: 'avc1.42E01E', width: 640, height: 480 }, // H.264 Baseline
+        { codec: 'avc1.4D001E', width: 640, height: 480 }, // H.264 Main
+        { codec: 'avc1.64001E', width: 640, height: 480 }, // H.264 High
+        { codec: 'vp09.00.10.08', width: 640, height: 480 }, // VP9
+      ]
+
+      Promise.allSettled(
+        testConfigs.map(config => 
+          VideoEncoder.isConfigSupported(config).then(result => 
+            result.supported ? config.codec : null
+          ).catch(() => null)
+        )
+      ).then(results => {
+        support.supportedCodecs = results
+          .filter((r): r is PromiseFulfilledResult<string> => 
+            r.status === 'fulfilled' && r.value !== null
+          )
+          .map(r => r.value)
+        
+        support.hardwareAcceleration = support.supportedCodecs.some(codec => 
+          codec.startsWith('avc1')
+        )
+        
+        console.log('🚀 WebCodecs capabilities:', support)
+      })
+    } else {
+      console.log('❌ WebCodecs not available - using FFmpeg.wasm only')
+    }
+
+    return support
+  }, [])
+
+  const canUseWebCodecsSimplePath = useCallback(async (task: ConversionTask): Promise<boolean> => {
+    if (uiMode !== 'simple') return false
+    if (simpleTurboMode) return false
+    if (task.targetFormat !== 'mp4') return false
+    if (removeAudio) return false
+    if (scaleWidth > 0 || targetFps > 0 || videoBitrateKbps > 0) return false
+    if (!task.durationSec || task.durationSec <= 0) return false
+    if (typeof VideoEncoder === 'undefined' || typeof VideoFrame === 'undefined') return false
+
+    const profile = getWebCodecsDynamicProfile(task)
+    const maxSide = Math.max(task.width || 0, task.height || 0)
+    const estimatedFps = Math.max(12, Math.min(profile.fpsCap, Math.round((task.durationSec || 30) > 60 ? 24 : 30)))
+    const estimatedFrames = Math.floor(task.durationSec * estimatedFps)
+
+    if (task.durationSec > profile.maxDurationSec) return false
+    if (task.file.size > profile.maxInputBytes) return false
+    // 当前 WebCodecs 路径基于逐帧 seek+draw，对长视频会非常慢；仅对短视频启用
+    if (estimatedFrames > WEBCODECS_MAX_FRAME_COUNT) return false
+    if (maxSide > WEBCODECS_MAX_SIDE) return false
+
+    try {
+      const support = await VideoEncoder.isConfigSupported({
+        codec: 'avc1.42001f',
+        width: profile.width,
+        height: profile.height,
+        bitrate: 2_500_000,
+        framerate: profile.fpsCap,
+        avc: { format: 'annexb' },
+        hardwareAcceleration: 'prefer-hardware'
+      } as VideoEncoderConfig)
+      return !!support.supported
+    } catch {
+      return false
+    }
+  }, [getWebCodecsDynamicProfile, removeAudio, scaleWidth, simpleTurboMode, targetFps, uiMode, videoBitrateKbps])
+
+  const encodeToH264WithWebCodecs = useCallback(async (
+    task: ConversionTask,
+    onProgress?: (progress: number) => void,
+  ): Promise<WebCodecsEncodeResult> => {
+    const profile = getWebCodecsDynamicProfile(task)
+    const targetFps = Math.min(profile.fpsCap, Math.max(12, Math.round((task.durationSec || 30) > 60 ? 24 : 30)))
+    const width = profile.width
+    const height = profile.height
+
+    const url = URL.createObjectURL(task.file)
+    const video = document.createElement('video')
+    video.preload = 'auto'
+    video.muted = true
+    video.playsInline = true
+    video.src = url
+
+    const waitMetadata = () => new Promise<void>((resolve, reject) => {
+      const onLoaded = () => {
+        video.removeEventListener('loadedmetadata', onLoaded)
+        video.removeEventListener('error', onError)
+        resolve()
+      }
+      const onError = () => {
+        video.removeEventListener('loadedmetadata', onLoaded)
+        video.removeEventListener('error', onError)
+        reject(new Error('Failed to read source video metadata'))
+      }
+      video.addEventListener('loadedmetadata', onLoaded)
+      video.addEventListener('error', onError)
+    })
+
+    const seekTo = (timeSec: number) => new Promise<void>((resolve, reject) => {
+      const onSeeked = () => {
+        video.removeEventListener('seeked', onSeeked)
+        video.removeEventListener('error', onError)
+        resolve()
+      }
+      const onError = () => {
+        video.removeEventListener('seeked', onSeeked)
+        video.removeEventListener('error', onError)
+        reject(new Error('Seek failed during WebCodecs encode'))
+      }
+      video.addEventListener('seeked', onSeeked)
+      video.addEventListener('error', onError)
+      video.currentTime = Math.max(0, Math.min(timeSec, Math.max((task.durationSec || 0) - 0.01, 0)))
+    })
+
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
+    if (!ctx) {
+      URL.revokeObjectURL(url)
+      throw new Error('Failed to create canvas for WebCodecs path')
+    }
+
+    const chunks: Uint8Array[] = []
+    const encoder = new VideoEncoder({
+      output: (chunk) => {
+        const data = new Uint8Array(chunk.byteLength)
+        chunk.copyTo(data)
+        chunks.push(data)
+      },
+      error: (e) => {
+        console.error('WebCodecs encoder error:', e)
+      },
+    })
+
+    try {
+      await waitMetadata()
+
+      const maxSide = Math.max(width, height)
+      const targetBitrate = maxSide >= 1920 ? 4_500_000 : maxSide >= 1280 ? 3_000_000 : 1_800_000
+
+      encoder.configure({
+        codec: 'avc1.42001f',
+        width,
+        height,
+        bitrate: targetBitrate,
+        framerate: targetFps,
+        avc: { format: 'annexb' },
+        hardwareAcceleration: 'prefer-hardware'
+      })
+
+      const durationSec = Math.max(0.1, task.durationSec || video.duration || 0.1)
+      const frameCount = Math.max(1, Math.floor(durationSec * targetFps))
+
+      for (let i = 0; i < frameCount; i++) {
+        const ts = i / targetFps
+        await seekTo(ts)
+        ctx.drawImage(video, 0, 0, width, height)
+        const frame = new VideoFrame(canvas, { timestamp: Math.round(ts * 1_000_000) })
+        encoder.encode(frame, { keyFrame: i % Math.max(1, targetFps) === 0 })
+        frame.close()
+        onProgress?.(Math.round((i / frameCount) * 100))
+      }
+
+      await encoder.flush()
+      onProgress?.(100)
+
+      if (chunks.length === 0) {
+        throw new Error('WebCodecs produced empty H.264 stream')
+      }
+
+      return {
+        videoBitstream: concatUint8Arrays(chunks),
+        fps: targetFps,
+        width,
+        height,
+      }
+    } finally {
+      try { encoder.close() } catch {}
+      URL.revokeObjectURL(url)
+    }
+  }, [getWebCodecsDynamicProfile])
+
+  // 组件初始化：检测环境能力
+  useEffect(() => {
+    // 异步检测WebCodecs支持，为后续优化提供信息
+    detectWebCodecsSupport()
+  }, [detectWebCodecsSupport])
+
+  useEffect(() => {
+    if (uiMode !== 'simple') return
+    if (defaultFormat !== SIMPLE_FORCED_OUTPUT_FORMAT) {
+      setDefaultFormat(SIMPLE_FORCED_OUTPUT_FORMAT)
+    }
+    setTasks(prev => prev.map(t =>
+      t.status === 'pending'
+        ? { ...t, targetFormat: SIMPLE_FORCED_OUTPUT_FORMAT }
+        : t
+    ))
+  }, [uiMode, defaultFormat])
 
   // 加载 FFmpeg
   const loadFFmpeg = useCallback(async (): Promise<boolean> => {
@@ -140,12 +502,36 @@ export default function VideoConverter() {
         console.log('[FFmpeg]:', message)
       })
 
-      // 检查环境
-      if (typeof SharedArrayBuffer === 'undefined') {
-        throw new Error('SharedArrayBuffer not available - check server headers')
+      // 检查环境和多线程支持
+      const envCheck = () => {
+        const issues: string[] = []
+        
+        if (typeof SharedArrayBuffer === 'undefined') {
+          issues.push('SharedArrayBuffer不可用 - 需要COOP/COEP头部')
+        }
+        
+        if (!crossOriginIsolated) {
+          issues.push('未启用crossOriginIsolated - 多线程性能受限')
+        }
+        
+        if (typeof Worker === 'undefined') {
+          issues.push('Web Workers不可用')
+        }
+        
+        return issues
+      }
+      
+      const envIssues = envCheck()
+      if (envIssues.length > 0) {
+        console.warn('⚠️ Environment issues:', envIssues)
+        if (typeof SharedArrayBuffer === 'undefined') {
+          throw new Error('SharedArrayBuffer not available - check server COOP/COEP headers')
+        }
+      } else {
+        console.log('✅ Optimal environment: SharedArrayBuffer + crossOriginIsolated available')
       }
 
-      // 优先使用本地文件
+      // 优先使用本地文件（快速、减少跨域延迟）
       const isDev = import.meta.env.DEV
       let baseURL = isDev 
         ? window.location.origin 
@@ -156,36 +542,54 @@ export default function VideoConverter() {
       const localWasm = `${baseURL}/ffmpeg-core.wasm`
 
       try {
-        // 检查本地文件
-        const coreRes = await fetch(localCore, { method: 'HEAD' })
-        const wasmRes = await fetch(localWasm, { method: 'HEAD' })
+        // 智能本地文件检查：验证文件存在性和大小
+        setLoadingProgress(language === 'zh-CN' ? '检查本地FFmpeg文件...' : 'Checking local FFmpeg files...')
         
-        if (coreRes.ok && wasmRes.ok) {
-          const coreSize = parseInt(coreRes.headers.get('content-length') || '0', 10)
-          const wasmSize = parseInt(wasmRes.headers.get('content-length') || '0', 10)
+        const [coreRes, wasmRes] = await Promise.allSettled([
+          fetch(localCore, { method: 'HEAD', cache: 'force-cache' }),
+          fetch(localWasm, { method: 'HEAD', cache: 'force-cache' })
+        ])
+        
+        const coreOk = coreRes.status === 'fulfilled' && coreRes.value.ok
+        const wasmOk = wasmRes.status === 'fulfilled' && wasmRes.value.ok
+        
+        if (coreOk && wasmOk) {
+          const coreSize = coreRes.status === 'fulfilled' ? 
+            parseInt(coreRes.value.headers.get('content-length') || '0', 10) : 0
+          const wasmSize = wasmRes.status === 'fulfilled' ? 
+            parseInt(wasmRes.value.headers.get('content-length') || '0', 10) : 0
           
-          if (coreSize > 50000 && wasmSize > 20000000) {
-            setLoadingProgress(language === 'zh-CN' ? '正在加载本地文件...' : 'Loading local files...')
+          // 验证文件大小合理（防止损坏的缓存）
+          if (coreSize > 50000 && wasmSize > 15000000) { // 降低WASM最小大小阈值
+            setLoadingProgress(language === 'zh-CN' ? '使用本地FFmpeg（更快加载）...' : 'Using local FFmpeg (faster loading)...')
             
-            const coreBlobURL = await toBlobURL(localCore, 'text/javascript')
-            const wasmBlobURL = await toBlobURL(localWasm, 'application/wasm')
+            const [coreBlob, wasmBlob] = await Promise.all([
+              toBlobURL(localCore, 'text/javascript'),
+              toBlobURL(localWasm, 'application/wasm')
+            ])
             
-            setLoadingProgress(language === 'zh-CN' ? '正在初始化 FFmpeg...' : 'Initializing FFmpeg...')
+            setLoadingProgress(language === 'zh-CN' ? '正在初始化本地FFmpeg...' : 'Initializing local FFmpeg...')
             
             await ffmpeg.load({
-              coreURL: coreBlobURL,
-              wasmURL: wasmBlobURL,
+              coreURL: coreBlob,
+              wasmURL: wasmBlob,
             })
+            
+            console.log(`✅ Local FFmpeg loaded successfully (Core: ${(coreSize/1024).toFixed(0)}KB, WASM: ${(wasmSize/1024/1024).toFixed(1)}MB)`)
             
             ffmpegRef.current = ffmpeg
             setFfmpegLoaded(true)
             setFfmpegLoading(false)
             setLoadingProgress('')
             return true
+          } else {
+            console.warn(`❌ Local files too small: Core ${coreSize}B, WASM ${wasmSize}B`)
           }
+        } else {
+          console.warn(`❌ Local files not accessible: Core ${coreOk}, WASM ${wasmOk}`)
         }
       } catch (localErr) {
-        console.warn('Local file load failed, trying CDN:', localErr)
+        console.warn('Local file detection failed, using CDN fallback:', localErr)
       }
 
       // CDN 回退
@@ -254,8 +658,8 @@ export default function VideoConverter() {
       if (file.size > MAX_FILE_SIZE) {
         alert(
           language === 'zh-CN'
-            ? `文件过大 (最大500MB): ${file.name}`
-            : `File too large (max 500MB): ${file.name}`
+            ? `文件过大 (最大100MB): ${file.name}`
+            : `File too large (max 100MB): ${file.name}`
         )
         continue
       }
@@ -381,20 +785,36 @@ export default function VideoConverter() {
         args.push('-b:a', `${resolvedAudioBitrateKbps}k`)
       }
     } else {
-      // 其它容器默认 H.264 + AAC（推荐），高级可选 H.265
-      const selectedCodec = uiMode === 'advanced' ? codec : 'h264'
-      if (selectedCodec === 'h265') {
-        args.push('-c:v', 'libx265')
-      } else {
-        args.push('-c:v', 'libx264')
-      }
-      // 默认优先速度，避免本地 wasm 编码过慢
-      // 简单模式按分辨率自适应：1080p 内 veryfast，2K/4K 使用 faster
-      const simplePreset = (() => {
+      // 简单模式：强制 H.264 + fast preset（最优速度/质量平衡）
+      // 高级模式：可选择编码器
+      if (uiMode === 'simple') {
         const maxSide = Math.max(task.width || 0, task.height || 0)
-        return maxSide >= 1920 ? 'faster' : 'veryfast'
-      })()
-      args.push('-preset', uiMode === 'advanced' ? preset : simplePreset)
+        const isHeavyInput =
+          task.file.size > 60 * 1024 * 1024 ||
+          (task.durationSec || 0) > 90 ||
+          maxSide >= 1920
+
+        args.push('-c:v', 'libx264')
+        // Turbo: 牺牲少量体积比，换更极致速度
+        const simplePreset = simpleTurboMode
+          ? (isHeavyInput ? 'ultrafast' : 'superfast')
+          : (isHeavyInput ? 'superfast' : 'fast')
+        args.push('-preset', simplePreset)
+        if (isHeavyInput || simpleTurboMode) {
+          args.push('-tune', 'zerolatency')
+        }
+        args.push('-threads', '0')
+      } else {
+        // Advanced 模式保持原有选择
+        const selectedCodec = codec
+        if (selectedCodec === 'h265') {
+          args.push('-c:v', 'libx265')
+        } else {
+          args.push('-c:v', 'libx264')
+        }
+        args.push('-preset', preset)
+        args.push('-threads', '0')
+      }
 
       if (uiMode === 'advanced' && videoBitrateKbps > 0) {
         args.push('-b:v', `${videoBitrateKbps}k`)
@@ -428,7 +848,7 @@ export default function VideoConverter() {
 
     args.push(`output.${task.targetFormat}`)
     return args
-  }, [audioBitrateKbps, clamp, codec, preset, quality, removeAudio, scaleWidth, targetFps, uiMode, videoBitrateKbps])
+  }, [audioBitrateKbps, clamp, codec, preset, quality, removeAudio, scaleWidth, simpleTurboMode, targetFps, uiMode, videoBitrateKbps])
 
   // 快速路径：容器重封装（不重编码），速度通常可提升一个数量级
   const buildFastRemuxArgs = useCallback((task: ConversionTask, inputName: string): string[] => {
@@ -460,6 +880,35 @@ export default function VideoConverter() {
 
     return (remuxMatrix[task.inputFormat] || []).includes(task.targetFormat)
   }, [removeAudio, scaleWidth, targetFps, uiMode, videoBitrateKbps])
+
+  // 智能remux：先探测再决定是否尝试
+  const shouldAttemptRemux = useCallback(async (task: ConversionTask): Promise<boolean> => {
+    if (!canUseFastRemux(task)) return false
+
+    // MOV/MP4/M4V 在 simple->MP4 场景直接优先尝试 remux，失败再回退转码
+    // 这类输入在真实场景里命中率高，且失败成本低（通常很快返回）
+    if (
+      uiMode === 'simple' &&
+      task.targetFormat === 'mp4' &&
+      (task.inputFormat === 'mov' || task.inputFormat === 'mp4' || task.inputFormat === 'm4v')
+    ) {
+      return true
+    }
+    
+    try {
+      const probeResult = await probeVideoCodec(task.file)
+      
+      // 只有在探测到兼容编码时才尝试 remux
+      // simple 模式目标为商业稳定输出：仅对 H.264 走 remux
+      return probeResult.isRemuxCompatible && (
+        task.inputFormat === task.targetFormat ||
+        (probeResult.isH264 && ['mp4', 'mov', 'mkv'].includes(task.targetFormat))
+      )
+    } catch (err) {
+      console.warn('Video probe failed, skipping remux:', err)
+      return false
+    }
+  }, [canUseFastRemux, probeVideoCodec, uiMode])
 
   // 转换单个视频
   const convertVideo = useCallback(async (task: ConversionTask): Promise<void> => {
@@ -574,11 +1023,21 @@ export default function VideoConverter() {
       ffmpeg.on('progress', progressHandler)
       ffmpeg.on('log', logHandler)
 
-      // 执行转换：优先尝试快速重封装（simple 模式且无画面/音频变更）
-      const canTryFastRemux = canUseFastRemux(task)
+      // 执行转换：智能快速路径判定（先探测再尝试remux）
+      setTasks(prev => prev.map(t => 
+        t.id === task.id ? { 
+          ...t, 
+          progress: 22,
+          progressMessage: language === 'zh-CN' ? '分析视频编码...' : 'Analyzing video encoding...'
+        } : t
+      ))
+
+      const shouldRemux = await shouldAttemptRemux(task)
 
       let converted = false
-      if (canTryFastRemux) {
+      let hadFallback = false
+      let processingRoute: ConversionTask['processingRoute'] | undefined
+      if (shouldRemux) {
         setTasks(prev => prev.map(t =>
           t.id === task.id
             ? {
@@ -593,14 +1052,88 @@ export default function VideoConverter() {
           const fastArgs = buildFastRemuxArgs(task, inputName)
           await ffmpeg.exec(fastArgs)
           converted = true
+          processingRoute = 'remux'
         } catch (fastErr) {
           console.warn('Fast remux failed, fallback to re-encode:', fastErr)
+          hadFallback = true
         }
       }
 
       if (!converted) {
-        const args = buildFFmpegArgs(task, inputName)
-        await ffmpeg.exec(args)
+        let webCodecsDone = false
+        const canUseWebCodecs = await canUseWebCodecsSimplePath(task)
+
+        if (canUseWebCodecs) {
+          setTasks(prev => prev.map(t =>
+            t.id === task.id
+              ? {
+                  ...t,
+                  progress: 28,
+                  progressMessage: language === 'zh-CN'
+                    ? 'WebCodecs 硬件编码中...' 
+                    : 'WebCodecs hardware encoding...'
+                }
+              : t
+          ))
+
+          try {
+            const wcStartAt = Date.now()
+            let lastEtaUpdate = 0
+            const encoded = await encodeToH264WithWebCodecs(task, (p) => {
+              const mapped = 28 + Math.round((p / 100) * 42)
+              const now = Date.now()
+              if (now - lastEtaUpdate < 200) return
+              lastEtaUpdate = now
+              const elapsedSec = (now - wcStartAt) / 1000
+              const ratio = Math.max(0.01, p / 100)
+              const etaSec = Math.max(0, Math.round((elapsedSec / ratio) - elapsedSec))
+              updateProgress(
+                mapped,
+                language === 'zh-CN'
+                  ? `WebCodecs 编码中... ${p}% · 预计剩余 ${etaSec}s`
+                  : `WebCodecs encoding... ${p}% · ETA ${etaSec}s`
+              )
+            })
+
+            await ffmpeg.writeFile('webcodecs.h264', encoded.videoBitstream)
+
+            const audioKbps = uiMode === 'simple' ? 96 : clamp(audioBitrateKbps, 32, 320)
+            const muxArgs = [
+              '-i', inputName,
+              '-f', 'h264',
+              '-r', String(encoded.fps),
+              '-i', 'webcodecs.h264',
+              '-map', '1:v:0',
+              '-map', '0:a?',
+              '-c:v', 'copy',
+              '-c:a', 'aac',
+              '-b:a', `${Math.max(64, audioKbps)}k`,
+              '-movflags', '+faststart',
+              '-shortest',
+              `output.${task.targetFormat}`,
+            ]
+
+            await ffmpeg.exec(muxArgs)
+            webCodecsDone = true
+            converted = true
+            processingRoute = 'fast-encode'
+          } catch (webErr) {
+            console.warn('WebCodecs hybrid path failed, fallback to FFmpeg full encode:', webErr)
+            hadFallback = true
+            try {
+              await ffmpeg.deleteFile('webcodecs.h264')
+            } catch {
+              // ignore
+            }
+          }
+        }
+
+        if (!webCodecsDone) {
+          const args = buildFFmpegArgs(task, inputName)
+          await ffmpeg.exec(args)
+          converted = true
+          processingRoute = hadFallback ? 'fallback' : 'fast-encode'
+        }
       }
 
       setTasks(prev => prev.map(t => 
@@ -620,12 +1153,25 @@ export default function VideoConverter() {
       try {
         await ffmpeg.deleteFile(inputName)
         await ffmpeg.deleteFile(`output.${task.targetFormat}`)
+        await ffmpeg.deleteFile('webcodecs.h264')
       } catch (err) {
         console.warn('Failed to clean up:', err)
       }
 
       const endTime = Date.now()
       const duration = ((endTime - startTime) / 1000).toFixed(1)
+
+      // 生成基准测试数据
+      const benchmark = task.durationSec ? 
+        performBenchmark(startTime, endTime, task.file.size, task.durationSec) : null
+      
+      // 记录性能基准（帮助量化优化效果）
+      if (benchmark) {
+        const speedText = benchmark.speedFactor >= 1 
+          ? `${benchmark.speedFactor.toFixed(1)}x实时速度` 
+          : `${(1/benchmark.speedFactor).toFixed(1)}x慢于实时`
+        console.log(`📊 Conversion benchmark: ${formatFileSize(benchmark.fileSize)} in ${benchmark.duration.toFixed(1)}s (${benchmark.throughputMBps}MB/s, ${speedText})`)
+      }
 
       // 更新任务状态
       setTasks(prev => prev.map(t => 
@@ -635,11 +1181,12 @@ export default function VideoConverter() {
               status: 'completed' as const, 
               progress: 100,
               progressMessage: language === 'zh-CN' 
-                ? `完成！用时 ${duration}秒` 
-                : `Completed! ${duration}s`,
+                ? `完成！用时 ${duration}秒${benchmark ? ` (${benchmark.throughputMBps}MB/s)` : ''}` 
+                : `Completed! ${duration}s${benchmark ? ` (${benchmark.throughputMBps}MB/s)` : ''}`,
               result: blob,
               resultUrl,
               outputSize: blob.size,
+              processingRoute,
               endTime
             } 
           : t
@@ -676,7 +1223,18 @@ export default function VideoConverter() {
         // ignore
       }
     }
-  }, [buildFFmpegArgs, buildFastRemuxArgs, canUseFastRemux, loadFFmpeg, language])
+  }, [
+    audioBitrateKbps,
+    buildFFmpegArgs,
+    buildFastRemuxArgs,
+    canUseWebCodecsSimplePath,
+    clamp,
+    encodeToH264WithWebCodecs,
+    language,
+    loadFFmpeg,
+    shouldAttemptRemux,
+    uiMode,
+  ])
 
   // 处理所有任务
   const handleProcess = useCallback(async () => {
@@ -685,6 +1243,20 @@ export default function VideoConverter() {
     const pendingTasks = tasks.filter(t => t.status === 'pending')
     if (pendingTasks.length === 0) return
 
+    // 商业默认快速通道：simple 模式强制统一输出 MP4（H.264 + fast）
+    const normalizedPendingTasks = uiMode === 'simple'
+      ? pendingTasks.map(t => ({ ...t, targetFormat: SIMPLE_FORCED_OUTPUT_FORMAT }))
+      : pendingTasks
+
+    if (uiMode === 'simple') {
+      setDefaultFormat(SIMPLE_FORCED_OUTPUT_FORMAT)
+      setTasks(prev => prev.map(t =>
+        t.status === 'pending'
+          ? { ...t, targetFormat: SIMPLE_FORCED_OUTPUT_FORMAT }
+          : t
+      ))
+    }
+
     // 只在开始转换时加载 FFmpeg，加载阶段不要全屏遮罩。
     const ok = await loadFFmpeg()
     if (!ok) return
@@ -692,7 +1264,7 @@ export default function VideoConverter() {
     setIsProcessing(true)
 
     try {
-      for (const task of pendingTasks) {
+      for (const task of normalizedPendingTasks) {
         try {
           await convertVideo(task)
         } catch (err) {
@@ -702,7 +1274,7 @@ export default function VideoConverter() {
     } finally {
       setIsProcessing(false)
     }
-  }, [tasks, convertVideo])
+  }, [tasks, convertVideo, uiMode])
 
   // 下载单个文件
   const handleDownload = useCallback((task: ConversionTask) => {
@@ -755,6 +1327,7 @@ export default function VideoConverter() {
         result: undefined,
         resultUrl: undefined,
         outputSize: undefined,
+        processingRoute: undefined,
         error: undefined,
         startTime: undefined,
         endTime: undefined
@@ -865,6 +1438,11 @@ export default function VideoConverter() {
                         {language === 'zh-CN' ? '格式' : 'Format'}: {task.inputFormat.toUpperCase()}
                       </span>
                     )}
+                    {task.processingRoute && (
+                      <span className="meta-pill">
+                        {language === 'zh-CN' ? '路径' : 'Path'}: {getRouteLabel(task.processingRoute)}
+                      </span>
+                    )}
                   </div>
                   
                   {task.status === 'pending' && uiMode === 'advanced' && (
@@ -973,27 +1551,68 @@ export default function VideoConverter() {
             <select
               value={defaultFormat}
               onChange={(e) => {
-                const next = e.target.value as VideoOutputFormat
+                const next = (uiMode === 'simple'
+                  ? SIMPLE_FORCED_OUTPUT_FORMAT
+                  : e.target.value) as VideoOutputFormat
                 setDefaultFormat(next)
                 // 极简模式：同步所有待处理任务的输出格式
                 if (uiMode === 'simple') {
-                  setTasks(prev => prev.map(t => t.status === 'pending' ? { ...t, targetFormat: next } : t))
+                  setTasks(prev => prev.map(t => t.status === 'pending' ? { ...t, targetFormat: SIMPLE_FORCED_OUTPUT_FORMAT } : t))
                 }
               }}
               disabled={isProcessing}
             >
               <option value="mp4">MP4 (H.264 + AAC) ⭐</option>
-              <option value="webm">WebM (VP9 + Opus)</option>
-              <option value="mov">MOV</option>
-              <option value="mkv">MKV</option>
-              <option value="avi">AVI</option>
+              {uiMode === 'advanced' && (
+                <>
+                  <option value="webm">WebM (VP9 + Opus)</option>
+                  <option value="mov">MOV</option>
+                  <option value="mkv">MKV</option>
+                  <option value="avi">AVI</option>
+                </>
+              )}
             </select>
             <small>
               {language === 'zh-CN' 
-                ? '推荐：MP4（H.264 + AAC）兼容性最佳；极简模式默认目标大小≈源文件60%。'
-                : 'Recommended: MP4 (H.264 + AAC); Simple mode targets ~60% of source size by default.'}
+                ? (uiMode === 'simple'
+                    ? '极简模式已锁定为 MP4（H.264 + AAC）快速通道：fast preset + 最低码率保护。'
+                    : '推荐：MP4（H.264 + AAC）兼容性最佳；高级模式可切换容器与编码参数。')
+                : (uiMode === 'simple'
+                    ? 'Simple mode is locked to MP4 (H.264 + AAC) fast lane: fast preset + minimum bitrate protection.'
+                    : 'Recommended: MP4 (H.264 + AAC) for best compatibility; advanced mode supports more containers and codec tuning.')}
             </small>
           </div>
+
+          {uiMode === 'simple' && (
+            <div className="simple-info">
+              <div className="info-card">
+                <h4>{language === 'zh-CN' ? '极简模式已优化' : 'Simple Mode Optimized'}</h4>
+                <ul>
+                  <li>{language === 'zh-CN' ? '✓ 强制H.264编码（最佳兼容性）' : '✓ Enforced H.264 encoding (best compatibility)'}</li>
+                  <li>{language === 'zh-CN' ? '✓ Fast预设（速度/质量平衡）' : '✓ Fast preset (speed/quality balance)'}</li>
+                  <li>{language === 'zh-CN' ? '✓ 自动分流 WebCodecs（可用时硬件编码）' : '✓ Auto WebCodecs route (hardware encode when available)'}</li>
+                  <li>{language === 'zh-CN' ? '✓ 智能容器重封装（大幅提速）' : '✓ Smart container remuxing (major speedup)'}</li>
+                  <li>{language === 'zh-CN' ? '✓ 自动码率保护（防止过小）' : '✓ Auto bitrate protection (prevent too small)'}</li>
+                  <li>{language === 'zh-CN' ? '✓ 30fps上限（避免不必要处理）' : '✓ 30fps limit (avoid unnecessary processing)'}</li>
+                </ul>
+
+                <div className="checkbox-row" style={{ marginTop: 10 }}>
+                  <input
+                    id="simple-turbo-mode"
+                    type="checkbox"
+                    checked={simpleTurboMode}
+                    onChange={(e) => setSimpleTurboMode(e.target.checked)}
+                    disabled={isProcessing}
+                  />
+                  <label htmlFor="simple-turbo-mode" className="checkbox-label">
+                    {language === 'zh-CN'
+                      ? 'Turbo 开关：更偏向速度（可能稍增输出体积）'
+                      : 'Turbo mode: prioritize speed (may slightly increase output size)'}
+                  </label>
+                </div>
+              </div>
+            </div>
+          )}
 
           {uiMode === 'advanced' && (
             <div className="settings-grid">
@@ -1213,6 +1832,11 @@ export default function VideoConverter() {
                                 ? `增大 ${((task.outputSize / task.file.size - 1) * 100).toFixed(1)}%`
                                 : `Increased ${((task.outputSize / task.file.size - 1) * 100).toFixed(1)}%`)
                           }
+                        </span>
+                      )}
+                      {task.processingRoute && (
+                        <span className="stat-item">
+                          <strong>{language === 'zh-CN' ? '路径' : 'Path'}:</strong> {getRouteLabel(task.processingRoute)}
                         </span>
                       )}
                     </div>

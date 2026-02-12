@@ -9,6 +9,12 @@ import './VideoToGif.css'
 const MAX_FILES = 5
 const MAX_FILE_SIZE = 500 * 1024 * 1024 // 500MB
 
+interface GifBenchmarkResult {
+  inputMB: number
+  seconds: number
+  throughputMBps: number
+}
+
 interface ConversionTask {
   id: string
   file: File
@@ -96,7 +102,10 @@ export default function VideoToGif() {
 
       // 检查环境
       if (typeof SharedArrayBuffer === 'undefined') {
-        throw new Error('SharedArrayBuffer not available - check server headers')
+        throw new Error('SharedArrayBuffer not available - check server COOP/COEP headers')
+      }
+      if (!window.crossOriginIsolated) {
+        console.warn('[VideoToGif] crossOriginIsolated=false, FFmpeg multithreading may be limited')
       }
 
       // 优先使用本地文件
@@ -110,27 +119,38 @@ export default function VideoToGif() {
       const localWasm = `${baseURL}/ffmpeg-core.wasm`
 
       try {
-        // 检查本地文件
-        const coreRes = await fetch(localCore, { method: 'HEAD' })
-        const wasmRes = await fetch(localWasm, { method: 'HEAD' })
-        
-        if (coreRes.ok && wasmRes.ok) {
-          const coreSize = parseInt(coreRes.headers.get('content-length') || '0', 10)
-          const wasmSize = parseInt(wasmRes.headers.get('content-length') || '0', 10)
-          
-          if (coreSize > 50000 && wasmSize > 20000000) {
+        // 检查本地文件（并行）
+        const [coreRes, wasmRes] = await Promise.allSettled([
+          fetch(localCore, { method: 'HEAD', cache: 'force-cache' }),
+          fetch(localWasm, { method: 'HEAD', cache: 'force-cache' })
+        ])
+
+        const coreOk = coreRes.status === 'fulfilled' && coreRes.value.ok
+        const wasmOk = wasmRes.status === 'fulfilled' && wasmRes.value.ok
+
+        if (coreOk && wasmOk) {
+          const coreSize = coreRes.status === 'fulfilled'
+            ? parseInt(coreRes.value.headers.get('content-length') || '0', 10)
+            : 0
+          const wasmSize = wasmRes.status === 'fulfilled'
+            ? parseInt(wasmRes.value.headers.get('content-length') || '0', 10)
+            : 0
+
+          if (coreSize > 50000 && wasmSize > 15000000) {
             setLoadingProgress(language === 'zh-CN' ? '正在加载本地文件...' : 'Loading local files...')
-            
-            const coreBlobURL = await toBlobURL(localCore, 'text/javascript')
-            const wasmBlobURL = await toBlobURL(localWasm, 'application/wasm')
-            
+
+            const [coreBlobURL, wasmBlobURL] = await Promise.all([
+              toBlobURL(localCore, 'text/javascript'),
+              toBlobURL(localWasm, 'application/wasm')
+            ])
+
             setLoadingProgress(language === 'zh-CN' ? '正在初始化 FFmpeg...' : 'Initializing FFmpeg...')
-            
+
             await ffmpeg.load({
               coreURL: coreBlobURL,
               wasmURL: wasmBlobURL,
             })
-            
+
             ffmpegRef.current = ffmpeg
             setFfmpegLoaded(true)
             setFfmpegLoading(false)
@@ -350,6 +370,7 @@ export default function VideoToGif() {
         '-ss', ssArg,
         '-t', tArg,
         '-i', inputName,
+        '-threads', '0',
         '-vf', `fps=${gifFps},scale=${gifWidth}:-1:flags=lanczos,palettegen=stats_mode=diff`,
         '-y',
         'palette.png'
@@ -368,6 +389,7 @@ export default function VideoToGif() {
         '-t', tArg,
         '-i', inputName,
         '-i', 'palette.png',
+        '-threads', '0',
         '-lavfi', `fps=${gifFps},scale=${gifWidth}:-1:flags=lanczos[x];[x][1:v]paletteuse=dither=bayer:bayer_scale=${gifQuality}:diff_mode=rectangle`,
         '-loop', loopArg,
         '-y',
@@ -402,6 +424,12 @@ export default function VideoToGif() {
 
       const endTime = Date.now()
       const duration = ((endTime - startTime) / 1000).toFixed(1)
+      const benchmark: GifBenchmarkResult = {
+        inputMB: Math.round((task.file.size / (1024 * 1024)) * 10) / 10,
+        seconds: Number(duration),
+        throughputMBps: Math.round((task.file.size / (1024 * 1024) / Math.max(Number(duration), 0.1)) * 100) / 100
+      }
+      console.log('[VideoToGif] benchmark:', benchmark)
 
       // 更新任务状态
       setTasks(prev => prev.map(t => 

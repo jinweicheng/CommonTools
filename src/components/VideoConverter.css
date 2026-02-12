@@ -577,6 +577,49 @@
   margin-top: 0.5rem;
 }
 
+/* Simple mode info card */
+.simple-info {
+  margin-top: 1rem;
+}
+
+.info-card {
+  padding: 1rem;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(5, 150, 105, 0.05) 100%);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: 12px;
+  backdrop-filter: blur(8px);
+}
+
+.info-card h4 {
+  color: #10b981;
+  margin: 0 0 0.75rem 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.info-card ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.info-card li {
+  color: #cbd5e1;
+  font-size: 0.85rem;
+  margin-bottom: 0.4rem;
+  padding-left: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.info-card li:last-child {
+  margin-bottom: 0;
+}
+
 .action-buttons {
   display: flex;
   gap: 1rem;

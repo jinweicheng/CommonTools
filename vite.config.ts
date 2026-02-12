@@ -103,6 +103,7 @@ export default defineConfig(({ mode }) => ({
       'Cross-Origin-Opener-Policy': 'same-origin',
       // credentialless: 启用 SharedArrayBuffer 的同时允许跨域资源（AI 模型 CDN）
       'Cross-Origin-Embedder-Policy': 'credentialless',
+      // 'Cross-Origin-Embedder-Policy': 'require-corp',
       'Cross-Origin-Resource-Policy': 'cross-origin'
     },
     // 注意：Vite 默认支持 SPA 路由，无需额外配置
@@ -122,6 +123,7 @@ export default defineConfig(({ mode }) => ({
     // 添加响应头以支持 FFmpeg.wasm（SharedArrayBuffer）
     headers: {
       'Cross-Origin-Opener-Policy': 'same-origin',
+      // 'Cross-Origin-Embedder-Policy': 'require-corp',
       'Cross-Origin-Embedder-Policy': 'credentialless'
     }
     // 注意：Vite 预览模式默认支持 SPA 路由
