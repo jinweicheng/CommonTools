@@ -6,10 +6,10 @@ import './PageStyles.css'
 export default function ModernImageConverterPage() {
   const { language } = useI18n()
 
-  const title = language === 'zh-CN' ? '现代图片格式转换 - AVIF/WebP/PNG/JPG 互转' : 'Modern Image Converter - AVIF/WebP/PNG/JPG Conversion'
+  const title = language === 'zh-CN' ? '图片格式转换 - AVIF/WebP/PNG/JPG/GIF/BMP/TIFF 互转' : 'Image Converter - AVIF/WebP/PNG/JPG/GIF/BMP/TIFF Conversion'
   const description = language === 'zh-CN' 
-    ? '免费在线 AVIF / WebP / PNG / JPG 高质量批量转换工具，支持实时预览对比和质量调节，完全在浏览器本地处理，保护您的隐私。'
-    : 'Free online AVIF / WebP / PNG / JPG high-quality batch conversion tool with real-time preview comparison and quality control, all processed locally in browser, protecting your privacy.'
+    ? '免费在线图片格式转换工具，支持 AVIF / WebP / PNG / JPG / GIF / BMP / TIFF 等格式高质量批量互转，实时预览对比和质量调节，完全在浏览器本地处理，保护您的隐私。'
+    : 'Free online image format converter supporting AVIF / WebP / PNG / JPG / GIF / BMP / TIFF high-quality batch conversion with real-time preview comparison and quality control, all processed locally in browser, protecting your privacy.'
 
   return (
     <>
@@ -18,7 +18,7 @@ export default function ModernImageConverterPage() {
         <meta name="description" content={description} />
         <meta property="og:title" content={title} />
         <meta property="og:description" content={description} />
-        <meta name="keywords" content="AVIF转换, WebP转换, PNG转JPG, 图片格式转换, 在线工具, 本地处理, 质量对比" />
+        <meta name="keywords" content="AVIF转换, WebP转换, PNG转JPG, GIF转换, BMP转换, TIFF转换, 图片格式转换, 在线工具, 本地处理, 质量对比, image converter, format conversion" />
         <link rel="canonical" href="https://commontools.top/tools/modern-image-converter" />
         <meta property="og:url" content="https://commontools.top/tools/modern-image-converter" />
       </Helmet>

@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { Upload, Download, X, ImageIcon, AlertCircle, CheckCircle2, FileImage, Layers, SlidersHorizontal, Package } from 'lucide-react'
+import { Upload, Download, X, ImageIcon, AlertCircle, CheckCircle2, FileImage, Layers, SlidersHorizontal, Package, Eye } from 'lucide-react'
 import { useI18n } from '../i18n/I18nContext'
 import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
@@ -29,6 +29,8 @@ interface ImageFile {
 
 type OutputFormat = 'avif' | 'webp' | 'png' | 'jpg'
 
+const MAX_FILES = 50
+
 export default function ModernImageConverter() {
   const { language } = useI18n()
   const [uploadedFiles, setUploadedFiles] = useState<ImageFile[]>([])
@@ -43,6 +45,7 @@ export default function ModernImageConverter() {
   const [comparisonIndex, setComparisonIndex] = useState<number>(-1)
   const [sliderPosition, setSliderPosition] = useState(50)
   const [isSliderDragging, setIsSliderDragging] = useState(false)
+  const [previewIndex, setPreviewIndex] = useState<number>(-1)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const comparisonCanvasRef = useRef<HTMLCanvasElement>(null)
   const sliderRef = useRef<HTMLDivElement>(null)
@@ -74,6 +77,37 @@ export default function ModernImageConverter() {
     // JPEG: FF D8 FF
     if (bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF) {
       return 'JPG'
+    }
+
+    // GIF: 47 49 46 38
+    if (bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x38) {
+      return 'GIF'
+    }
+
+    // BMP: 42 4D
+    if (bytes[0] === 0x42 && bytes[1] === 0x4D) {
+      return 'BMP'
+    }
+
+    // TIFF: 49 49 2A 00 (little-endian) or 4D 4D 00 2A (big-endian)
+    if ((bytes[0] === 0x49 && bytes[1] === 0x49 && bytes[2] === 0x2A && bytes[3] === 0x00) ||
+        (bytes[0] === 0x4D && bytes[1] === 0x4D && bytes[2] === 0x00 && bytes[3] === 0x2A)) {
+      return 'TIFF'
+    }
+
+    // Fallback: 通过文件扩展名检测
+    const ext = file.name.toLowerCase().split('.').pop() || ''
+    const extMap: Record<string, string> = {
+      'jpg': 'JPG', 'jpeg': 'JPG', 'png': 'PNG', 'webp': 'WebP',
+      'avif': 'AVIF', 'gif': 'GIF', 'bmp': 'BMP', 'tiff': 'TIFF', 'tif': 'TIFF',
+      'heic': 'HEIC', 'heif': 'HEIF', 'svg': 'SVG'
+    }
+    if (extMap[ext]) return extMap[ext]
+
+    // 最后使用 MIME 类型
+    if (file.type.startsWith('image/')) {
+      const mimeFormat = file.type.split('/')[1]?.toUpperCase()
+      if (mimeFormat) return mimeFormat === 'JPEG' ? 'JPG' : mimeFormat
     }
     
     return 'UNKNOWN'
@@ -209,14 +243,33 @@ export default function ModernImageConverter() {
   // 处理文件列表
   const processFiles = useCallback(async (files: FileList | File[]) => {
     setError('')
-    const newFiles: ImageFile[] = []
+    const fileArray = Array.from(files)
 
-    for (const file of Array.from(files)) {
+    // 文件数量限制
+    if (uploadedFiles.length + fileArray.length > MAX_FILES) {
+      setError(language === 'zh-CN'
+        ? `最多支持 ${MAX_FILES} 个文件，当前已有 ${uploadedFiles.length} 个`
+        : `Maximum ${MAX_FILES} files allowed. You have ${uploadedFiles.length} file(s).`)
+      return
+    }
+
+    const newFiles: ImageFile[] = []
+    const errors: string[] = []
+
+    for (const file of fileArray) {
       try {
+        // 文件大小限制 (100MB)
+        if (file.size > 100 * 1024 * 1024) {
+          errors.push(language === 'zh-CN'
+            ? `文件过大 (>100MB): ${file.name}`
+            : `File too large (>100MB): ${file.name}`)
+          continue
+        }
+
         const format = await detectFormat(file)
         
         if (format === 'UNKNOWN') {
-          setError(language === 'zh-CN' 
+          errors.push(language === 'zh-CN' 
             ? `不支持的文件格式: ${file.name}` 
             : `Unsupported format: ${file.name}`)
           continue
@@ -243,14 +296,20 @@ export default function ModernImageConverter() {
         })
       } catch (err) {
         console.error('File processing error:', err)
-        setError(language === 'zh-CN' 
+        errors.push(language === 'zh-CN' 
           ? `文件处理失败: ${file.name}` 
           : `Failed to process: ${file.name}`)
       }
     }
 
-    setUploadedFiles(prev => [...prev, ...newFiles])
-  }, [detectFormat, language])
+    if (errors.length > 0) {
+      setError(errors.join('; '))
+    }
+
+    if (newFiles.length > 0) {
+      setUploadedFiles(prev => [...prev, ...newFiles])
+    }
+  }, [detectFormat, language, uploadedFiles.length])
 
   // 文件上传处理
   const handleFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -297,8 +356,8 @@ export default function ModernImageConverter() {
 
     if (imageFiles.length === 0) {
       setError(language === 'zh-CN' 
-        ? '请拖放图片文件（AVIF, WebP, PNG, JPG）' 
-        : 'Please drop image files (AVIF, WebP, PNG, JPG)')
+        ? '请拖放图片文件（AVIF, WebP, PNG, JPG, GIF, BMP, TIFF 等）' 
+        : 'Please drop image files (AVIF, WebP, PNG, JPG, GIF, BMP, TIFF, etc.)')
       return
     }
 
@@ -324,8 +383,8 @@ export default function ModernImageConverter() {
             throw new Error('Failed to get canvas context')
           }
 
-          // 处理 PNG→JPG 的 Alpha 通道
-          if ((format === 'PNG' && outputFormat === 'jpg')) {
+          // 处理 Alpha 通道：PNG/WebP/AVIF/GIF 可能有透明区域，转 JPG 时需要白色背景
+          if (outputFormat === 'jpg') {
             ctx.fillStyle = '#FFFFFF'
             ctx.fillRect(0, 0, canvas.width, canvas.height)
           }
@@ -353,6 +412,7 @@ export default function ModernImageConverter() {
 
               const name = file.name.replace(/\.[^.]+$/, `.${outputFormat}`)
               const url = URL.createObjectURL(blob)
+              // 正数=减小了, 负数=增大了
               const compressionRatio = ((1 - blob.size / file.size) * 100)
 
               resolve({
@@ -365,7 +425,7 @@ export default function ModernImageConverter() {
                 width: img.width,
                 height: img.height,
                 originalSize: file.size,
-                compressionRatio: compressionRatio > 0 ? compressionRatio : 0
+                compressionRatio
               })
             },
             mimeType,
@@ -418,7 +478,23 @@ export default function ModernImageConverter() {
     setError('')
     setSuccessMessage('')
     setProgress(0)
+
+    // 释放旧的转换结果 URL，防止内存泄漏
+    convertedImages.forEach(img => URL.revokeObjectURL(img.url))
     setConvertedImages([])
+
+    // 同格式转换提示
+    const sameFormatFiles = uploadedFiles.filter(f => 
+      f.format.toLowerCase() === outputFormat.toLowerCase() ||
+      (f.format === 'JPG' && outputFormat === 'jpg') ||
+      (f.format === 'JPEG' && outputFormat === 'jpg')
+    )
+    if (sameFormatFiles.length > 0 && sameFormatFiles.length === uploadedFiles.length) {
+      const warnMsg = language === 'zh-CN'
+        ? `提示：所有文件已经是 ${outputFormat.toUpperCase()} 格式，转换可能不会减小文件大小。`
+        : `Note: All files are already in ${outputFormat.toUpperCase()} format. Conversion may not reduce file size.`
+      setError(warnMsg)
+    }
 
     const results: ConvertedImage[] = []
 
@@ -443,9 +519,17 @@ export default function ModernImageConverter() {
       setConvertedImages(results)
       
       if (results.length > 0) {
-        setSuccessMessage(language === 'zh-CN' 
-          ? `成功转换 ${results.length} 个文件！` 
-          : `Successfully converted ${results.length} file(s)!`)
+        // 计算总体统计
+        const totalOriginal = results.reduce((sum, r) => sum + r.originalSize, 0)
+        const totalConverted = results.reduce((sum, r) => sum + r.size, 0)
+        const totalSaved = totalOriginal - totalConverted
+        const savedPercent = totalOriginal > 0 ? ((totalSaved / totalOriginal) * 100).toFixed(1) : '0'
+        
+        const failCount = uploadedFiles.length - results.length
+        const statsMsg = language === 'zh-CN'
+          ? `成功转换 ${results.length} 个文件${failCount > 0 ? `，${failCount} 个失败` : ''}！总计${totalSaved > 0 ? '节省' : '增加'} ${formatFileSize(Math.abs(totalSaved))}（${totalSaved > 0 ? '-' : '+'}${Math.abs(Number(savedPercent))}%）`
+          : `Successfully converted ${results.length} file(s)${failCount > 0 ? `, ${failCount} failed` : ''}! Total ${totalSaved > 0 ? 'saved' : 'increased'}: ${formatFileSize(Math.abs(totalSaved))} (${totalSaved > 0 ? '-' : '+'}${Math.abs(Number(savedPercent))}%)`
+        setSuccessMessage(statsMsg)
       }
     } catch (err) {
       console.error('Batch conversion error:', err)
@@ -488,26 +572,20 @@ export default function ModernImageConverter() {
   // 绘制对比画布
   useEffect(() => {
     if (!comparisonMode || comparisonIndex === -1 || !comparisonCanvasRef.current) {
-      console.log('Comparison not ready:', { comparisonMode, comparisonIndex, hasCanvas: !!comparisonCanvasRef.current })
       return
     }
 
     const canvas = comparisonCanvasRef.current
     const ctx = canvas.getContext('2d', { alpha: false })
     if (!ctx) {
-      console.error('Failed to get canvas context')
       return
     }
 
     const original = uploadedFiles[comparisonIndex]
     const converted = convertedImages[comparisonIndex]
     if (!original || !converted) {
-      console.error('Missing images:', { original: !!original, converted: !!converted })
       return
     }
-
-    console.log('Drawing comparison for index:', comparisonIndex)
-    console.log('Slider position:', sliderPosition)
 
     const loadImages = async () => {
       try {
@@ -519,18 +597,12 @@ export default function ModernImageConverter() {
 
         await Promise.all([
           new Promise<void>((resolve, reject) => {
-            leftImg.onload = () => {
-              console.log('Left image loaded:', leftImg.width, 'x', leftImg.height)
-              resolve()
-            }
+            leftImg.onload = () => resolve()
             leftImg.onerror = () => reject(new Error('Failed to load left image'))
             leftImg.src = original.preview
           }),
           new Promise<void>((resolve, reject) => {
-            rightImg.onload = () => {
-              console.log('Right image loaded:', rightImg.width, 'x', rightImg.height)
-              resolve()
-            }
+            rightImg.onload = () => resolve()
             rightImg.onerror = () => reject(new Error('Failed to load right image'))
             rightImg.src = converted.url
           })
@@ -539,14 +611,12 @@ export default function ModernImageConverter() {
         // 设置 canvas 尺寸
         canvas.width = leftImg.width
         canvas.height = leftImg.height
-        console.log('Canvas size set to:', canvas.width, 'x', canvas.height)
 
         // 清空画布
         ctx.clearRect(0, 0, canvas.width, canvas.height)
 
         // 计算分割线位置
         const sliderX = (canvas.width * sliderPosition) / 100
-        console.log('Slider X position:', sliderX)
 
         // 绘制原图（左侧）
         ctx.save()
@@ -572,9 +642,8 @@ export default function ModernImageConverter() {
         ctx.lineTo(sliderX, canvas.height)
         ctx.stroke()
 
-        console.log('Comparison drawn successfully')
-      } catch (err) {
-        console.error('Error loading images:', err)
+      } catch {
+        // 图片加载失败时静默处理
       }
     }
 
@@ -601,29 +670,38 @@ export default function ModernImageConverter() {
     setIsSliderDragging(false)
   }, [])
 
-  // 全局鼠标移动监听
+  // 全局鼠标/触摸移动监听
   useEffect(() => {
     if (!isSliderDragging) return
 
-    const handleMouseMove = (e: MouseEvent) => {
+    const handleMove = (clientX: number) => {
       if (!sliderRef.current) return
-      
       const rect = sliderRef.current.getBoundingClientRect()
-      const x = e.clientX - rect.left
+      const x = clientX - rect.left
       const percentage = Math.max(0, Math.min(100, (x / rect.width) * 100))
       setSliderPosition(percentage)
     }
 
-    const handleMouseUp = () => {
+    const handleMouseMove = (e: MouseEvent) => handleMove(e.clientX)
+    const handleTouchMove = (e: TouchEvent) => {
+      e.preventDefault()
+      if (e.touches.length > 0) handleMove(e.touches[0].clientX)
+    }
+
+    const handleEnd = () => {
       setIsSliderDragging(false)
     }
 
     document.addEventListener('mousemove', handleMouseMove)
-    document.addEventListener('mouseup', handleMouseUp)
+    document.addEventListener('mouseup', handleEnd)
+    document.addEventListener('touchmove', handleTouchMove, { passive: false })
+    document.addEventListener('touchend', handleEnd)
 
     return () => {
       document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
+      document.removeEventListener('mouseup', handleEnd)
+      document.removeEventListener('touchmove', handleTouchMove)
+      document.removeEventListener('touchend', handleEnd)
     }
   }, [isSliderDragging])
 
@@ -662,12 +740,12 @@ export default function ModernImageConverter() {
         <div className="header-content">
           <h1 className="tool-title">
             <Layers />
-            {language === 'zh-CN' ? '现代图片格式转换' : 'Modern Image Converter'}
+            {language === 'zh-CN' ? '图片格式转换' : 'Image Format Converter'}
           </h1>
           <p className="tool-description">
             {language === 'zh-CN' 
-              ? 'AVIF / WebP ↔ PNG / JPG 高质量批量转换，支持实时预览对比和质量调节，完全在本地处理。' 
-              : 'AVIF / WebP ↔ PNG / JPG high-quality batch conversion with real-time preview comparison and quality control, all processed locally.'}
+              ? '支持 AVIF / WebP / PNG / JPG / GIF / BMP / TIFF 等格式互转，实时预览对比，质量可调，完全本地处理。' 
+              : 'Convert between AVIF / WebP / PNG / JPG / GIF / BMP / TIFF with real-time preview comparison and quality control, all processed locally.'}
           </p>
         </div>
       </div>
@@ -677,7 +755,7 @@ export default function ModernImageConverter() {
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/avif,image/webp,image/png,image/jpeg"
+          accept="image/avif,image/webp,image/png,image/jpeg,image/gif,image/bmp,image/tiff,image/heic,.avif,.webp,.png,.jpg,.jpeg,.gif,.bmp,.tiff,.tif,.heic,.heif"
           multiple
           onChange={handleFileUpload}
           style={{ display: 'none' }}
@@ -694,21 +772,21 @@ export default function ModernImageConverter() {
           style={{ cursor: isConverting ? 'not-allowed' : 'pointer' }}
         >
           <Upload />
-          <span>{language === 'zh-CN' ? '上传现代格式图片' : 'Upload Modern Format Images'}</span>
+          <span>{language === 'zh-CN' ? '上传图片' : 'Upload Images'}</span>
           <small>
             {isDragging 
               ? (language === 'zh-CN' ? '松开鼠标上传文件' : 'Drop files here')
               : (language === 'zh-CN' ? '点击上传或拖拽文件到这里' : 'Click to upload or drag & drop files here')}
           </small>
-          <small>{language === 'zh-CN' ? '支持 AVIF, WebP, PNG, JPG' : 'Supports AVIF, WebP, PNG, JPG'}</small>
+          <small>{language === 'zh-CN' ? `支持 AVIF, WebP, PNG, JPG, GIF, BMP, TIFF（最多 ${MAX_FILES} 个文件）` : `Supports AVIF, WebP, PNG, JPG, GIF, BMP, TIFF (max ${MAX_FILES} files)`}</small>
         </div>
 
         {uploadedFiles.length > 0 && (
           <div className="file-list">
             {uploadedFiles.map((file, index) => (
               <div key={index} className="file-item">
-                <div className="file-icon">
-                  <FileImage />
+                <div className="file-thumbnail">
+                  <img src={file.preview} alt={file.file.name} />
                   <span className="format-badge">{file.format}</span>
                 </div>
                 <div className="file-info">
@@ -733,102 +811,98 @@ export default function ModernImageConverter() {
         )}
       </div>
 
-      {/* 设置区域 */}
+      {/* 设置区域 - 紧凑布局 */}
       {uploadedFiles.length > 0 && (
         <div className="settings-section">
-          <h3>{language === 'zh-CN' ? '转换设置' : 'Conversion Settings'}</h3>
-          
-          <div className="setting-group">
-            <label>{language === 'zh-CN' ? '输出格式' : 'Output Format'}</label>
-            <div className="format-buttons">
-              <button
-                className={`format-button ${outputFormat === 'avif' ? 'active' : ''}`}
-                onClick={() => setOutputFormat('avif')}
-                disabled={isConverting}
-              >
-                <ImageIcon />
-                <span>AVIF</span>
-                <small>{language === 'zh-CN' ? '最佳压缩' : 'Best Compression'}</small>
-              </button>
-              <button
-                className={`format-button ${outputFormat === 'webp' ? 'active' : ''}`}
-                onClick={() => setOutputFormat('webp')}
-                disabled={isConverting}
-              >
-                <Layers />
-                <span>WebP</span>
-                <small>{language === 'zh-CN' ? '平衡' : 'Balanced'}</small>
-              </button>
-              <button
-                className={`format-button ${outputFormat === 'png' ? 'active' : ''}`}
-                onClick={() => setOutputFormat('png')}
-                disabled={isConverting}
-              >
-                <FileImage />
-                <span>PNG</span>
-                <small>{language === 'zh-CN' ? '无损' : 'Lossless'}</small>
-              </button>
-              <button
-                className={`format-button ${outputFormat === 'jpg' ? 'active' : ''}`}
-                onClick={() => setOutputFormat('jpg')}
-                disabled={isConverting}
-              >
-                <ImageIcon />
-                <span>JPG</span>
-                <small>{language === 'zh-CN' ? '通用' : 'Universal'}</small>
-              </button>
-            </div>
-          </div>
-
-          {outputFormat !== 'png' && (
-            <div className="setting-group">
-              <label>
-                <SlidersHorizontal />
-                {language === 'zh-CN' ? '质量' : 'Quality'}: {quality}%
-              </label>
-              <input
-                type="range"
-                min="40"
-                max="100"
-                value={quality}
-                onChange={(e) => setQuality(Number(e.target.value))}
-                disabled={isConverting}
-                className="quality-slider"
-              />
-              <div className="quality-hints">
-                <span>{language === 'zh-CN' ? '文件小' : 'Smaller'}</span>
-                <span>{language === 'zh-CN' ? '质量高' : 'Better'}</span>
+          {/* 第一行：格式选择 + 质量 */}
+          <div className="settings-row">
+            <div className="setting-inline">
+              <span className="setting-label">{language === 'zh-CN' ? '格式' : 'Format'}</span>
+              <div className="format-buttons">
+                <button
+                  className={`format-button ${outputFormat === 'avif' ? 'active' : ''}`}
+                  onClick={() => setOutputFormat('avif')}
+                  disabled={isConverting}
+                >
+                  AVIF
+                </button>
+                <button
+                  className={`format-button ${outputFormat === 'webp' ? 'active' : ''}`}
+                  onClick={() => setOutputFormat('webp')}
+                  disabled={isConverting}
+                >
+                  WebP
+                </button>
+                <button
+                  className={`format-button ${outputFormat === 'png' ? 'active' : ''}`}
+                  onClick={() => setOutputFormat('png')}
+                  disabled={isConverting}
+                >
+                  PNG
+                </button>
+                <button
+                  className={`format-button ${outputFormat === 'jpg' ? 'active' : ''}`}
+                  onClick={() => setOutputFormat('jpg')}
+                  disabled={isConverting}
+                >
+                  JPG
+                </button>
               </div>
             </div>
-          )}
 
-          <button
-            className="convert-button"
-            onClick={handleConvert}
-            disabled={isConverting}
-          >
-            {isConverting ? (
-              <>
-                <div className="spinner"></div>
-                <span>{language === 'zh-CN' ? '转换中...' : 'Converting...'} {progress}%</span>
-              </>
-            ) : (
-              <>
-                <ImageIcon />
-                <span>{language === 'zh-CN' ? '开始转换' : 'Start Conversion'}</span>
-              </>
+            {outputFormat !== 'png' && (
+              <div className="setting-inline quality-inline">
+                <span className="setting-label">{language === 'zh-CN' ? '质量' : 'Quality'}</span>
+                <input
+                  type="range"
+                  min="10"
+                  max="100"
+                  value={quality}
+                  onChange={(e) => setQuality(Number(e.target.value))}
+                  disabled={isConverting}
+                  className="quality-slider"
+                />
+                <span className="quality-value">{quality}%</span>
+              </div>
             )}
-          </button>
+          </div>
 
-          {uploadedFiles.length > 0 && !isConverting && (
+          {/* 第二行：操作按钮 + 进度条 */}
+          <div className="settings-actions">
             <button
-              className="clear-button"
-              onClick={handleClearFiles}
+              className="convert-button"
+              onClick={handleConvert}
+              disabled={isConverting}
             >
-              <X />
-              <span>{language === 'zh-CN' ? '清除所有' : 'Clear All'}</span>
+              {isConverting ? (
+                <>
+                  <div className="spinner"></div>
+                  <span>{language === 'zh-CN' ? '转换中' : 'Converting'} {progress}%</span>
+                </>
+              ) : (
+                <>
+                  <ImageIcon />
+                  <span>{language === 'zh-CN' ? '开始转换' : 'Convert'}</span>
+                </>
+              )}
             </button>
-          )}
+
+            {!isConverting && (
+              <button
+                className="clear-button"
+                onClick={handleClearFiles}
+              >
+                <X />
+                <span>{language === 'zh-CN' ? '清除' : 'Clear'}</span>
+              </button>
+            )}
+
+            {isConverting && (
+              <div className="progress-bar-container">
+                <div className="progress-bar" style={{ width: `${progress}%` }} />
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -870,14 +944,23 @@ export default function ModernImageConverter() {
                   <img src={image.url} alt={image.name} />
                   <div className="result-overlay">
                     <button
+                      className="preview-button"
+                      onClick={() => setPreviewIndex(index)}
+                      title={language === 'zh-CN' ? '预览' : 'Preview'}
+                    >
+                      <Eye />
+                    </button>
+                    <button
                       className="compare-button"
                       onClick={() => handleCompare(index)}
+                      title={language === 'zh-CN' ? '对比' : 'Compare'}
                     >
                       <SlidersHorizontal />
                     </button>
                     <button
                       className="download-button"
                       onClick={() => handleDownload(image)}
+                      title={language === 'zh-CN' ? '下载' : 'Download'}
                     >
                       <Download />
                     </button>
@@ -888,8 +971,14 @@ export default function ModernImageConverter() {
                   <div className="result-details">
                     <span className="result-format">{image.format.toUpperCase()}</span>
                     <span className="result-size">{formatFileSize(image.size)}</span>
-                    {image.compressionRatio !== undefined && image.compressionRatio > 0 && (
-                      <span className="result-compression">-{image.compressionRatio.toFixed(1)}%</span>
+                    {image.compressionRatio !== undefined && (
+                      image.compressionRatio > 0 ? (
+                        <span className="result-compression saved">-{image.compressionRatio.toFixed(1)}%</span>
+                      ) : image.compressionRatio < -1 ? (
+                        <span className="result-compression increased">+{Math.abs(image.compressionRatio).toFixed(1)}%</span>
+                      ) : (
+                        <span className="result-compression neutral">≈ {language === 'zh-CN' ? '无变化' : 'No change'}</span>
+                      )
                     )}
                   </div>
                 </div>
@@ -921,6 +1010,15 @@ export default function ModernImageConverter() {
                 onMouseMove={handleSliderMove}
                 onMouseUp={handleSliderMouseUp}
                 onMouseLeave={handleSliderMouseUp}
+                onTouchStart={(e) => {
+                  e.preventDefault()
+                  handleSliderMouseDown()
+                  if (sliderRef.current && e.touches.length > 0) {
+                    const rect = sliderRef.current.getBoundingClientRect()
+                    const x = e.touches[0].clientX - rect.left
+                    setSliderPosition(Math.max(0, Math.min(100, (x / rect.width) * 100)))
+                  }
+                }}
               >
                 <canvas ref={comparisonCanvasRef} />
                 <div 
@@ -978,16 +1076,82 @@ export default function ModernImageConverter() {
                       <span className="meta-item">
                         <strong>{formatFileSize(convertedImages[comparisonIndex].size)}</strong>
                       </span>
-                      {convertedImages[comparisonIndex].compressionRatio !== undefined && convertedImages[comparisonIndex].compressionRatio! > 0 && (
-                        <span className="meta-item compression">
-                          -{convertedImages[comparisonIndex].compressionRatio!.toFixed(1)}%
-                        </span>
+                      {convertedImages[comparisonIndex].compressionRatio !== undefined && (
+                        convertedImages[comparisonIndex].compressionRatio! > 0 ? (
+                          <span className="meta-item compression">
+                            -{convertedImages[comparisonIndex].compressionRatio!.toFixed(1)}%
+                          </span>
+                        ) : convertedImages[comparisonIndex].compressionRatio! < -1 ? (
+                          <span className="meta-item" style={{ background: 'rgba(251, 191, 36, 0.12)', color: '#fde68a', border: '1px solid rgba(251, 191, 36, 0.3)' }}>
+                            +{Math.abs(convertedImages[comparisonIndex].compressionRatio!).toFixed(1)}%
+                          </span>
+                        ) : null
                       )}
                     </div>
                   </div>
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 图片预览灯箱 */}
+      {previewIndex !== -1 && convertedImages[previewIndex] && (
+        <div className="preview-modal" onClick={() => setPreviewIndex(-1)}>
+          <div className="preview-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="preview-modal-header">
+              <div className="preview-modal-title">
+                <Eye />
+                <span>{convertedImages[previewIndex].name}</span>
+                <span className="preview-modal-meta">
+                  {convertedImages[previewIndex].format.toUpperCase()} · {formatFileSize(convertedImages[previewIndex].size)}
+                  {convertedImages[previewIndex].width && convertedImages[previewIndex].height && (
+                    <> · {convertedImages[previewIndex].width}×{convertedImages[previewIndex].height}</>
+                  )}
+                </span>
+              </div>
+              <div className="preview-modal-actions">
+                <button
+                  className="preview-download-btn"
+                  onClick={() => handleDownload(convertedImages[previewIndex])}
+                >
+                  <Download />
+                  <span>{language === 'zh-CN' ? '下载' : 'Download'}</span>
+                </button>
+                <button
+                  className="close-button"
+                  onClick={() => setPreviewIndex(-1)}
+                >
+                  <X />
+                </button>
+              </div>
+            </div>
+            <div className="preview-modal-image">
+              <img 
+                src={convertedImages[previewIndex].url} 
+                alt={convertedImages[previewIndex].name}
+              />
+            </div>
+            {convertedImages.length > 1 && (
+              <div className="preview-modal-nav">
+                <button 
+                  className="preview-nav-btn"
+                  disabled={previewIndex <= 0}
+                  onClick={() => setPreviewIndex(previewIndex - 1)}
+                >
+                  ← {language === 'zh-CN' ? '上一张' : 'Previous'}
+                </button>
+                <span className="preview-counter">{previewIndex + 1} / {convertedImages.length}</span>
+                <button 
+                  className="preview-nav-btn"
+                  disabled={previewIndex >= convertedImages.length - 1}
+                  onClick={() => setPreviewIndex(previewIndex + 1)}
+                >
+                  {language === 'zh-CN' ? '下一张' : 'Next'} →
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
