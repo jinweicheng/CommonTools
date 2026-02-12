@@ -1,5 +1,5 @@
-import { useState, useRef, useCallback } from 'react'
-import { Upload, Download, X, ImageIcon, AlertCircle, CheckCircle2, FileImage, Layers } from 'lucide-react'
+import { useState, useRef, useCallback, useMemo } from 'react'
+import { Upload, Download, X, ImageIcon, AlertCircle, CheckCircle2, FileImage, Layers, Eye, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useI18n } from '../i18n/I18nContext'
 import './ImageConverter.css'
 
@@ -10,6 +10,7 @@ interface ConvertedImage {
   size: number
   format: 'jpg' | 'webp'
   originalFormat: string
+  originalSize: number
   width?: number
   height?: number
   dpi?: number
@@ -35,7 +36,17 @@ export default function ImageConverter() {
   const [progress, setProgress] = useState(0)
   const [error, setError] = useState<string>('')
   const [successMessage, setSuccessMessage] = useState<string>('')
+  const [isDragOver, setIsDragOver] = useState(false)
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // 统计信息
+  const totalFileSize = useMemo(() => 
+    uploadedFiles.reduce((sum, f) => sum + f.size, 0), [uploadedFiles])
+  const totalConvertedSize = useMemo(() => 
+    convertedImages.reduce((sum, f) => sum + f.size, 0), [convertedImages])
+  const totalOriginalSizeOfConverted = useMemo(() =>
+    convertedImages.reduce((sum, f) => sum + f.originalSize, 0), [convertedImages])
 
   // 文件格式识别（Magic Bytes）
   const detectFormat = useCallback(async (file: File): Promise<string> => {
@@ -67,10 +78,7 @@ export default function ImageConverter() {
   }, [])
 
   // 文件上传处理
-  const handleFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files
-    if (!files || files.length === 0) return
-
+  const processFiles = useCallback(async (files: FileList | File[]) => {
     setError('')
     const newFiles: ImageFile[] = []
 
@@ -103,11 +111,42 @@ export default function ImageConverter() {
     }
 
     setUploadedFiles(prev => [...prev, ...newFiles])
+  }, [detectFormat, language])
+
+  const handleFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files
+    if (!files || files.length === 0) return
+
+    await processFiles(files)
     
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
-  }, [detectFormat, language])
+  }, [processFiles])
+
+  // 拖拽上传处理
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(true)
+  }, [])
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(false)
+  }, [])
+
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(false)
+
+    const files = e.dataTransfer.files
+    if (files && files.length > 0) {
+      await processFiles(files)
+    }
+  }, [processFiles])
 
   // PCX 解码器（支持 8-bit 调色板 PCX）
   const decodePCX = useCallback(async (file: File): Promise<ImageBitmap> => {
@@ -873,6 +912,7 @@ export default function ImageConverter() {
               size: blob.size,
               format: outputFormat,
               originalFormat: format,
+              originalSize: file.size,
               width,
               height
             })
@@ -943,11 +983,22 @@ export default function ImageConverter() {
     link.click()
   }, [])
 
-  // 批量下载
-  const handleDownloadAll = useCallback(() => {
-    convertedImages.forEach(image => {
-      handleDownload(image)
-    })
+  // 批量下载（多文件时打包ZIP）
+  const handleDownloadAll = useCallback(async () => {
+    if (convertedImages.length === 1) {
+      handleDownload(convertedImages[0])
+      return
+    }
+
+    // 简单的多文件逐个下载（浏览器兼容性最好）
+    for (const image of convertedImages) {
+      const link = document.createElement('a')
+      link.href = image.url
+      link.download = image.name
+      link.click()
+      // 延迟避免浏览器拦截
+      await new Promise(r => setTimeout(r, 300))
+    }
   }, [convertedImages, handleDownload])
 
   // 清除文件
@@ -1003,8 +1054,13 @@ export default function ImageConverter() {
         </div>
       </div>
 
-      {/* 上传区域 */}
-      <div className="upload-section">
+      {/* 上传区域 - 支持拖拽 */}
+      <div 
+        className={`upload-section ${isDragOver ? 'drag-over' : ''}`}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
         <input
           ref={fileInputRef}
           type="file"
@@ -1016,115 +1072,136 @@ export default function ImageConverter() {
         />
         
         <button
-          className="upload-button"
+          className={`upload-button ${isDragOver ? 'drag-active' : ''}`}
           onClick={() => fileInputRef.current?.click()}
           disabled={isConverting}
         >
           <Upload />
-          <span>{language === 'zh-CN' ? '上传老旧格式图片' : 'Upload Legacy Images'}</span>
-          <small>{language === 'zh-CN' ? '支持 BMP, TGA, PCX, TIFF 格式' : 'Supports BMP, TGA, PCX, TIFF'}</small>
+          <span>{language === 'zh-CN' 
+            ? (isDragOver ? '释放以添加文件' : '点击或拖拽上传图片') 
+            : (isDragOver ? 'Drop to add files' : 'Click or drag to upload')}</span>
+          <small>{language === 'zh-CN' ? '支持 BMP, TGA, PCX, TIFF 格式 · 可批量上传' : 'Supports BMP, TGA, PCX, TIFF · Batch upload'}</small>
         </button>
 
         {uploadedFiles.length > 0 && (
-          <div className="file-list">
-            {uploadedFiles.map((file, index) => (
-              <div key={index} className="file-item">
-                <div className="file-icon">
-                  <FileImage />
-                  <span className="format-badge">{file.format}</span>
+          <>
+            {/* 文件统计 */}
+            <div className="file-stats">
+              <span className="file-count">
+                {language === 'zh-CN' 
+                  ? `${uploadedFiles.length} 个文件` 
+                  : `${uploadedFiles.length} file(s)`}
+              </span>
+              <span className="file-total-size">{formatFileSize(totalFileSize)}</span>
+            </div>
+
+            <div className="file-list">
+              {uploadedFiles.map((file, index) => (
+                <div key={index} className="file-item">
+                  <div className="file-thumbnail">
+                    {file.preview ? (
+                      <img src={file.preview} alt={file.file.name} />
+                    ) : (
+                      <FileImage />
+                    )}
+                    <span className="format-badge">{file.format}</span>
+                  </div>
+                  <div className="file-info">
+                    <span className="file-name">{file.file.name}</span>
+                    <span className="file-size">{formatFileSize(file.size)}</span>
+                  </div>
+                  <button
+                    className="remove-button"
+                    onClick={() => handleRemoveFile(index)}
+                    disabled={isConverting}
+                    title={language === 'zh-CN' ? '移除' : 'Remove'}
+                  >
+                    <X />
+                  </button>
                 </div>
-                <div className="file-info">
-                  <span className="file-name">{file.file.name}</span>
-                  <span className="file-size">{formatFileSize(file.size)}</span>
-                </div>
-                <button
-                  className="remove-button"
-                  onClick={() => handleRemoveFile(index)}
-                  disabled={isConverting}
-                >
-                  <X />
-                </button>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          </>
         )}
       </div>
 
-      {/* 设置区域 */}
+      {/* 设置区域 - 紧凑布局 */}
       {uploadedFiles.length > 0 && (
         <div className="settings-section">
-          <h3>{language === 'zh-CN' ? '转换设置' : 'Conversion Settings'}</h3>
-          
-          <div className="setting-group">
-            <label>{language === 'zh-CN' ? '输出格式' : 'Output Format'}</label>
-            <div className="format-buttons">
-              <button
-                className={`format-button ${outputFormat === 'jpg' ? 'active' : ''}`}
-                onClick={() => setOutputFormat('jpg')}
+          <div className="settings-row">
+            <div className="setting-inline">
+              <span className="setting-label">{language === 'zh-CN' ? '格式' : 'Format'}</span>
+              <div className="format-buttons">
+                <button
+                  className={`format-button ${outputFormat === 'jpg' ? 'active' : ''}`}
+                  onClick={() => setOutputFormat('jpg')}
+                  disabled={isConverting}
+                >
+                  JPG
+                </button>
+                <button
+                  className={`format-button ${outputFormat === 'webp' ? 'active' : ''}`}
+                  onClick={() => setOutputFormat('webp')}
+                  disabled={isConverting}
+                >
+                  WebP
+                </button>
+              </div>
+            </div>
+
+            <div className="setting-inline quality-inline">
+              <span className="setting-label">{language === 'zh-CN' ? '质量' : 'Quality'}</span>
+              <input
+                type="range"
+                min="10"
+                max="100"
+                value={quality}
+                onChange={(e) => setQuality(Number(e.target.value))}
                 disabled={isConverting}
-              >
-                <ImageIcon />
-                <span>JPG</span>
-                <small>{language === 'zh-CN' ? '通用格式' : 'Universal'}</small>
-              </button>
-              <button
-                className={`format-button ${outputFormat === 'webp' ? 'active' : ''}`}
-                onClick={() => setOutputFormat('webp')}
-                disabled={isConverting}
-              >
-                <Layers />
-                <span>WebP</span>
-                <small>{language === 'zh-CN' ? '现代格式' : 'Modern'}</small>
-              </button>
+                className="quality-slider"
+              />
+              <span className="quality-value">{quality}%</span>
             </div>
           </div>
 
-          <div className="setting-group">
-            <label>
-              {language === 'zh-CN' ? '质量' : 'Quality'}: {quality}%
-            </label>
-            <input
-              type="range"
-              min="60"
-              max="100"
-              value={quality}
-              onChange={(e) => setQuality(Number(e.target.value))}
-              disabled={isConverting}
-              className="quality-slider"
-            />
-            <div className="quality-hints">
-              <span>{language === 'zh-CN' ? '文件小' : 'Smaller'}</span>
-              <span>{language === 'zh-CN' ? '质量高' : 'Better'}</span>
-            </div>
-          </div>
-
-          <button
-            className="convert-button"
-            onClick={handleConvert}
-            disabled={isConverting}
-          >
-            {isConverting ? (
-              <>
-                <div className="spinner"></div>
-                <span>{language === 'zh-CN' ? '转换中...' : 'Converting...'} {progress}%</span>
-              </>
-            ) : (
-              <>
-                <ImageIcon />
-                <span>{language === 'zh-CN' ? '开始转换' : 'Start Conversion'}</span>
-              </>
-            )}
-          </button>
-
-          {uploadedFiles.length > 0 && !isConverting && (
+          <div className="settings-actions">
             <button
-              className="clear-button"
-              onClick={handleClearFiles}
+              className="convert-button"
+              onClick={handleConvert}
+              disabled={isConverting}
             >
-              <X />
-              <span>{language === 'zh-CN' ? '清除所有' : 'Clear All'}</span>
+              {isConverting ? (
+                <>
+                  <div className="spinner"></div>
+                  <span>{language === 'zh-CN' ? '转换中...' : 'Converting...'}</span>
+                </>
+              ) : (
+                <>
+                  <ImageIcon />
+                  <span>{language === 'zh-CN' ? '开始转换' : 'Convert'}</span>
+                </>
+              )}
             </button>
-          )}
+
+            {!isConverting && (
+              <button
+                className="clear-button"
+                onClick={handleClearFiles}
+              >
+                <X />
+                <span>{language === 'zh-CN' ? '清除' : 'Clear'}</span>
+              </button>
+            )}
+
+            {isConverting && (
+              <div className="progress-bar-container">
+                <div className="progress-bar-track">
+                  <div className="progress-bar-fill" style={{ width: `${progress}%` }}></div>
+                </div>
+                <span className="progress-text">{progress}%</span>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -1148,12 +1225,30 @@ export default function ImageConverter() {
         <div className="results-section">
           <div className="results-header">
             <h3>{language === 'zh-CN' ? '转换完成' : 'Conversion Complete'}</h3>
+            <div className="results-stats">
+              <span className="savings-badge">
+                {totalOriginalSizeOfConverted > 0 && (
+                  <>
+                    {formatFileSize(totalOriginalSizeOfConverted)} → {formatFileSize(totalConvertedSize)}
+                    {' · '}
+                    <strong>
+                      {totalConvertedSize < totalOriginalSizeOfConverted 
+                        ? (language === 'zh-CN' ? '减少 ' : 'Saved ') + Math.round((1 - totalConvertedSize / totalOriginalSizeOfConverted) * 100) + '%'
+                        : (language === 'zh-CN' ? '增加 ' : 'Increased ') + Math.round((totalConvertedSize / totalOriginalSizeOfConverted - 1) * 100) + '%'
+                      }
+                    </strong>
+                  </>
+                )}
+              </span>
+            </div>
             <button
               className="download-all-button"
               onClick={handleDownloadAll}
             >
               <Download />
-              <span>{language === 'zh-CN' ? '下载全部' : 'Download All'}</span>
+              <span>{language === 'zh-CN' 
+                ? `下载全部 (${convertedImages.length})` 
+                : `Download All (${convertedImages.length})`}</span>
             </button>
           </div>
 
@@ -1164,25 +1259,83 @@ export default function ImageConverter() {
                   <img src={image.url} alt={image.name} />
                   <div className="result-overlay">
                     <button
+                      className="preview-button"
+                      onClick={() => setPreviewIndex(index)}
+                      title={language === 'zh-CN' ? '预览' : 'Preview'}
+                    >
+                      <Eye />
+                    </button>
+                    <button
                       className="download-button"
                       onClick={() => handleDownload(image)}
+                      title={language === 'zh-CN' ? '下载' : 'Download'}
                     >
                       <Download />
                     </button>
                   </div>
                 </div>
                 <div className="result-info">
-                  <span className="result-name">{image.name}</span>
+                  <span className="result-name" title={image.name}>{image.name}</span>
                   <div className="result-details">
                     <span className="result-format">{image.format.toUpperCase()}</span>
                     <span className="result-size">{formatFileSize(image.size)}</span>
                     {image.width && image.height && (
                       <span className="result-dimensions">{image.width}×{image.height}</span>
                     )}
+                    {image.originalSize > 0 && (
+                      <span className={`result-savings ${image.size < image.originalSize ? 'saved' : 'increased'}`}>
+                        {image.size < image.originalSize 
+                          ? '-' + Math.round((1 - image.size / image.originalSize) * 100) + '%'
+                          : '+' + Math.round((image.size / image.originalSize - 1) * 100) + '%'
+                        }
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* 预览灯箱 */}
+      {previewIndex !== null && convertedImages[previewIndex] && (
+        <div className="preview-lightbox" onClick={() => setPreviewIndex(null)}>
+          <div className="lightbox-header">
+            <span className="lightbox-title">{convertedImages[previewIndex].name}</span>
+            <button className="lightbox-close" onClick={() => setPreviewIndex(null)}>
+              <X />
+            </button>
+          </div>
+          <div className="lightbox-body" onClick={(e) => e.stopPropagation()}>
+            {previewIndex > 0 && (
+              <button 
+                className="lightbox-nav lightbox-prev"
+                onClick={() => setPreviewIndex(previewIndex - 1)}
+              >
+                <ChevronLeft />
+              </button>
+            )}
+            <img 
+              src={convertedImages[previewIndex].url} 
+              alt={convertedImages[previewIndex].name}
+              className="lightbox-image"
+            />
+            {previewIndex < convertedImages.length - 1 && (
+              <button 
+                className="lightbox-nav lightbox-next"
+                onClick={() => setPreviewIndex(previewIndex + 1)}
+              >
+                <ChevronRight />
+              </button>
+            )}
+          </div>
+          <div className="lightbox-info">
+            {convertedImages[previewIndex].width}×{convertedImages[previewIndex].height}
+            {' · '}
+            {formatFileSize(convertedImages[previewIndex].size)}
+            {' · '}
+            {convertedImages[previewIndex].format.toUpperCase()}
           </div>
         </div>
       )}
