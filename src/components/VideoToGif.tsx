@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { Upload, Download, X, Video, Settings, Loader2, AlertCircle, Play, CheckCircle2 } from 'lucide-react'
 import { useI18n } from '../i18n/I18nContext'
 import { FFmpeg } from '@ffmpeg/ffmpeg'
@@ -13,6 +13,7 @@ interface ConversionTask {
   id: string
   file: File
   preview: string
+  duration?: number
   status: 'pending' | 'processing' | 'completed' | 'failed'
   progress: number
   progressMessage?: string
@@ -34,11 +35,50 @@ export default function VideoToGif() {
   
   // GIF 设置
   const [gifQuality, setGifQuality] = useState(3) // 0-5, 越低越好（bayer_scale 的有效范围）
-  const [gifFps, setGifFps] = useState(10) // 帧率
+  const [gifFps, setGifFps] = useState(15) // 帧率（默认优化：更流畅但控制体积）
   const [gifWidth, setGifWidth] = useState(480) // 宽度
+  const [loopCount, setLoopCount] = useState(0) // 0 = infinite
+
+  // Clip 设置（默认限制最大 10s，避免 GIF 体积爆炸）
+  const [clipStartSec, setClipStartSec] = useState(0)
+  const [clipDurationSec, setClipDurationSec] = useState(5)
   
   const fileInputRef = useRef<HTMLInputElement>(null)
   const ffmpegRef = useRef<FFmpeg | null>(null)
+
+  const clipEndSec = clipStartSec + clipDurationSec
+
+  const formatTime = (seconds: number): string => {
+    if (!Number.isFinite(seconds) || seconds <= 0) return '00:00:00.0'
+    const s = Math.max(0, seconds)
+    const hh = Math.floor(s / 3600)
+    const mm = Math.floor((s % 3600) / 60)
+    const ss = (s % 60).toFixed(1).padStart(4, '0')
+    return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${ss.padStart(4, '0')}`
+  }
+
+  const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v))
+
+  const getVideoDuration = (objectUrl: string): Promise<number> => {
+    return new Promise((resolve) => {
+      const video = document.createElement('video')
+      video.preload = 'metadata'
+      video.src = objectUrl
+      const cleanup = () => {
+        video.removeAttribute('src')
+        video.load()
+      }
+      video.onloadedmetadata = () => {
+        const d = Number.isFinite(video.duration) ? video.duration : 0
+        cleanup()
+        resolve(d)
+      }
+      video.onerror = () => {
+        cleanup()
+        resolve(0)
+      }
+    })
+  }
 
   // 加载 FFmpeg
   const loadFFmpeg = useCallback(async (): Promise<boolean> => {
@@ -137,13 +177,7 @@ export default function VideoToGif() {
     }
   }, [ffmpegLoaded, ffmpegLoading, language])
 
-  // 预加载 FFmpeg
-  useEffect(() => {
-    if (!ffmpegLoaded && !ffmpegLoading) {
-      loadFFmpeg().catch(() => {})
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  // 不在页面进入时预加载：避免每次打开页面都下载 WASM，改为开始转换时加载。
 
   // 文件上传处理
   const handleFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -188,10 +222,14 @@ export default function VideoToGif() {
       const preview = URL.createObjectURL(file)
       const taskId = `${Date.now()}-${Math.random()}`
 
+      // 尝试读取视频时长，用于提示和剪辑设置（失败时保持 undefined）
+      const duration = await getVideoDuration(preview)
+
       newTasks.push({
         id: taskId,
         file,
         preview,
+        duration: duration > 0 ? duration : undefined,
         status: 'pending',
         progress: 0
       })
@@ -239,7 +277,8 @@ export default function VideoToGif() {
 
       const fileData = await fetchFile(task.file)
       const inputExt = task.file.name.split('.').pop()?.toLowerCase() || 'mp4'
-      await ffmpeg.writeFile(`input.${inputExt}`, fileData)
+      const inputName = `input.${inputExt}`
+      await ffmpeg.writeFile(inputName, fileData)
 
       setTasks(prev => prev.map(t => 
         t.id === task.id ? { 
@@ -249,26 +288,46 @@ export default function VideoToGif() {
         } : t
       ))
 
-      // 设置进度监听器
+      // 计算剪辑参数（统一限制最长 10s）
+      const safeStart = clamp(Number(clipStartSec) || 0, 0, 24 * 3600)
+      const maxDuration = 10
+      const requestedDuration = clamp(Number(clipDurationSec) || 0, 0.1, maxDuration)
+      const available = task.duration && Number.isFinite(task.duration)
+        ? Math.max(0, task.duration - safeStart)
+        : undefined
+      const safeDuration = clamp(
+        available != null ? Math.min(requestedDuration, available) : requestedDuration,
+        0.1,
+        maxDuration
+      )
+      if (available != null && safeDuration <= 0) {
+        throw new Error(language === 'zh-CN' ? '开始时间超出视频长度' : 'Start time exceeds video duration')
+      }
+
+      const ssArg = formatTime(safeStart)
+      const tArg = safeDuration.toFixed(1)
+      const loopArg = String(loopCount)
+
+      // 设置进度监听器（两段流程：palettegen + paletteuse）
       let lastProgressUpdate = 0
-      const PROGRESS_UPDATE_INTERVAL = 200 // 每200ms更新一次
-      
+      const PROGRESS_UPDATE_INTERVAL = 200
+      let stageStart = 20
+      let stageEnd = 90
+      let stageLabel = language === 'zh-CN' ? '转换中...' : 'Converting...'
+
       const progressHandler = ({ progress: prog }: { progress: number }) => {
         const now = Date.now()
         if (now - lastProgressUpdate < PROGRESS_UPDATE_INTERVAL) return
         lastProgressUpdate = now
-
-        // FFmpeg progress 是 0-1 之间的值，转换为 20-90 的进度范围
-        const progressPercent = Math.round(20 + prog * 70)
-        
+        const mapped = Math.round(stageStart + clamp(prog, 0, 1) * (stageEnd - stageStart))
         setTasks(prev => prev.map(t => {
           if (t.id === task.id && t.status === 'processing') {
             return {
               ...t,
-              progress: progressPercent,
-              progressMessage: language === 'zh-CN' 
-                ? `转换中... ${progressPercent}%` 
-                : `Converting... ${progressPercent}%`
+              progress: mapped,
+              progressMessage: language === 'zh-CN'
+                ? `${stageLabel} ${mapped}%`
+                : `${stageLabel} ${mapped}%`
             }
           }
           return t
@@ -277,17 +336,43 @@ export default function VideoToGif() {
 
       ffmpeg.on('progress', progressHandler)
 
-      // 生成 GIF
-      const filterComplex = `fps=${gifFps},scale=${gifWidth}:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=256:stats_mode=diff[p];[s1][p]paletteuse=dither=bayer:bayer_scale=${gifQuality}:diff_mode=rectangle`
-      
+      // 高质量/体积优化：palettegen + paletteuse（比单次滤镜更接近主流产品效果）
+      setTasks(prev => prev.map(t => 
+        t.id === task.id ? { ...t, progress: 25, progressMessage: language === 'zh-CN' ? '分析颜色（调色板）...' : 'Generating palette...' } : t
+      ))
+
+      stageStart = 20
+      stageEnd = 55
+      stageLabel = language === 'zh-CN' ? '生成调色板...' : 'Generating palette...'
+
       await ffmpeg.exec([
-        '-i', `input.${inputExt}`,
-        '-filter_complex', filterComplex,
-        '-loop', '0',
+        '-ss', ssArg,
+        '-t', tArg,
+        '-i', inputName,
+        '-vf', `fps=${gifFps},scale=${gifWidth}:-1:flags=lanczos,palettegen=stats_mode=diff`,
+        '-y',
+        'palette.png'
+      ])
+
+      setTasks(prev => prev.map(t => 
+        t.id === task.id ? { ...t, progress: 60, progressMessage: language === 'zh-CN' ? '应用调色板并导出 GIF...' : 'Applying palette & exporting GIF...' } : t
+      ))
+
+      stageStart = 55
+      stageEnd = 90
+      stageLabel = language === 'zh-CN' ? '导出 GIF...' : 'Exporting GIF...'
+
+      await ffmpeg.exec([
+        '-ss', ssArg,
+        '-t', tArg,
+        '-i', inputName,
+        '-i', 'palette.png',
+        '-lavfi', `fps=${gifFps},scale=${gifWidth}:-1:flags=lanczos[x];[x][1:v]paletteuse=dither=bayer:bayer_scale=${gifQuality}:diff_mode=rectangle`,
+        '-loop', loopArg,
+        '-y',
         'output.gif'
       ])
 
-      // 移除进度监听器
       ffmpeg.off('progress', progressHandler)
 
       setTasks(prev => prev.map(t => 
@@ -305,8 +390,9 @@ export default function VideoToGif() {
 
       // 清理文件
       try {
-        await ffmpeg.deleteFile(`input.${inputExt}`)
+        await ffmpeg.deleteFile(inputName)
         await ffmpeg.deleteFile('output.gif')
+        await ffmpeg.deleteFile('palette.png')
       } catch (err) {
         console.warn('Failed to clean up:', err)
       }
@@ -354,7 +440,7 @@ export default function VideoToGif() {
       ))
       throw err
     }
-  }, [gifFps, gifWidth, gifQuality, loadFFmpeg, language])
+  }, [gifFps, gifWidth, gifQuality, clipStartSec, clipDurationSec, loopCount, loadFFmpeg, language])
 
   // 处理所有任务
   const handleProcess = useCallback(async () => {
@@ -362,6 +448,11 @@ export default function VideoToGif() {
 
     const pendingTasks = tasks.filter(t => t.status === 'pending')
     if (pendingTasks.length === 0) return
+
+    // 懒加载：只有开始转换时才加载 FFmpeg
+    // 重要：加载 FFmpeg 时不把整个页面置为“处理中”，避免糟糕的全局阻塞体验。
+    const ok = await loadFFmpeg()
+    if (!ok) return
 
     setIsProcessing(true)
 
@@ -434,21 +525,23 @@ export default function VideoToGif() {
         </div>
       </div>
 
-      {/* FFmpeg Loading Overlay */}
+      {/* FFmpeg Loading: inline hint only (no blocking overlay) */}
       {ffmpegLoading && (
-        <div className="ffmpeg-loading-overlay">
-          <div className="loading-spinner"></div>
-          <p className="loading-title">
-            {language === 'zh-CN' ? '正在加载视频处理引擎...' : 'Loading video processing engine...'}
-          </p>
-          {loadingProgress && (
-            <p className="loading-progress">{loadingProgress}</p>
-          )}
-          <p className="loading-hint">
-            {language === 'zh-CN' 
-              ? '首次加载需要下载约 30MB 文件，请耐心等待...' 
-              : 'First load requires ~30MB download, please wait...'}
-          </p>
+        <div className="ffmpeg-inline-status" role="status" aria-live="polite">
+          <div className="ffmpeg-inline-row">
+            <div className="ffmpeg-inline-spinner" aria-hidden="true" />
+            <div className="ffmpeg-inline-text">
+              <div className="ffmpeg-inline-title">
+                {language === 'zh-CN' ? '正在加载 FFmpeg 引擎（仅首次需要）' : 'Loading FFmpeg engine (first time only)'}
+              </div>
+              <div className="ffmpeg-inline-subtitle">
+                {loadingProgress || (language === 'zh-CN' ? '准备中…' : 'Preparing…')}
+              </div>
+            </div>
+          </div>
+          <div className="ffmpeg-inline-bar" aria-hidden="true">
+            <div className="ffmpeg-inline-barFill" />
+          </div>
         </div>
       )}
 
@@ -535,12 +628,81 @@ export default function VideoToGif() {
         )}
       </div>
 
-      {/* Settings Section */}
+      {/* Clip & Settings Section */}
       {tasks.length > 0 && (
         <div className="settings-section">
           <h3><Settings /> {language === 'zh-CN' ? 'GIF 设置' : 'GIF Settings'}</h3>
-          
-          <div className="setting-group">
+
+          <div className="settings-grid">
+            <div className="setting-group">
+            <label>
+              {language === 'zh-CN' ? '剪辑开始时间' : 'Start Time'}: {clipStartSec.toFixed(1)}s
+              <span className="setting-hint-inline">
+                ({formatTime(clipStartSec)})
+              </span>
+            </label>
+            <input
+              type="number"
+              min={0}
+              step={0.1}
+              value={clipStartSec}
+              onChange={(e) => setClipStartSec(clamp(Number(e.target.value) || 0, 0, 24 * 3600))}
+              disabled={isProcessing}
+              className="number-input"
+            />
+            <small>
+              {language === 'zh-CN'
+                ? '提示：只转换你需要的片段，GIF 体积会明显更小。'
+                : 'Tip: Convert only the needed clip to greatly reduce GIF size.'}
+            </small>
+            </div>
+
+            <div className="setting-group">
+            <label>
+              {language === 'zh-CN' ? '剪辑时长' : 'Clip Duration'}: {clipDurationSec.toFixed(1)}s
+              <span className="setting-hint-inline">
+                ({language === 'zh-CN' ? '最长 10s' : 'max 10s'})
+              </span>
+            </label>
+            <input
+              type="range"
+              min="0.5"
+              max="10"
+              step="0.5"
+              value={clipDurationSec}
+              onChange={(e) => setClipDurationSec(clamp(parseFloat(e.target.value), 0.5, 10))}
+              disabled={isProcessing}
+            />
+            <small>
+              {language === 'zh-CN'
+                ? '已默认限制最长 10 秒，避免生成超大 GIF。'
+                : 'Hard-capped at 10 seconds by default to avoid huge GIFs.'}
+            </small>
+            </div>
+
+            <div className="setting-group">
+            <label>
+              {language === 'zh-CN' ? '循环次数' : 'Loop'}: {loopCount === 0 ? (language === 'zh-CN' ? '无限循环' : 'Infinite') : loopCount}
+            </label>
+            <select
+              value={loopCount}
+              onChange={(e) => setLoopCount(parseInt(e.target.value, 10))}
+              disabled={isProcessing}
+              className="select-input"
+            >
+              <option value={0}>{language === 'zh-CN' ? '无限循环' : 'Infinite'}</option>
+              {Array.from({ length: 10 }, (_, i) => i + 1).map(n => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+            <small>
+              {language === 'zh-CN'
+                ? '0 表示无限循环；其它数字表示循环次数。'
+                : '0 means infinite loop; other values are loop counts.'}
+            </small>
+            </div>
+
+            <div className="setting-group">
             <label>
               {language === 'zh-CN' ? 'GIF 质量' : 'GIF Quality'}: {gifQuality}
             </label>
@@ -553,13 +715,13 @@ export default function VideoToGif() {
               disabled={isProcessing}
             />
             <small>
-              {language === 'zh-CN' 
-                ? '0-5，数值越低质量越高（文件越大）'
-                : '0-5, lower is better quality (larger file)'}
+              {language === 'zh-CN'
+                ? '0-5，数值越低质量越高（文件更大）。建议 2-4。'
+                : '0-5, lower = better quality (larger file). Suggested: 2-4.'}
             </small>
-          </div>
+            </div>
 
-          <div className="setting-group">
+            <div className="setting-group">
             <label>
               {language === 'zh-CN' ? '帧率' : 'Frame Rate'}: {gifFps} fps
             </label>
@@ -572,13 +734,13 @@ export default function VideoToGif() {
               disabled={isProcessing}
             />
             <small>
-              {language === 'zh-CN' 
-                ? '每秒帧数，越高越流畅（文件越大）'
-                : 'Frames per second, higher is smoother (larger file)'}
+              {language === 'zh-CN'
+                ? '默认 15fps。更高更流畅，但体积更大。'
+                : 'Default 15fps. Higher is smoother but larger file.'}
             </small>
-          </div>
+            </div>
 
-          <div className="setting-group">
+            <div className="setting-group">
             <label>
               {language === 'zh-CN' ? 'GIF 宽度' : 'GIF Width'}: {gifWidth}px
             </label>
@@ -592,10 +754,24 @@ export default function VideoToGif() {
               disabled={isProcessing}
             />
             <small>
-              {language === 'zh-CN' 
-                ? '宽度（像素），越大越清晰（文件越大）'
-                : 'Width in pixels, larger is clearer (larger file)'}
+              {language === 'zh-CN'
+                ? '默认 480px。更大更清晰，但体积更大。'
+                : 'Default 480px. Larger is clearer but increases size.'}
             </small>
+            </div>
+          </div>
+
+          <div className="settings-summary">
+            <div className="summary-pill">
+              {language === 'zh-CN' ? '结束时间' : 'End'}: {clipEndSec.toFixed(1)}s
+              <span className="setting-hint-inline">({formatTime(clipEndSec)})</span>
+            </div>
+            <div className="summary-pill">
+              {language === 'zh-CN' ? '默认限制' : 'Default cap'}: 10s
+            </div>
+            <div className="summary-pill">
+              {language === 'zh-CN' ? '推荐' : 'Recommended'}: 480px · 15fps
+            </div>
           </div>
 
           <div className="action-buttons">
