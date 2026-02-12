@@ -23,6 +23,8 @@ interface CompressionOptions {
   bitrate?: number // kbps
   targetSize?: number // MB
   turbo?: boolean
+  speedFirst?: boolean
+  removeAudio?: boolean
   codec: VideoCodec
   resolution?: string // 'original' | '1080p' | '720p' | '480p'
   fps?: number // 帧率限制
@@ -68,7 +70,7 @@ interface CompressionStats {
 }
 
 const MAX_FILES = 5
-const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB
+const MAX_FILE_SIZE = 500 * 1024 * 1024 // 500MB
 const SIMPLE_MIN_VIDEO_BITRATE_KBPS_SD = 400
 const SIMPLE_MIN_VIDEO_BITRATE_KBPS_HD = 500
 const SIMPLE_MIN_VIDEO_BITRATE_KBPS_FHD_PLUS = 600
@@ -93,7 +95,9 @@ export default function VideoCompression() {
   const [simpleTargetSize, setSimpleTargetSize] = useState<number>(50)
   const [simpleLevel, setSimpleLevel] = useState<SimpleLevel>('medium')
   const [simpleUseWebCodecs, setSimpleUseWebCodecs] = useState<boolean>(true)
-  const [simpleTurboMode, setSimpleTurboMode] = useState<boolean>(false)
+  const [simpleTurboMode, setSimpleTurboMode] = useState<boolean>(true)
+  const [simpleSpeedFirst, setSimpleSpeedFirst] = useState<boolean>(false)
+  const [simpleRemoveAudio, setSimpleRemoveAudio] = useState<boolean>(false)
 
   const [globalOptions, setGlobalOptions] = useState<CompressionOptions>({
     mode: 'crf',
@@ -992,8 +996,8 @@ export default function VideoCompression() {
       // 检查文件大小
       if (file.size > MAX_FILE_SIZE) {
         const message = language === 'zh-CN'
-          ? `文件 ${file.name} 超过 100MB 限制`
-          : `File ${file.name} exceeds 100MB limit`
+          ? `文件 ${file.name} 超过 500MB 限制`
+          : `File ${file.name} exceeds 500MB limit`
         alert(message)
         continue
       }
@@ -1151,17 +1155,27 @@ export default function VideoCompression() {
 
       // 自动性能优化：根据文件大小和分辨率调整参数
       const optimizedOptions = { ...task.options }
+      const turboEnabled = !!optimizedOptions.turbo
+      const speedFirstEnabled = !!optimizedOptions.speedFirst
+
+      if (speedFirstEnabled) {
+        optimizedOptions.resolution = '720p'
+        const duration = task.videoInfo?.duration || 0
+        // 更激进：长视频进一步降帧，换取稳定低耗时
+        optimizedOptions.fps = duration > 120 ? 15 : 20
+      }
       
       // 如果文件较大（> 50MB）或分辨率较高（> 1080p），自动优化
       if (task.originalSize > 50 * 1024 * 1024 || (task.videoInfo && task.videoInfo.width > 1920)) {
-        if (!optimizedOptions.resolution || optimizedOptions.resolution === 'original') {
-          optimizedOptions.resolution = '1080p'
+        if (!speedFirstEnabled && (!optimizedOptions.resolution || optimizedOptions.resolution === 'original')) {
+          optimizedOptions.resolution = turboEnabled ? '720p' : '1080p'
         }
-        if (!optimizedOptions.fps && task.videoInfo && task.videoInfo.fps > 30) {
-          optimizedOptions.fps = 30
+        if (!speedFirstEnabled && !optimizedOptions.fps && task.videoInfo && task.videoInfo.fps > 30) {
+          optimizedOptions.fps = turboEnabled ? 24 : 30
         }
         console.log('⚡ Auto-optimizing for large video:', {
           originalSize: (task.originalSize / 1024 / 1024).toFixed(1) + ' MB',
+          turbo: turboEnabled,
           resolution: optimizedOptions.resolution,
           fps: optimizedOptions.fps || 'auto'
         })
@@ -1175,7 +1189,11 @@ export default function VideoCompression() {
       const shouldSkipTranscode =
         optimizedOptions.mode === 'crf' &&
         typeof optimizedOptions.targetSize === 'number' &&
-        optimizedOptions.targetSize >= originalMb * 0.98
+        optimizedOptions.targetSize >= originalMb * 0.92
+      const targetBytes =
+        optimizedOptions.mode === 'crf' && typeof optimizedOptions.targetSize === 'number'
+          ? Math.floor(optimizedOptions.targetSize * 1024 * 1024)
+          : undefined
       
       // 设置日志监听（捕获错误和警告）
       logHandler = ({ message, type }: { message: string; type: string }) => {
@@ -1274,9 +1292,97 @@ export default function VideoCompression() {
           ])
           processingRoute = 'remux'
         } else {
-          console.log('🔄 Executing FFmpeg compression...')
-          await ffmpeg.exec(args)
-          processingRoute = hadFallback ? 'fallback' : 'fast-encode'
+          // 极速压缩优先：先尝试 copy 视频 + 可选去音频（通常秒级）
+          const shouldTryFastCopyOnly =
+            uiModeRef.current === 'simple' &&
+            !!targetBytes &&
+            targetBytes > 0 &&
+            targetBytes < task.originalSize &&
+            !!optimizedOptions.speedFirst
+
+          if (shouldTryFastCopyOnly) {
+            try {
+              const removeAudio = !!optimizedOptions.removeAudio
+              console.log('⚡ Trying fast stream-copy path first...')
+              await ffmpeg.exec([
+                '-i', 'input.mp4',
+                '-c:v', 'copy',
+                ...(removeAudio ? ['-an'] : ['-c:a', 'copy']),
+                '-movflags', '+faststart',
+                '-y',
+                'output.mp4',
+              ])
+
+              const quickCopyOut = await ffmpeg.readFile('output.mp4')
+              const quickCopySize = quickCopyOut instanceof Uint8Array
+                ? quickCopyOut.byteLength
+                : new Uint8Array(quickCopyOut as any).byteLength
+
+              if (quickCopySize <= targetBytes) {
+                executed = true
+                processingRoute = 'remux'
+                console.log('✅ Fast stream-copy path hit target, skip re-encode')
+              } else {
+                hadFallback = true
+                try { await ffmpeg.deleteFile('output.mp4') } catch {}
+                console.log('ℹ️ Fast stream-copy path not enough, continue fallback chain')
+              }
+            } catch (quickCopyErr) {
+              hadFallback = true
+              try { await ffmpeg.deleteFile('output.mp4') } catch {}
+              console.warn('Fast stream-copy path failed, continue fallback chain:', quickCopyErr)
+            }
+          }
+
+          // 快速预压缩尝试：复制视频流，仅压缩音频。若达到目标，直接结束（秒级）
+          const shouldTryFastAudioOnly =
+            uiModeRef.current === 'simple' &&
+            !!targetBytes &&
+            targetBytes > 0 &&
+            targetBytes < task.originalSize &&
+            // 仅在目标缩小不超过 45% 时尝试，命中率高且成本低
+            targetBytes >= Math.floor(task.originalSize * 0.55)
+
+          if (!executed && shouldTryFastAudioOnly) {
+            try {
+              const quickAudioKbps = turboEnabled ? 48 : 64
+              console.log('⚡ Trying fast audio-only compression path...')
+              await ffmpeg.exec([
+                '-i', 'input.mp4',
+                '-c:v', 'copy',
+                '-c:a', 'aac',
+                '-b:a', `${quickAudioKbps}k`,
+                '-movflags', '+faststart',
+                '-y',
+                'output.mp4',
+              ])
+
+              const quickOut = await ffmpeg.readFile('output.mp4')
+              const quickSize = quickOut instanceof Uint8Array
+                ? quickOut.byteLength
+                : new Uint8Array(quickOut as any).byteLength
+
+              if (quickSize <= targetBytes) {
+                executed = true
+                processingRoute = 'remux'
+                console.log('✅ Fast audio-only path hit target, skip full transcode')
+              } else {
+                hadFallback = true
+                try { await ffmpeg.deleteFile('output.mp4') } catch {}
+                console.log('ℹ️ Fast audio-only path not enough, fallback to full encode')
+              }
+            } catch (quickErr) {
+              hadFallback = true
+              try { await ffmpeg.deleteFile('output.mp4') } catch {}
+              console.warn('Fast audio-only path failed, fallback to full encode:', quickErr)
+            }
+          }
+
+          if (!executed) {
+            console.log('🔄 Executing FFmpeg compression...')
+            await ffmpeg.exec(args)
+            processingRoute = hadFallback ? 'fallback' : 'fast-encode'
+          }
         }
         console.log('✅ FFmpeg execution completed')
       }
@@ -1462,6 +1568,7 @@ export default function VideoCompression() {
     const args = ['-i', 'input.mp4']
     const isSimpleModePath = options.mode === 'crf' && typeof options.targetSize === 'number'
     const turboEnabled = !!options.turbo
+    const speedFirstEnabled = !!options.speedFirst
     const maxSide = Math.max(videoInfo?.width || 0, videoInfo?.height || 0)
     const isHeavyInput =
       (originalSize || 0) > 60 * 1024 * 1024 ||
@@ -1480,12 +1587,20 @@ export default function VideoCompression() {
       args.push('-c:v', 'libx264')
       // 商业默认快速通道：simple 路径固定 fast preset；advanced 按文件大小调优
       if (isSimpleModePath) {
-        const simplePreset = turboEnabled
+        const simplePreset = speedFirstEnabled
+          ? 'ultrafast'
+          : turboEnabled
           ? (isHeavyInput ? 'ultrafast' : 'superfast')
           : (isHeavyInput ? 'superfast' : 'fast')
         args.push('-preset', simplePreset)
-        if (isHeavyInput || turboEnabled) {
+        if (isHeavyInput || turboEnabled || speedFirstEnabled) {
           args.push('-tune', 'zerolatency')
+        }
+        if (turboEnabled || speedFirstEnabled) {
+          const x264Params = speedFirstEnabled
+            ? 'rc-lookahead=0:sync-lookahead=0:subme=0:me=dia:trellis=0:no-scenecut=1:keyint=60:min-keyint=60'
+            : 'rc-lookahead=0:sync-lookahead=0:subme=0:me=dia:trellis=0'
+          args.push('-x264-params', x264Params)
         }
       } else {
         const isSmall = typeof originalSize === 'number' && originalSize > 0 && originalSize <= 100 * 1024 * 1024
@@ -1494,7 +1609,7 @@ export default function VideoCompression() {
       // 性能优化：自动使用所有 CPU 核心
       args.push('-threads', '0')
       // simple 大文件路径优先速度，降低参考帧和 B 帧开销
-      if (isSimpleModePath && (isHeavyInput || turboEnabled)) {
+      if (isSimpleModePath && (isHeavyInput || turboEnabled || speedFirstEnabled)) {
         args.push('-refs', '1')
         args.push('-bf', '0')
       } else {
@@ -1563,10 +1678,14 @@ export default function VideoCompression() {
     }
 
     // 音频（降低码率以减小文件大小）
-    const audioKbps = options.crf >= 26 ? 64 : 96
-    args.push('-c:a', 'aac', '-b:a', `${audioKbps}k`)
-    args.push('-ac', '2')  // 立体声
-    args.push('-ar', '44100')  // 采样率
+    if (options.removeAudio) {
+      args.push('-an')
+    } else {
+      const audioKbps = options.crf >= 26 ? 64 : 96
+      args.push('-c:a', 'aac', '-b:a', `${audioKbps}k`)
+      args.push('-ac', '2')  // 立体声
+      args.push('-ar', '44100')  // 采样率
+    }
 
     // 性能优化：较小的 GOP 大小（提升速度）
     args.push('-g', '30')
@@ -1616,15 +1735,19 @@ export default function VideoCompression() {
     // 极简模式：将“目标大小 + 压缩等级”转换为专业参数，并同步到待处理任务
     if (uiMode === 'simple') {
       const crf = getSimpleCrf(simpleLevel)
-      const targetSize = clamp(simpleTargetSize || 0, 1, 100)
+      const targetSize = clamp(simpleTargetSize || 0, 1, 500)
+      const speedFirstFps = tasks.some(t => (t.videoInfo?.duration || 0) > 120) ? 15 : 20
 
       const nextOptions: CompressionOptions = {
         mode: 'crf',
         crf,
         codec: 'h264',
-        resolution: 'original',
+        resolution: simpleSpeedFirst ? '720p' : (simpleTurboMode ? '720p' : 'original'),
+        fps: simpleSpeedFirst ? speedFirstFps : (simpleTurboMode ? 24 : undefined),
         targetSize,
-        turbo: simpleTurboMode
+        turbo: simpleTurboMode || simpleSpeedFirst,
+        speedFirst: simpleSpeedFirst,
+        removeAudio: simpleSpeedFirst ? simpleRemoveAudio : false,
       }
 
       setGlobalOptions(nextOptions)
@@ -1658,7 +1781,7 @@ export default function VideoCompression() {
     setIsProcessing(true)
     setIsPaused(false)
     processQueue()
-  }, [tasks, uiMode, simpleLevel, simpleTargetSize, simpleTurboMode, loadFFmpeg, processQueue, language])
+  }, [tasks, uiMode, simpleLevel, simpleTargetSize, simpleTurboMode, simpleSpeedFirst, simpleRemoveAudio, loadFFmpeg, processQueue, language])
 
   // 暂停
   const handlePause = useCallback(() => {
@@ -2103,8 +2226,8 @@ export default function VideoCompression() {
         <Upload size={48} />
         <p className="upload-text">
           {language === 'zh-CN' 
-            ? `拖拽视频到此处或点击上传（最多${MAX_FILES}个，每个≤100MB）`
-            : `Drag videos here or click to upload (max ${MAX_FILES}, ≤100MB each)`}
+            ? `拖拽视频到此处或点击上传（最多${MAX_FILES}个，每个≤500MB）`
+            : `Drag videos here or click to upload (max ${MAX_FILES}, ≤500MB each)`}
         </p>
         <button 
           className="upload-button"
@@ -2149,13 +2272,25 @@ export default function VideoCompression() {
                 <input
                   type="number"
                   min="1"
-                  max="100"
+                  max="500"
                   value={simpleTargetSize}
                   onChange={(e) => {
-                    const v = clamp(parseInt(e.target.value || '50', 10), 1, 100)
+                    const v = clamp(parseInt(e.target.value || '50', 10), 1, 500)
                     setSimpleTargetSize(v)
                     const crf = getSimpleCrf(simpleLevel)
-                    setGlobalOptions(prev => ({ ...prev, mode: 'crf', crf, codec: 'h264', resolution: 'original', targetSize: v, turbo: simpleTurboMode }))
+                    const speedFirstFps = tasks.some(t => (t.videoInfo?.duration || 0) > 120) ? 20 : 24
+                    setGlobalOptions(prev => ({
+                      ...prev,
+                      mode: 'crf',
+                      crf,
+                      codec: 'h264',
+                      resolution: simpleSpeedFirst ? '720p' : (simpleTurboMode ? '720p' : 'original'),
+                      fps: simpleSpeedFirst ? speedFirstFps : (simpleTurboMode ? 24 : undefined),
+                      targetSize: v,
+                      turbo: simpleTurboMode || simpleSpeedFirst,
+                      speedFirst: simpleSpeedFirst,
+                      removeAudio: simpleSpeedFirst ? simpleRemoveAudio : false,
+                    }))
                   }}
                   disabled={isProcessing}
                 />
@@ -2173,7 +2308,8 @@ export default function VideoCompression() {
                     className={`level-btn ${simpleLevel === 'low' ? 'active' : ''}`}
                     onClick={() => {
                       setSimpleLevel('low')
-                      setGlobalOptions(prev => ({ ...prev, mode: 'crf', crf: getSimpleCrf('low'), codec: 'h264', resolution: 'original', targetSize: simpleTargetSize, turbo: simpleTurboMode }))
+                      const speedFirstFps = tasks.some(t => (t.videoInfo?.duration || 0) > 120) ? 20 : 24
+                      setGlobalOptions(prev => ({ ...prev, mode: 'crf', crf: getSimpleCrf('low'), codec: 'h264', resolution: simpleSpeedFirst ? '720p' : (simpleTurboMode ? '720p' : 'original'), fps: simpleSpeedFirst ? speedFirstFps : (simpleTurboMode ? 24 : undefined), targetSize: simpleTargetSize, turbo: simpleTurboMode || simpleSpeedFirst, speedFirst: simpleSpeedFirst, removeAudio: simpleSpeedFirst ? simpleRemoveAudio : false }))
                     }}
                     disabled={isProcessing}
                   >
@@ -2183,7 +2319,8 @@ export default function VideoCompression() {
                     className={`level-btn ${simpleLevel === 'medium' ? 'active' : ''}`}
                     onClick={() => {
                       setSimpleLevel('medium')
-                      setGlobalOptions(prev => ({ ...prev, mode: 'crf', crf: getSimpleCrf('medium'), codec: 'h264', resolution: 'original', targetSize: simpleTargetSize, turbo: simpleTurboMode }))
+                      const speedFirstFps = tasks.some(t => (t.videoInfo?.duration || 0) > 120) ? 20 : 24
+                      setGlobalOptions(prev => ({ ...prev, mode: 'crf', crf: getSimpleCrf('medium'), codec: 'h264', resolution: simpleSpeedFirst ? '720p' : (simpleTurboMode ? '720p' : 'original'), fps: simpleSpeedFirst ? speedFirstFps : (simpleTurboMode ? 24 : undefined), targetSize: simpleTargetSize, turbo: simpleTurboMode || simpleSpeedFirst, speedFirst: simpleSpeedFirst, removeAudio: simpleSpeedFirst ? simpleRemoveAudio : false }))
                     }}
                     disabled={isProcessing}
                   >
@@ -2193,7 +2330,8 @@ export default function VideoCompression() {
                     className={`level-btn ${simpleLevel === 'high' ? 'active' : ''}`}
                     onClick={() => {
                       setSimpleLevel('high')
-                      setGlobalOptions(prev => ({ ...prev, mode: 'crf', crf: getSimpleCrf('high'), codec: 'h264', resolution: 'original', targetSize: simpleTargetSize, turbo: simpleTurboMode }))
+                      const speedFirstFps = tasks.some(t => (t.videoInfo?.duration || 0) > 120) ? 20 : 24
+                      setGlobalOptions(prev => ({ ...prev, mode: 'crf', crf: getSimpleCrf('high'), codec: 'h264', resolution: simpleSpeedFirst ? '720p' : (simpleTurboMode ? '720p' : 'original'), fps: simpleSpeedFirst ? speedFirstFps : (simpleTurboMode ? 24 : undefined), targetSize: simpleTargetSize, turbo: simpleTurboMode || simpleSpeedFirst, speedFirst: simpleSpeedFirst, removeAudio: simpleSpeedFirst ? simpleRemoveAudio : false }))
                     }}
                     disabled={isProcessing}
                   >
@@ -2235,7 +2373,15 @@ export default function VideoCompression() {
                     onChange={(e) => {
                       const checked = e.target.checked
                       setSimpleTurboMode(checked)
-                      setGlobalOptions(prev => ({ ...prev, turbo: checked }))
+                      const speedFirstFps = tasks.some(t => (t.videoInfo?.duration || 0) > 120) ? 20 : 24
+                      setGlobalOptions(prev => ({
+                        ...prev,
+                        turbo: checked || simpleSpeedFirst,
+                        speedFirst: simpleSpeedFirst,
+                        resolution: simpleSpeedFirst ? '720p' : (checked ? '720p' : 'original'),
+                        fps: simpleSpeedFirst ? speedFirstFps : (checked ? 24 : undefined),
+                        removeAudio: simpleSpeedFirst ? simpleRemoveAudio : false,
+                      }))
                     }}
                     disabled={isProcessing}
                   />
@@ -2246,6 +2392,60 @@ export default function VideoCompression() {
                   </label>
                 </div>
               </div>
+
+              <div className="setting-item">
+                <label>{language === 'zh-CN' ? '极速压缩（Speed First）' : 'Speed First Compression'}</label>
+                <div className="checkbox-row">
+                  <input
+                    id="simple-speed-first"
+                    type="checkbox"
+                    checked={simpleSpeedFirst}
+                    onChange={(e) => {
+                      const checked = e.target.checked
+                      const speedFirstFps = tasks.some(t => (t.videoInfo?.duration || 0) > 120) ? 20 : 24
+                      setSimpleSpeedFirst(checked)
+                      setGlobalOptions(prev => ({
+                        ...prev,
+                        turbo: checked || simpleTurboMode,
+                        speedFirst: checked,
+                        removeAudio: checked ? simpleRemoveAudio : false,
+                        resolution: checked ? '720p' : (simpleTurboMode ? '720p' : 'original'),
+                        fps: checked ? speedFirstFps : (simpleTurboMode ? 24 : undefined),
+                      }))
+                    }}
+                    disabled={isProcessing}
+                  />
+                  <label htmlFor="simple-speed-first">
+                    {language === 'zh-CN'
+                      ? '独立档位：固定 ultrafast + 720p + 20/24fps，优先稳定低耗时。'
+                      : 'Independent profile: fixed ultrafast + 720p + 20/24fps for consistently lower processing time.'}
+                  </label>
+                </div>
+              </div>
+
+              {simpleSpeedFirst && (
+                <div className="setting-item">
+                  <label>{language === 'zh-CN' ? '可选去音频' : 'Optional Remove Audio'}</label>
+                  <div className="checkbox-row">
+                    <input
+                      id="simple-speed-first-remove-audio"
+                      type="checkbox"
+                      checked={simpleRemoveAudio}
+                      onChange={(e) => {
+                        const checked = e.target.checked
+                        setSimpleRemoveAudio(checked)
+                        setGlobalOptions(prev => ({ ...prev, removeAudio: checked, speedFirst: true, turbo: true, resolution: '720p' }))
+                      }}
+                      disabled={isProcessing}
+                    />
+                    <label htmlFor="simple-speed-first-remove-audio">
+                      {language === 'zh-CN'
+                        ? '移除音频可进一步缩短耗时并减少体积。'
+                        : 'Removing audio can further reduce processing time and output size.'}
+                    </label>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="settings-grid">
@@ -2299,7 +2499,7 @@ export default function VideoCompression() {
                 <input 
                   type="number" 
                   min="1"
-                  max="100"
+                  max="500"
                   placeholder="50"
                   value={globalOptions.targetSize || ''}
                   onChange={(e) => setGlobalOptions(prev => ({ 
@@ -2534,7 +2734,7 @@ export default function VideoCompression() {
                           <input
                             type="range"
                             min="0"
-                            max="100"
+                            max="500"
                             value={compareValue[task.id] ?? 50}
                             onChange={(e) => setCompareValue(prev => ({ ...prev, [task.id]: parseInt(e.target.value, 10) }))}
                           />
