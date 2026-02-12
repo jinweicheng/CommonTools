@@ -1,5 +1,5 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
-import { Upload, Download, X, Video, Settings, Loader2, AlertCircle, Play, CheckCircle2 } from 'lucide-react'
+import { useState, useRef, useCallback } from 'react'
+import { Upload, Download, X, Video, Settings, Loader2, AlertCircle, Play, CheckCircle2, RotateCcw } from 'lucide-react'
 import { useI18n } from '../i18n/I18nContext'
 import { FFmpeg } from '@ffmpeg/ffmpeg'
 import { fetchFile, toBlobURL } from '@ffmpeg/util'
@@ -9,19 +9,27 @@ import './VideoConverter.css'
 const MAX_FILES = 5
 const MAX_FILE_SIZE = 500 * 1024 * 1024 // 500MB
 
-type VideoFormat = 'mp4' | 'mov' | 'mkv' | 'webm'
-type VideoCodec = 'h264' | 'h265' | 'vp9'
+type VideoOutputFormat = 'mp4' | 'webm' | 'mov' | 'mkv' | 'avi'
+type VideoInputFormat = 'mp4' | 'mov' | 'mkv' | 'webm' | 'avi' | 'flv' | 'm4v' | '3gp'
+type VideoCodec = 'h264' | 'h265'
+
+type UiMode = 'simple' | 'advanced'
 
 interface ConversionTask {
   id: string
   file: File
   preview: string
+  inputFormat?: VideoInputFormat
+  durationSec?: number
+  width?: number
+  height?: number
   status: 'pending' | 'processing' | 'completed' | 'failed'
   progress: number
   progressMessage?: string
-  targetFormat: VideoFormat
+  targetFormat: VideoOutputFormat
   result?: Blob
   resultUrl?: string
+  outputSize?: number
   error?: string
   startTime?: number
   endTime?: number
@@ -34,15 +42,84 @@ export default function VideoConverter() {
   const [ffmpegLoaded, setFfmpegLoaded] = useState(false)
   const [ffmpegLoading, setFfmpegLoading] = useState(false)
   const [loadingProgress, setLoadingProgress] = useState('')
+  const [isDragOver, setIsDragOver] = useState(false)
   
   // 转换设置
-  const [defaultFormat, setDefaultFormat] = useState<VideoFormat>('mp4')
+  const [uiMode, setUiMode] = useState<UiMode>('simple')
+  const [defaultFormat, setDefaultFormat] = useState<VideoOutputFormat>('mp4')
+
+  // Advanced
   const [codec, setCodec] = useState<VideoCodec>('h264')
   const [quality, setQuality] = useState(23) // CRF: 18-28, 越小质量越高
-  const [preset, setPreset] = useState('medium') // ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow
+  const [preset, setPreset] = useState('medium') // ultrafast..veryslow
+  const [scaleWidth, setScaleWidth] = useState(0) // 0 = keep
+  const [targetFps, setTargetFps] = useState(0) // 0 = keep
+  const [videoBitrateKbps, setVideoBitrateKbps] = useState(0) // 0 = auto
+  const [audioBitrateKbps, setAudioBitrateKbps] = useState(128)
+  const [removeAudio, setRemoveAudio] = useState(false)
   
   const fileInputRef = useRef<HTMLInputElement>(null)
   const ffmpegRef = useRef<FFmpeg | null>(null)
+
+  const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v))
+
+  const formatTime = (seconds: number): string => {
+    if (!Number.isFinite(seconds) || seconds <= 0) return '00:00:00'
+    const s = Math.max(0, seconds)
+    const hh = Math.floor(s / 3600)
+    const mm = Math.floor((s % 3600) / 60)
+    const ss = Math.floor(s % 60)
+    return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`
+  }
+
+  const getVideoMeta = (objectUrl: string): Promise<{ durationSec?: number; width?: number; height?: number }> => {
+    return new Promise((resolve) => {
+      const video = document.createElement('video')
+      video.preload = 'metadata'
+      video.src = objectUrl
+      const cleanup = () => {
+        video.removeAttribute('src')
+        video.load()
+      }
+      video.onloadedmetadata = () => {
+        const d = Number.isFinite(video.duration) ? video.duration : undefined
+        const w = Number.isFinite(video.videoWidth) && video.videoWidth > 0 ? video.videoWidth : undefined
+        const h = Number.isFinite(video.videoHeight) && video.videoHeight > 0 ? video.videoHeight : undefined
+        cleanup()
+        resolve({ durationSec: d, width: w, height: h })
+      }
+      video.onerror = () => {
+        cleanup()
+        resolve({})
+      }
+    })
+  }
+
+  const getInputFormat = (fileName: string): VideoInputFormat | undefined => {
+    const ext = fileName.split('.').pop()?.toLowerCase()
+    if (ext === 'mp4') return 'mp4'
+    if (ext === 'mov') return 'mov'
+    if (ext === 'mkv') return 'mkv'
+    if (ext === 'webm') return 'webm'
+    if (ext === 'avi') return 'avi'
+    if (ext === 'flv') return 'flv'
+    if (ext === 'm4v') return 'm4v'
+    if (ext === '3gp') return '3gp'
+    return undefined
+  }
+
+  const getOutputMime = (format: VideoOutputFormat): string => {
+    if (format === 'mp4') return 'video/mp4'
+    if (format === 'webm') return 'video/webm'
+    if (format === 'mov') return 'video/quicktime'
+    if (format === 'mkv') return 'video/x-matroska'
+    return 'video/x-msvideo'
+  }
+
+  const canPreview = (mime: string): boolean => {
+    const v = document.createElement('video')
+    return v.canPlayType(mime) !== ''
+  }
 
   // 加载 FFmpeg
   const loadFFmpeg = useCallback(async (): Promise<boolean> => {
@@ -55,6 +132,7 @@ export default function VideoConverter() {
       const ffmpeg = new FFmpeg()
       
       ffmpeg.on('log', ({ message }) => {
+        // 保留 log 方便调试，但不要在 UI 阻塞。
         console.log('[FFmpeg]:', message)
       })
 
@@ -141,35 +219,16 @@ export default function VideoConverter() {
     }
   }, [ffmpegLoaded, ffmpegLoading, language])
 
-  // 预加载 FFmpeg
-  useEffect(() => {
-    if (!ffmpegLoaded && !ffmpegLoading) {
-      loadFFmpeg().catch(() => {})
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  // 获取文件格式
-  const getFileFormat = (fileName: string): VideoFormat | null => {
-    const ext = fileName.split('.').pop()?.toLowerCase()
-    if (ext === 'mp4') return 'mp4'
-    if (ext === 'mov') return 'mov'
-    if (ext === 'mkv') return 'mkv'
-    if (ext === 'webm') return 'webm'
-    return null
-  }
+  // 不在页面进入时预加载：避免每次进入页面都下载 WASM，改为点击“开始转换”时加载。
 
   // 文件上传处理
-  const handleFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const uploadedFiles = event.target.files
-    if (!uploadedFiles || uploadedFiles.length === 0) return
+  const addFiles = useCallback(async (fileArray: File[]) => {
+    if (fileArray.length === 0) return
 
-    const fileArray = Array.from(uploadedFiles)
-    
     // 检查文件数量限制
     if (tasks.length + fileArray.length > MAX_FILES) {
       alert(
-        language === 'zh-CN' 
+        language === 'zh-CN'
           ? `最多只能处理 ${MAX_FILES} 个视频`
           : `Maximum ${MAX_FILES} videos allowed`
       )
@@ -179,20 +238,18 @@ export default function VideoConverter() {
     const newTasks: ConversionTask[] = []
 
     for (const file of fileArray) {
-      // 检查文件类型
       if (!file.type.startsWith('video/')) {
         alert(
-          language === 'zh-CN' 
+          language === 'zh-CN'
             ? `不是视频文件: ${file.name}`
             : `Not a video file: ${file.name}`
         )
         continue
       }
 
-      // 检查文件大小
       if (file.size > MAX_FILE_SIZE) {
         alert(
-          language === 'zh-CN' 
+          language === 'zh-CN'
             ? `文件过大 (最大500MB): ${file.name}`
             : `File too large (max 500MB): ${file.name}`
         )
@@ -201,23 +258,18 @@ export default function VideoConverter() {
 
       const preview = URL.createObjectURL(file)
       const taskId = `${Date.now()}-${Math.random()}`
-      const currentFormat = getFileFormat(file.name)
-      
-      // 如果当前格式就是目标格式，跳过
-      if (currentFormat === defaultFormat) {
-        alert(
-          language === 'zh-CN' 
-            ? `文件 ${file.name} 已经是 ${defaultFormat.toUpperCase()} 格式，无需转换`
-            : `File ${file.name} is already ${defaultFormat.toUpperCase()} format, no conversion needed`
-        )
-        URL.revokeObjectURL(preview)
-        continue
-      }
+      const inputFormat = getInputFormat(file.name)
+
+      const meta = await getVideoMeta(preview)
 
       newTasks.push({
         id: taskId,
         file,
         preview,
+        inputFormat,
+        durationSec: meta.durationSec,
+        width: meta.width,
+        height: meta.height,
         status: 'pending',
         progress: 0,
         targetFormat: defaultFormat
@@ -225,51 +277,112 @@ export default function VideoConverter() {
     }
 
     setTasks(prev => [...prev, ...newTasks])
+  }, [tasks.length, language, defaultFormat])
+
+  const handleFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const uploadedFiles = event.target.files
+    if (!uploadedFiles || uploadedFiles.length === 0) return
+
+    await addFiles(Array.from(uploadedFiles))
     
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
-  }, [tasks.length, language, defaultFormat])
+  }, [addFiles])
+
+  const handleDrop = useCallback(async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(false)
+    if (isProcessing) return
+
+    const files = Array.from(e.dataTransfer.files || []).filter(f => f)
+    await addFiles(files)
+  }, [addFiles, isProcessing])
+
+  const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!isDragOver) setIsDragOver(true)
+  }, [isDragOver])
+
+  const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(false)
+  }, [])
 
   // 构建 FFmpeg 参数
-  const buildFFmpegArgs = useCallback((task: ConversionTask): string[] => {
-    const inputExt = task.file.name.split('.').pop()?.toLowerCase() || 'mp4'
-    const args: string[] = ['-i', `input.${inputExt}`]
+  const buildFFmpegArgs = useCallback((task: ConversionTask, inputName: string): string[] => {
+    const args: string[] = ['-i', inputName]
 
-    // 视频编码器
-    if (codec === 'h264') {
-      args.push('-c:v', 'libx264')
-      args.push('-preset', preset)
-      args.push('-crf', quality.toString())
-      args.push('-pix_fmt', 'yuv420p')
-    } else if (codec === 'h265') {
-      args.push('-c:v', 'libx265')
-      args.push('-preset', preset)
-      args.push('-crf', quality.toString())
-      args.push('-pix_fmt', 'yuv420p')
-    } else if (codec === 'vp9') {
-      args.push('-c:v', 'libvpx-vp9')
-      args.push('-crf', quality.toString())
-      args.push('-b:v', '0')
+    // 视频滤镜：缩放 / FPS
+    const filters: string[] = []
+    if (uiMode === 'advanced' && scaleWidth > 0) {
+      filters.push(`scale=${scaleWidth}:-1:flags=lanczos`)
+    }
+    if (uiMode === 'advanced' && targetFps > 0) {
+      filters.push(`fps=${targetFps}`)
+    }
+    if (filters.length > 0) {
+      args.push('-vf', filters.join(','))
     }
 
-    // 音频编码器
+    // 输出格式与编码策略
     if (task.targetFormat === 'webm') {
-      args.push('-c:a', 'libopus')
-      args.push('-b:a', '128k')
+      // WebM: VP9 + Opus
+      args.push('-c:v', 'libvpx-vp9')
+      if (uiMode === 'advanced' && videoBitrateKbps > 0) {
+        args.push('-b:v', `${videoBitrateKbps}k`)
+      } else {
+        args.push('-crf', quality.toString())
+        args.push('-b:v', '0')
+      }
+      if (removeAudio) {
+        args.push('-an')
+      } else {
+        args.push('-c:a', 'libopus')
+        args.push('-b:a', `${clamp(audioBitrateKbps, 32, 320)}k`)
+      }
     } else {
-      args.push('-c:a', 'aac')
-      args.push('-b:a', '128k')
+      // 其它容器默认 H.264 + AAC（推荐），高级可选 H.265
+      const selectedCodec = uiMode === 'advanced' ? codec : 'h264'
+      if (selectedCodec === 'h265') {
+        args.push('-c:v', 'libx265')
+      } else {
+        args.push('-c:v', 'libx264')
+      }
+      args.push('-preset', preset)
+
+      if (uiMode === 'advanced' && videoBitrateKbps > 0) {
+        args.push('-b:v', `${videoBitrateKbps}k`)
+      } else {
+        args.push('-crf', quality.toString())
+      }
+
+      args.push('-pix_fmt', 'yuv420p')
+
+      if (removeAudio) {
+        args.push('-an')
+      } else {
+        if (task.targetFormat === 'avi') {
+          // AVI 对 AAC 支持并不统一，默认 MP3 更稳一些
+          args.push('-c:a', 'libmp3lame')
+          args.push('-b:a', `${clamp(audioBitrateKbps, 64, 320)}k`)
+        } else {
+          args.push('-c:a', 'aac')
+          args.push('-b:a', `${clamp(audioBitrateKbps, 64, 320)}k`)
+        }
+      }
     }
 
-    // 输出格式特定设置
     if (task.targetFormat === 'mp4') {
       args.push('-movflags', '+faststart')
     }
 
     args.push(`output.${task.targetFormat}`)
     return args
-  }, [codec, preset, quality])
+  }, [audioBitrateKbps, clamp, codec, preset, quality, removeAudio, scaleWidth, targetFps, uiMode, videoBitrateKbps])
 
   // 转换单个视频
   const convertVideo = useCallback(async (task: ConversionTask): Promise<void> => {
@@ -306,7 +419,8 @@ export default function VideoConverter() {
 
       const fileData = await fetchFile(task.file)
       const inputExt = task.file.name.split('.').pop()?.toLowerCase() || 'mp4'
-      await ffmpeg.writeFile(`input.${inputExt}`, fileData)
+      const inputName = `input.${inputExt}`
+      await ffmpeg.writeFile(inputName, fileData)
 
       setTasks(prev => prev.map(t => 
         t.id === task.id ? { 
@@ -316,40 +430,76 @@ export default function VideoConverter() {
         } : t
       ))
 
-      // 设置进度监听器
+      // 设置“真实”进度（尽力）：
+      // 1) 优先解析 FFmpeg 日志中的 time=xx（基于视频时长）
+      // 2) 退回 progress 事件（0-1）
       let lastProgressUpdate = 0
       const PROGRESS_UPDATE_INTERVAL = 200
+
+      const totalSec = task.durationSec && Number.isFinite(task.durationSec) && task.durationSec > 0
+        ? task.durationSec
+        : undefined
+
+      const parseTimeToSeconds = (timeStr: string): number | undefined => {
+        // HH:MM:SS.xx
+        const m = timeStr.match(/^(\d+):(\d+):(\d+(?:\.\d+)?)$/)
+        if (!m) return undefined
+        const hh = parseInt(m[1], 10)
+        const mm = parseInt(m[2], 10)
+        const ss = parseFloat(m[3])
+        if (![hh, mm, ss].every(Number.isFinite)) return undefined
+        return hh * 3600 + mm * 60 + ss
+      }
+
+      const updateProgress = (pct: number, label?: string) => {
+        const progressPercent = clamp(Math.round(pct), 0, 100)
+        setTasks(prev => prev.map(t => {
+          if (t.id === task.id && t.status === 'processing') {
+            return {
+              ...t,
+              progress: progressPercent,
+              progressMessage: label
+                ? label
+                : (language === 'zh-CN'
+                    ? `转换中... ${progressPercent}%`
+                    : `Converting... ${progressPercent}%`)
+            }
+          }
+          return t
+        }))
+      }
       
       const progressHandler = ({ progress: prog }: { progress: number }) => {
         const now = Date.now()
         if (now - lastProgressUpdate < PROGRESS_UPDATE_INTERVAL) return
         lastProgressUpdate = now
 
-        // FFmpeg progress 是 0-1 之间的值，转换为 20-90 的进度范围
-        const progressPercent = Math.round(20 + prog * 70)
-        
-        setTasks(prev => prev.map(t => {
-          if (t.id === task.id && t.status === 'processing') {
-            return {
-              ...t,
-              progress: progressPercent,
-              progressMessage: language === 'zh-CN' 
-                ? `转换中... ${progressPercent}%` 
-                : `Converting... ${progressPercent}%`
-            }
-          }
-          return t
-        }))
+        updateProgress(20 + clamp(prog, 0, 1) * 70)
+      }
+
+      const logHandler = ({ message }: { message: string }) => {
+        if (!totalSec) return
+        const now = Date.now()
+        if (now - lastProgressUpdate < PROGRESS_UPDATE_INTERVAL) return
+
+        const m = message.match(/time=(\d+:\d+:\d+(?:\.\d+)?)/)
+        if (!m) return
+        const tSec = parseTimeToSeconds(m[1])
+        if (tSec == null) return
+        const pct = 20 + clamp(tSec / totalSec, 0, 1) * 70
+        updateProgress(pct)
       }
 
       ffmpeg.on('progress', progressHandler)
+      ffmpeg.on('log', logHandler)
 
       // 执行转换
-      const args = buildFFmpegArgs(task)
+      const args = buildFFmpegArgs(task, inputName)
       await ffmpeg.exec(args)
 
       // 移除进度监听器
       ffmpeg.off('progress', progressHandler)
+      ffmpeg.off('log', logHandler)
 
       setTasks(prev => prev.map(t => 
         t.id === task.id ? { 
@@ -361,12 +511,12 @@ export default function VideoConverter() {
 
       // 读取输出文件
       const data = await ffmpeg.readFile(`output.${task.targetFormat}`)
-      const blob = new Blob([data as any], { type: `video/${task.targetFormat}` })
+      const blob = new Blob([data as any], { type: getOutputMime(task.targetFormat) })
       const resultUrl = URL.createObjectURL(blob)
 
       // 清理文件
       try {
-        await ffmpeg.deleteFile(`input.${inputExt}`)
+        await ffmpeg.deleteFile(inputName)
         await ffmpeg.deleteFile(`output.${task.targetFormat}`)
       } catch (err) {
         console.warn('Failed to clean up:', err)
@@ -387,6 +537,7 @@ export default function VideoConverter() {
                 : `Completed! ${duration}s`,
               result: blob,
               resultUrl,
+              outputSize: blob.size,
               endTime
             } 
           : t
@@ -423,6 +574,10 @@ export default function VideoConverter() {
 
     const pendingTasks = tasks.filter(t => t.status === 'pending')
     if (pendingTasks.length === 0) return
+
+    // 只在开始转换时加载 FFmpeg，加载阶段不要全屏遮罩。
+    const ok = await loadFFmpeg()
+    if (!ok) return
 
     setIsProcessing(true)
 
@@ -478,13 +633,32 @@ export default function VideoConverter() {
     ))
   }, [])
 
+  const handleReconvert = useCallback((taskId: string) => {
+    setTasks(prev => prev.map(t => {
+      if (t.id !== taskId) return t
+      if (t.resultUrl) URL.revokeObjectURL(t.resultUrl)
+      return {
+        ...t,
+        status: 'pending',
+        progress: 0,
+        progressMessage: undefined,
+        result: undefined,
+        resultUrl: undefined,
+        outputSize: undefined,
+        error: undefined,
+        startTime: undefined,
+        endTime: undefined
+      }
+    }))
+  }, [])
+
   const formatFileSize = (bytes: number): string => {
     if (bytes < 1024) return `${bytes} B`
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
   }
 
-  const getFormatLabel = (format: VideoFormat): string => {
+  const getFormatLabel = (format: VideoOutputFormat): string => {
     return format.toUpperCase()
   }
 
@@ -505,34 +679,41 @@ export default function VideoConverter() {
         </div>
       </div>
 
-      {/* FFmpeg Loading Overlay */}
+      {/* FFmpeg Loading: inline hint only (no blocking overlay) */}
       {ffmpegLoading && (
-        <div className="ffmpeg-loading-overlay">
-          <div className="loading-spinner"></div>
-          <p className="loading-title">
-            {language === 'zh-CN' ? '正在加载视频处理引擎...' : 'Loading video processing engine...'}
-          </p>
-          {loadingProgress && (
-            <p className="loading-progress">{loadingProgress}</p>
-          )}
-          <p className="loading-hint">
-            {language === 'zh-CN' 
-              ? '首次加载需要下载约 30MB 文件，请耐心等待...' 
-              : 'First load requires ~30MB download, please wait...'}
-          </p>
+        <div className="ffmpeg-inline-status" role="status" aria-live="polite">
+          <div className="ffmpeg-inline-row">
+            <div className="ffmpeg-inline-spinner" aria-hidden="true" />
+            <div className="ffmpeg-inline-text">
+              <div className="ffmpeg-inline-title">
+                {language === 'zh-CN' ? '正在加载 FFmpeg 引擎（仅首次需要）' : 'Loading FFmpeg engine (first time only)'}
+              </div>
+              <div className="ffmpeg-inline-subtitle">
+                {loadingProgress || (language === 'zh-CN' ? '准备中…' : 'Preparing…')}
+              </div>
+            </div>
+          </div>
+          <div className="ffmpeg-inline-bar" aria-hidden="true">
+            <div className="ffmpeg-inline-barFill" />
+          </div>
         </div>
       )}
 
       {/* Upload Section */}
-      <div className="upload-section">
+      <div
+        className={`upload-section ${isDragOver ? 'drag-over' : ''}`}
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+      >
         <input
           ref={fileInputRef}
           type="file"
-          accept="video/*"
+          accept="video/*,.mp4,.mov,.mkv,.avi,.webm,.flv,.m4v,.3gp"
           multiple
           onChange={handleFileUpload}
           style={{ display: 'none' }}
-          disabled={isProcessing || ffmpegLoading}
+          disabled={isProcessing}
         />
         
         <div
@@ -543,8 +724,8 @@ export default function VideoConverter() {
           <span>{language === 'zh-CN' ? '上传视频文件' : 'Upload Videos'}</span>
           <small>
             {language === 'zh-CN' 
-              ? '支持 MP4, MOV, MKV, WebM 等格式，最多 5 个文件，每个最大 500MB'
-              : 'Supports MP4, MOV, MKV, WebM, max 5 files, 500MB each'}
+              ? '支持 MP4 / MOV / MKV / AVI / WebM / FLV / M4V / 3GP，最多 5 个文件，每个最大 500MB（可拖拽）'
+              : 'Supports MP4 / MOV / MKV / AVI / WebM / FLV / M4V / 3GP, max 5 files, 500MB each (drag & drop)'}
           </small>
         </div>
 
@@ -558,19 +739,37 @@ export default function VideoConverter() {
                 <div className="file-info">
                   <span className="file-name">{task.file.name}</span>
                   <span className="file-size">{formatFileSize(task.file.size)}</span>
+                  <div className="file-meta">
+                    {task.durationSec != null && (
+                      <span className="meta-pill">
+                        {language === 'zh-CN' ? '时长' : 'Duration'}: {formatTime(task.durationSec)}
+                      </span>
+                    )}
+                    {task.width && task.height && (
+                      <span className="meta-pill">
+                        {language === 'zh-CN' ? '分辨率' : 'Resolution'}: {task.width}×{task.height}
+                      </span>
+                    )}
+                    {task.inputFormat && (
+                      <span className="meta-pill">
+                        {language === 'zh-CN' ? '格式' : 'Format'}: {task.inputFormat.toUpperCase()}
+                      </span>
+                    )}
+                  </div>
                   
-                  {task.status === 'pending' && (
+                  {task.status === 'pending' && uiMode === 'advanced' && (
                     <div className="format-selector">
                       <label>{language === 'zh-CN' ? '转换为' : 'Convert to'}:</label>
                       <select
                         value={task.targetFormat}
-                        onChange={(e) => handleFormatChange(task.id, e.target.value as VideoFormat)}
+                        onChange={(e) => handleFormatChange(task.id, e.target.value as VideoOutputFormat)}
                         disabled={isProcessing}
                       >
-                        <option value="mp4">MP4</option>
+                        <option value="mp4">MP4 (H.264)</option>
+                        <option value="webm">WebM (VP9)</option>
                         <option value="mov">MOV</option>
                         <option value="mkv">MKV</option>
-                        <option value="webm">WebM</option>
+                        <option value="avi">AVI</option>
                       </select>
                     </div>
                   )}
@@ -610,6 +809,16 @@ export default function VideoConverter() {
                       <Download size={16} />
                     </button>
                   )}
+                  {task.status === 'completed' && (
+                    <button
+                      className="reconvert-btn"
+                      onClick={() => handleReconvert(task.id)}
+                      disabled={isProcessing}
+                      title={language === 'zh-CN' ? '重新转换' : 'Reconvert'}
+                    >
+                      <RotateCcw size={16} />
+                    </button>
+                  )}
                   <button 
                     className="remove-btn"
                     onClick={() => handleRemoveTask(task.id)}
@@ -629,6 +838,23 @@ export default function VideoConverter() {
       {tasks.length > 0 && (
         <div className="settings-section">
           <h3><Settings /> {language === 'zh-CN' ? '转换设置' : 'Conversion Settings'}</h3>
+
+          <div className="mode-toggle">
+            <button
+              className={`mode-btn ${uiMode === 'simple' ? 'active' : ''}`}
+              onClick={() => setUiMode('simple')}
+              disabled={isProcessing}
+            >
+              {language === 'zh-CN' ? '极简模式' : 'Simple'}
+            </button>
+            <button
+              className={`mode-btn ${uiMode === 'advanced' ? 'active' : ''}`}
+              onClick={() => setUiMode('advanced')}
+              disabled={isProcessing}
+            >
+              {language === 'zh-CN' ? '高级模式' : 'Advanced'}
+            </button>
+          </div>
           
           <div className="setting-group">
             <label>
@@ -636,85 +862,168 @@ export default function VideoConverter() {
             </label>
             <select
               value={defaultFormat}
-              onChange={(e) => setDefaultFormat(e.target.value as VideoFormat)}
+              onChange={(e) => {
+                const next = e.target.value as VideoOutputFormat
+                setDefaultFormat(next)
+                // 极简模式：同步所有待处理任务的输出格式
+                if (uiMode === 'simple') {
+                  setTasks(prev => prev.map(t => t.status === 'pending' ? { ...t, targetFormat: next } : t))
+                }
+              }}
               disabled={isProcessing}
             >
-              <option value="mp4">MP4</option>
+              <option value="mp4">MP4 (H.264 + AAC) ⭐</option>
+              <option value="webm">WebM (VP9 + Opus)</option>
               <option value="mov">MOV</option>
               <option value="mkv">MKV</option>
-              <option value="webm">WebM</option>
+              <option value="avi">AVI</option>
             </select>
             <small>
               {language === 'zh-CN' 
-                ? '新上传的文件将默认转换为该格式'
-                : 'Newly uploaded files will be converted to this format by default'}
+                ? '推荐：MP4（H.264 + AAC）兼容性最佳。'
+                : 'Recommended: MP4 (H.264 + AAC) for best compatibility.'}
             </small>
           </div>
 
-          <div className="setting-group">
-            <label>
-              {language === 'zh-CN' ? '视频编码器' : 'Video Codec'}
-            </label>
-            <select
-              value={codec}
-              onChange={(e) => setCodec(e.target.value as VideoCodec)}
-              disabled={isProcessing}
-            >
-              <option value="h264">H.264 (兼容性最好)</option>
-              <option value="h265">H.265 (文件更小)</option>
-              <option value="vp9">VP9 (WebM 推荐)</option>
-            </select>
-            <small>
-              {language === 'zh-CN' 
-                ? 'H.264 兼容性最好，H.265 文件更小，VP9 适合 WebM'
-                : 'H.264 best compatibility, H.265 smaller files, VP9 for WebM'}
-            </small>
-          </div>
+          {uiMode === 'advanced' && (
+            <div className="settings-grid">
+              <div className="setting-group">
+                <label>{language === 'zh-CN' ? '视频编码' : 'Video Codec'}</label>
+                <select
+                  value={codec}
+                  onChange={(e) => setCodec(e.target.value as VideoCodec)}
+                  disabled={isProcessing || defaultFormat === 'webm'}
+                >
+                  <option value="h264">H.264 (推荐)</option>
+                  <option value="h265">H.265 (更小体积)</option>
+                </select>
+                <small>
+                  {defaultFormat === 'webm'
+                    ? (language === 'zh-CN' ? 'WebM 固定使用 VP9。' : 'WebM uses VP9 automatically.')
+                    : (language === 'zh-CN' ? 'H.264 兼容性最好；H.265 更省空间。' : 'H.264 best compatibility; H.265 smaller files.')}
+                </small>
+              </div>
 
-          <div className="setting-group">
-            <label>
-              {language === 'zh-CN' ? '视频质量' : 'Video Quality'}: {quality}
-            </label>
-            <input
-              type="range"
-              min="18"
-              max="28"
-              value={quality}
-              onChange={(e) => setQuality(parseInt(e.target.value))}
-              disabled={isProcessing}
-            />
-            <small>
-              {language === 'zh-CN' 
-                ? '18-28，数值越小质量越高（文件越大）'
-                : '18-28, lower is better quality (larger file)'}
-            </small>
-          </div>
+              <div className="setting-group">
+                <label>{language === 'zh-CN' ? '缩放宽度' : 'Scale Width'}</label>
+                <select
+                  value={scaleWidth}
+                  onChange={(e) => setScaleWidth(parseInt(e.target.value, 10))}
+                  disabled={isProcessing}
+                >
+                  <option value={0}>{language === 'zh-CN' ? '保持原始' : 'Keep original'}</option>
+                  <option value={1920}>1920</option>
+                  <option value={1280}>1280</option>
+                  <option value={960}>960</option>
+                  <option value={720}>720</option>
+                  <option value={480}>480</option>
+                </select>
+                <small>{language === 'zh-CN' ? '仅设置宽度，高度按比例自动计算。' : 'Sets width only; height is auto.'}</small>
+              </div>
 
-          <div className="setting-group">
-            <label>
-              {language === 'zh-CN' ? '编码速度' : 'Encoding Speed'}
-            </label>
-            <select
-              value={preset}
-              onChange={(e) => setPreset(e.target.value)}
-              disabled={isProcessing}
-            >
-              <option value="ultrafast">{language === 'zh-CN' ? '极快' : 'Ultrafast'}</option>
-              <option value="superfast">{language === 'zh-CN' ? '超快' : 'Superfast'}</option>
-              <option value="veryfast">{language === 'zh-CN' ? '很快' : 'Veryfast'}</option>
-              <option value="faster">{language === 'zh-CN' ? '较快' : 'Faster'}</option>
-              <option value="fast">{language === 'zh-CN' ? '快' : 'Fast'}</option>
-              <option value="medium">{language === 'zh-CN' ? '中等' : 'Medium'}</option>
-              <option value="slow">{language === 'zh-CN' ? '慢' : 'Slow'}</option>
-              <option value="slower">{language === 'zh-CN' ? '较慢' : 'Slower'}</option>
-              <option value="veryslow">{language === 'zh-CN' ? '很慢' : 'Veryslow'}</option>
-            </select>
-            <small>
-              {language === 'zh-CN' 
-                ? '速度越快，文件越大；速度越慢，文件越小'
-                : 'Faster = larger files, Slower = smaller files'}
-            </small>
-          </div>
+              <div className="setting-group">
+                <label>{language === 'zh-CN' ? '帧率' : 'FPS'}</label>
+                <select
+                  value={targetFps}
+                  onChange={(e) => setTargetFps(parseInt(e.target.value, 10))}
+                  disabled={isProcessing}
+                >
+                  <option value={0}>{language === 'zh-CN' ? '保持原始' : 'Keep original'}</option>
+                  <option value={60}>60</option>
+                  <option value={30}>30</option>
+                  <option value={24}>24</option>
+                  <option value={15}>15</option>
+                </select>
+                <small>{language === 'zh-CN' ? '降低帧率通常可明显减小体积。' : 'Lower FPS often reduces size.'}</small>
+              </div>
+
+              <div className="setting-group">
+                <label>{language === 'zh-CN' ? '视频码率 (kbps)' : 'Video Bitrate (kbps)'}</label>
+                <input
+                  type="number"
+                  min={0}
+                  step={100}
+                  value={videoBitrateKbps}
+                  onChange={(e) => setVideoBitrateKbps(clamp(parseInt(e.target.value || '0', 10), 0, 50000))}
+                  disabled={isProcessing}
+                  className="number-input"
+                />
+                <small>{language === 'zh-CN' ? '0 表示自动（使用 CRF）。' : '0 = auto (uses CRF).'}</small>
+              </div>
+
+              <div className="setting-group">
+                <label>{language === 'zh-CN' ? '视频质量 (CRF)' : 'Video Quality (CRF)'}: {quality}</label>
+                <input
+                  type="range"
+                  min="18"
+                  max="28"
+                  value={quality}
+                  onChange={(e) => setQuality(parseInt(e.target.value))}
+                  disabled={isProcessing || videoBitrateKbps > 0}
+                />
+                <small>
+                  {videoBitrateKbps > 0
+                    ? (language === 'zh-CN' ? '已使用码率模式，CRF 将被忽略。' : 'Bitrate mode enabled; CRF is ignored.')
+                    : (language === 'zh-CN' ? '18-28，越小越清晰（体积更大）。' : '18-28, lower = clearer (larger file).')}
+                </small>
+              </div>
+
+              <div className="setting-group">
+                <label>{language === 'zh-CN' ? '音频码率 (kbps)' : 'Audio Bitrate (kbps)'}</label>
+                <input
+                  type="number"
+                  min={32}
+                  max={320}
+                  step={16}
+                  value={audioBitrateKbps}
+                  onChange={(e) => setAudioBitrateKbps(clamp(parseInt(e.target.value || '128', 10), 32, 320))}
+                  disabled={isProcessing || removeAudio}
+                  className="number-input"
+                />
+                <small>{language === 'zh-CN' ? '语音内容可用 64-96kbps。' : 'For speech, 64-96kbps is often enough.'}</small>
+              </div>
+
+              <div className="setting-group">
+                <label>{language === 'zh-CN' ? '编码速度' : 'Encoding Speed'}</label>
+                <select
+                  value={preset}
+                  onChange={(e) => setPreset(e.target.value)}
+                  disabled={isProcessing || defaultFormat === 'webm'}
+                >
+                  <option value="ultrafast">{language === 'zh-CN' ? '极快' : 'Ultrafast'}</option>
+                  <option value="superfast">{language === 'zh-CN' ? '超快' : 'Superfast'}</option>
+                  <option value="veryfast">{language === 'zh-CN' ? '很快' : 'Veryfast'}</option>
+                  <option value="faster">{language === 'zh-CN' ? '较快' : 'Faster'}</option>
+                  <option value="fast">{language === 'zh-CN' ? '快' : 'Fast'}</option>
+                  <option value="medium">{language === 'zh-CN' ? '中等' : 'Medium'}</option>
+                  <option value="slow">{language === 'zh-CN' ? '慢' : 'Slow'}</option>
+                  <option value="slower">{language === 'zh-CN' ? '较慢' : 'Slower'}</option>
+                  <option value="veryslow">{language === 'zh-CN' ? '很慢' : 'Veryslow'}</option>
+                </select>
+                <small>
+                  {defaultFormat === 'webm'
+                    ? (language === 'zh-CN' ? 'WebM(VP9) 不使用 preset。' : 'WebM(VP9) does not use preset.')
+                    : (language === 'zh-CN' ? '越慢通常越小，但耗时更长。' : 'Slower often yields smaller files but takes longer.')}
+                </small>
+              </div>
+
+              <div className="setting-group">
+                <label>{language === 'zh-CN' ? '移除音频' : 'Remove Audio'}</label>
+                <div className="checkbox-row">
+                  <input
+                    id="remove-audio"
+                    type="checkbox"
+                    checked={removeAudio}
+                    onChange={(e) => setRemoveAudio(e.target.checked)}
+                    disabled={isProcessing}
+                  />
+                  <label htmlFor="remove-audio" className="checkbox-label">
+                    {language === 'zh-CN' ? '转换后不保留音频轨道（更小体积）' : 'Remove audio track (smaller file)'}
+                  </label>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="action-buttons">
             <button
@@ -759,7 +1068,18 @@ export default function VideoConverter() {
               .map((task) => (
                 <div key={task.id} className="result-card">
                   <div className="result-preview">
-                    <video src={task.resultUrl} controls />
+                    {canPreview(getOutputMime(task.targetFormat)) ? (
+                      <video src={task.resultUrl} controls />
+                    ) : (
+                      <div className="preview-unsupported">
+                        <div className="preview-unsupported-title">
+                          {language === 'zh-CN' ? '浏览器可能不支持在线预览该格式' : 'Preview not supported in your browser'}
+                        </div>
+                        <div className="preview-unsupported-sub">
+                          {language === 'zh-CN' ? '你仍然可以下载并使用本地播放器打开。' : 'You can still download and play it locally.'}
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <div className="result-info">
                     <div className="result-name">
@@ -767,17 +1087,22 @@ export default function VideoConverter() {
                     </div>
                     <div className="result-stats">
                       <span className="stat-item">
-                        <strong>{language === 'zh-CN' ? '原始' : 'Original'}:</strong> {formatFileSize(task.file.size)} ({getFileFormat(task.file.name)?.toUpperCase() || '?'})
+                        <strong>{language === 'zh-CN' ? '原始' : 'Original'}:</strong> {formatFileSize(task.file.size)} ({task.inputFormat?.toUpperCase() || '?'})
                       </span>
                       <span className="stat-arrow">→</span>
                       <span className="stat-item">
-                        <strong>{getFormatLabel(task.targetFormat)}:</strong> {task.result ? formatFileSize(task.result.size) : '--'}
+                        <strong>{getFormatLabel(task.targetFormat)}:</strong> {task.outputSize ? formatFileSize(task.outputSize) : '--'}
                       </span>
-                      {task.result && task.file.size > 0 && (
-                        <span className="stat-badge">
-                          {task.result.size < task.file.size 
-                            ? `↓ ${((1 - task.result.size / task.file.size) * 100).toFixed(1)}%`
-                            : `↑ ${((task.result.size / task.file.size - 1) * 100).toFixed(1)}%`}
+                      {task.outputSize && task.file.size > 0 && (
+                        <span className={`stat-badge ${task.outputSize < task.file.size ? 'saved' : 'bigger'}`}>
+                          {task.outputSize < task.file.size
+                            ? (language === 'zh-CN'
+                                ? `节省 ${((1 - task.outputSize / task.file.size) * 100).toFixed(1)}%`
+                                : `Saved ${((1 - task.outputSize / task.file.size) * 100).toFixed(1)}%`)
+                            : (language === 'zh-CN'
+                                ? `增大 ${((task.outputSize / task.file.size - 1) * 100).toFixed(1)}%`
+                                : `Increased ${((task.outputSize / task.file.size - 1) * 100).toFixed(1)}%`)
+                          }
                         </span>
                       )}
                     </div>

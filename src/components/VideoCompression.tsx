@@ -14,6 +14,9 @@ type TaskStatus = 'pending' | 'processing' | 'paused' | 'completed' | 'failed' |
 type CompressionMode = 'crf' | 'bitrate' | 'size'
 type VideoCodec = 'h264' | 'vp9'
 
+type UiMode = 'simple' | 'advanced'
+type SimpleLevel = 'low' | 'medium' | 'high'
+
 interface CompressionOptions {
   mode: CompressionMode
   crf: number // 18-28 (越小质量越高)
@@ -33,6 +36,13 @@ interface CompressionTask {
   compressedSize?: number
   originalPreview?: string
   compressedPreview?: string
+  compressedInfo?: {
+    width: number
+    height: number
+    duration: number
+  }
+  encodedCodec?: 'H.264' | 'VP9'
+  qualityWarning?: string
   error?: string
   options: CompressionOptions
   order: number
@@ -63,9 +73,16 @@ export default function VideoCompression() {
   const [tasks, setTasks] = useState<CompressionTask[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
   const [isPaused, setIsPaused] = useState(false)
+
+  // 默认：极简模式（目标大小 + 压缩等级），并提供最优默认方案
+  const [uiMode, setUiMode] = useState<UiMode>('simple')
+  const [simpleTargetSize, setSimpleTargetSize] = useState<number>(50)
+  const [simpleLevel, setSimpleLevel] = useState<SimpleLevel>('medium')
+
   const [globalOptions, setGlobalOptions] = useState<CompressionOptions>({
     mode: 'crf',
-    crf: 28, // 默认 28（更激进的压缩，文件更小，23 质量太高文件大）
+    // 推荐默认：H.264 + CRF 23（质量与体积黄金平衡点）
+    crf: 23,
     codec: 'h264',
     resolution: 'original'
   })
@@ -82,6 +99,29 @@ export default function VideoCompression() {
   const tasksRef = useRef<CompressionTask[]>([])
   const isProcessingRef = useRef(false)
   const isPausedRef = useRef(false)
+
+  // 预览对比滑块状态 + video refs（用于原始/压缩对比）
+  const [compareValue, setCompareValue] = useState<Record<string, number>>({})
+  const previewRefs = useRef<Record<string, { original?: HTMLVideoElement | null; compressed?: HTMLVideoElement | null }>>({})
+
+  const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v))
+
+  const getSimpleCrf = (level: SimpleLevel): number => {
+    // 不允许画质明显模糊：High 也控制在 26 以内
+    if (level === 'low') return 21
+    if (level === 'high') return 26
+    return 23
+  }
+
+  const getCompressedVideoInfo = (previewUrl: string): Promise<{ width: number; height: number; duration: number }> => {
+    return new Promise((resolve, reject) => {
+      const v = document.createElement('video')
+      v.preload = 'metadata'
+      v.src = previewUrl
+      v.onloadedmetadata = () => resolve({ width: v.videoWidth || 0, height: v.videoHeight || 0, duration: v.duration || 0 })
+      v.onerror = () => reject(new Error('Failed to load video metadata'))
+    })
+  }
 
   // 同步 tasks 到 tasksRef
   useEffect(() => {
@@ -119,17 +159,8 @@ export default function VideoCompression() {
     })
   }, [tasks])
 
-  // 预加载 FFmpeg（提升用户体验，避免上传文件后才开始加载）
-  useEffect(() => {
-    if (!ffmpegLoaded && !ffmpegLoading) {
-      console.log('🚀 Preloading FFmpeg in background...')
-      // 预加载时不显示错误提示（后台静默加载）
-      loadFFmpeg(false).catch(err => {
-        console.warn('FFmpeg preload failed (will retry when user uploads file):', err)
-      })
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // 只在组件挂载时执行一次
+  // 不在页面进入时预加载 FFmpeg：避免每次打开页面都下载 WASM。
+  // 改为用户点击“开始处理”时再加载，并仅展示轻量进度提示。
 
   // 环境检查
   const checkEnvironment = useCallback(() => {
@@ -763,7 +794,7 @@ export default function VideoCompression() {
     for (const file of fileArray) {
       // 检查文件类型
       const isVideo = supportedFormats.some(format => file.type === format) || 
-                     /\.(mp4|mov|avi|webm|m4v)$/i.test(file.name)
+             /\.(mp4|mov|mkv|avi|webm|flv|m4v|3gp)$/i.test(file.name)
       
       if (!isVideo) {
         continue
@@ -944,7 +975,7 @@ export default function VideoCompression() {
       }
       
       // 构建 FFmpeg 命令（使用优化后的选项）
-      const args = buildFFmpegArgs(optimizedOptions, task.videoInfo)
+      const args = buildFFmpegArgs(optimizedOptions, task.videoInfo, task.originalSize)
       console.log('🚀 FFmpeg args (optimized for speed):', args.join(' '))
       
       // 设置日志监听（捕获错误和警告）
@@ -1032,6 +1063,28 @@ export default function VideoCompression() {
       
       const compressedPreview = URL.createObjectURL(blob)
 
+      // 输出信息（用于结果展示）
+      let compressedInfo: CompressionTask['compressedInfo'] | undefined
+      try {
+        const info = await getCompressedVideoInfo(compressedPreview)
+        compressedInfo = {
+          width: info.width,
+          height: info.height,
+          duration: info.duration
+        }
+      } catch {
+        // ignore
+      }
+
+      // 质量提示：压缩过猛时给出建议（不允许画质明显模糊）
+      const savedPct = task.originalSize > 0 ? (1 - compressedSize / task.originalSize) : 0
+      const isTooAggressive = savedPct > 0.85 || (optimizedOptions.crf >= 27 && savedPct > 0.75)
+      const qualityWarning = isTooAggressive
+        ? (language === 'zh-CN'
+            ? '⚠️ 压缩可能过猛，画质可能变模糊。建议提高质量（更低 CRF）或选择较低压缩等级。'
+            : '⚠️ Compression may be too aggressive. Consider higher quality (lower CRF) or a lower compression level.')
+        : undefined
+
       // 标记任务已完成，防止进度更新覆盖状态
       isTaskCompleted = true
       
@@ -1058,7 +1111,10 @@ export default function VideoCompression() {
                 status: 'completed' as TaskStatus,
                 progress: 100,
                 compressedSize: blob.size,
-                compressedPreview
+                compressedPreview,
+                compressedInfo,
+                encodedCodec: optimizedOptions.codec === 'h264' ? 'H.264' : 'VP9',
+                qualityWarning
               }
             : t
         )
@@ -1106,15 +1162,15 @@ export default function VideoCompression() {
   }, [])
 
   // 构建 FFmpeg 参数（性能优化版本）
-  const buildFFmpegArgs = useCallback((options: CompressionOptions, videoInfo?: CompressionTask['videoInfo']): string[] => {
+  const buildFFmpegArgs = useCallback((options: CompressionOptions, videoInfo?: CompressionTask['videoInfo'], originalSize?: number): string[] => {
     const args = ['-i', 'input.mp4']
 
     // 编码器
     if (options.codec === 'h264') {
       args.push('-c:v', 'libx264')
-      // 性能优化：使用 faster 预设（平衡速度和压缩率，veryfast 压缩率仍然偏低）
-      // faster 比 veryfast 稍慢但压缩率更好，比 fast 快很多
-      args.push('-preset', 'faster')
+      // 性能优化：小文件优先速度，大文件优先压缩率
+      const isSmall = typeof originalSize === 'number' && originalSize > 0 && originalSize <= 100 * 1024 * 1024
+      args.push('-preset', isSmall ? 'veryfast' : 'faster')
       // 性能优化：自动使用所有 CPU 核心
       args.push('-threads', '0')
       // 性能优化：适中的参考帧（平衡速度和压缩率）
@@ -1137,9 +1193,14 @@ export default function VideoCompression() {
       // 确保 CRF 值在合理范围内（18-32），默认 28 确保压缩效果
       const crfValue = Math.max(18, Math.min(32, options.crf || 28))
       args.push('-crf', crfValue.toString())
-      // CRF 模式：添加最大码率限制，防止文件过大
-      if (videoInfo && videoInfo.bitrate) {
-        // 目标码率约为原始的 60-70%，确保压缩
+      // CRF 模式：可选添加 VBV 限制
+      // - 简单模式会设置 targetSize，用目标大小估算 maxrate
+      // - 否则使用原始码率的 65% 作为保守上限
+      if (options.targetSize && videoInfo?.duration && videoInfo.duration > 0) {
+        const targetBitrate = Math.max(200, Math.floor((options.targetSize * 8 * 1024) / videoInfo.duration))
+        args.push('-maxrate', `${targetBitrate}k`)
+        args.push('-bufsize', `${targetBitrate * 2}k`)
+      } else if (videoInfo && videoInfo.bitrate) {
         const targetBitrate = Math.floor(videoInfo.bitrate * 0.65)
         args.push('-maxrate', `${targetBitrate}k`)
         args.push('-bufsize', `${targetBitrate * 2}k`)
@@ -1176,7 +1237,8 @@ export default function VideoCompression() {
     }
 
     // 音频（降低码率以减小文件大小）
-    args.push('-c:a', 'aac', '-b:a', '96k')  // 从 128k 降到 96k，文件更小
+    const audioKbps = options.crf >= 26 ? 64 : 96
+    args.push('-c:a', 'aac', '-b:a', `${audioKbps}k`)
     args.push('-ac', '2')  // 立体声
     args.push('-ar', '44100')  // 采样率
 
@@ -1225,6 +1287,31 @@ export default function VideoCompression() {
   const handleStart = useCallback(async () => {
     if (tasks.length === 0) return
 
+    // 极简模式：将“目标大小 + 压缩等级”转换为专业参数，并同步到待处理任务
+    if (uiMode === 'simple') {
+      const crf = getSimpleCrf(simpleLevel)
+      const targetSize = clamp(simpleTargetSize || 0, 1, 500)
+
+      const nextOptions: CompressionOptions = {
+        mode: 'crf',
+        crf,
+        codec: 'h264',
+        resolution: 'original',
+        targetSize
+      }
+
+      setGlobalOptions(nextOptions)
+      setTasks(prev => {
+        const newTasks = prev.map(t =>
+          (t.status === 'pending' || t.status === 'paused')
+            ? { ...t, options: { ...nextOptions } }
+            : t
+        )
+        tasksRef.current = newTasks
+        return newTasks
+      })
+    }
+
     // 加载 FFmpeg
     const loaded = await loadFFmpeg()
     if (!loaded) {
@@ -1244,7 +1331,7 @@ export default function VideoCompression() {
     setIsProcessing(true)
     setIsPaused(false)
     processQueue()
-  }, [tasks, loadFFmpeg, processQueue, language])
+  }, [tasks, uiMode, simpleLevel, simpleTargetSize, loadFFmpeg, processQueue, language])
 
   // 暂停
   const handlePause = useCallback(() => {
