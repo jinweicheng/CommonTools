@@ -8,6 +8,10 @@ import './VideoConverter.css'
 
 const MAX_FILES = 5
 const MAX_FILE_SIZE = 500 * 1024 * 1024 // 500MB
+const SIMPLE_TARGET_SIZE_RATIO = 0.6 // 简单模式默认目标：源文件的 60%
+const SIMPLE_MIN_VIDEO_BITRATE_KBPS_SD = 400
+const SIMPLE_MIN_VIDEO_BITRATE_KBPS_HD = 500
+const SIMPLE_MIN_VIDEO_BITRATE_KBPS_FHD_PLUS = 600
 
 type VideoOutputFormat = 'mp4' | 'webm' | 'mov' | 'mkv' | 'avi'
 type VideoInputFormat = 'mp4' | 'mov' | 'mkv' | 'webm' | 'avi' | 'flv' | 'm4v' | '3gp'
@@ -51,7 +55,7 @@ export default function VideoConverter() {
   // Advanced
   const [codec, setCodec] = useState<VideoCodec>('h264')
   const [quality, setQuality] = useState(23) // CRF: 18-28, 越小质量越高
-  const [preset, setPreset] = useState('medium') // ultrafast..veryslow
+  const [preset, setPreset] = useState('veryfast') // ultrafast..veryslow
   const [scaleWidth, setScaleWidth] = useState(0) // 0 = keep
   const [targetFps, setTargetFps] = useState(0) // 0 = keep
   const [videoBitrateKbps, setVideoBitrateKbps] = useState(0) // 0 = auto
@@ -316,6 +320,29 @@ export default function VideoConverter() {
   const buildFFmpegArgs = useCallback((task: ConversionTask, inputName: string): string[] => {
     const args: string[] = ['-i', inputName]
 
+    const resolvedAudioBitrateKbps = uiMode === 'simple'
+      ? 96
+      : clamp(audioBitrateKbps, 32, 320)
+
+    const simpleTargetVideoKbps = (() => {
+      if (uiMode !== 'simple') return undefined
+      if (!task.durationSec || task.durationSec <= 0) return undefined
+
+      const maxSide = Math.max(task.width || 0, task.height || 0)
+      const minVideoBitrateKbps = maxSide >= 1920
+        ? SIMPLE_MIN_VIDEO_BITRATE_KBPS_FHD_PLUS
+        : maxSide >= 1280
+          ? SIMPLE_MIN_VIDEO_BITRATE_KBPS_HD
+          : SIMPLE_MIN_VIDEO_BITRATE_KBPS_SD
+
+      const targetTotalKbps = Math.max(
+        300,
+        Math.floor((task.file.size * SIMPLE_TARGET_SIZE_RATIO * 8) / task.durationSec / 1000)
+      )
+      const audioKbps = removeAudio ? 0 : resolvedAudioBitrateKbps
+      return Math.max(minVideoBitrateKbps, targetTotalKbps - audioKbps)
+    })()
+
     // 视频滤镜：缩放 / FPS
     const filters: string[] = []
     if (uiMode === 'advanced' && scaleWidth > 0) {
@@ -328,12 +355,21 @@ export default function VideoConverter() {
       args.push('-vf', filters.join(','))
     }
 
+    // 简单模式下仅在源视频高帧率时限制到 30fps，避免不必要的重采样
+    if (uiMode === 'simple') {
+      args.push('-fpsmax', '30')
+    }
+
     // 输出格式与编码策略
     if (task.targetFormat === 'webm') {
       // WebM: VP9 + Opus
       args.push('-c:v', 'libvpx-vp9')
       if (uiMode === 'advanced' && videoBitrateKbps > 0) {
         args.push('-b:v', `${videoBitrateKbps}k`)
+      } else if (simpleTargetVideoKbps) {
+        args.push('-b:v', `${simpleTargetVideoKbps}k`)
+        args.push('-maxrate', `${Math.floor(simpleTargetVideoKbps * 1.15)}k`)
+        args.push('-bufsize', `${Math.floor(simpleTargetVideoKbps * 2)}k`)
       } else {
         args.push('-crf', quality.toString())
         args.push('-b:v', '0')
@@ -342,7 +378,7 @@ export default function VideoConverter() {
         args.push('-an')
       } else {
         args.push('-c:a', 'libopus')
-        args.push('-b:a', `${clamp(audioBitrateKbps, 32, 320)}k`)
+        args.push('-b:a', `${resolvedAudioBitrateKbps}k`)
       }
     } else {
       // 其它容器默认 H.264 + AAC（推荐），高级可选 H.265
@@ -352,10 +388,20 @@ export default function VideoConverter() {
       } else {
         args.push('-c:v', 'libx264')
       }
-      args.push('-preset', preset)
+      // 默认优先速度，避免本地 wasm 编码过慢
+      // 简单模式按分辨率自适应：1080p 内 veryfast，2K/4K 使用 faster
+      const simplePreset = (() => {
+        const maxSide = Math.max(task.width || 0, task.height || 0)
+        return maxSide >= 1920 ? 'faster' : 'veryfast'
+      })()
+      args.push('-preset', uiMode === 'advanced' ? preset : simplePreset)
 
       if (uiMode === 'advanced' && videoBitrateKbps > 0) {
         args.push('-b:v', `${videoBitrateKbps}k`)
+      } else if (simpleTargetVideoKbps) {
+        args.push('-b:v', `${simpleTargetVideoKbps}k`)
+        args.push('-maxrate', `${Math.floor(simpleTargetVideoKbps * 1.15)}k`)
+        args.push('-bufsize', `${Math.floor(simpleTargetVideoKbps * 2)}k`)
       } else {
         args.push('-crf', quality.toString())
       }
@@ -368,10 +414,10 @@ export default function VideoConverter() {
         if (task.targetFormat === 'avi') {
           // AVI 对 AAC 支持并不统一，默认 MP3 更稳一些
           args.push('-c:a', 'libmp3lame')
-          args.push('-b:a', `${clamp(audioBitrateKbps, 64, 320)}k`)
+          args.push('-b:a', `${Math.max(64, resolvedAudioBitrateKbps)}k`)
         } else {
           args.push('-c:a', 'aac')
-          args.push('-b:a', `${clamp(audioBitrateKbps, 64, 320)}k`)
+          args.push('-b:a', `${Math.max(64, resolvedAudioBitrateKbps)}k`)
         }
       }
     }
@@ -384,6 +430,37 @@ export default function VideoConverter() {
     return args
   }, [audioBitrateKbps, clamp, codec, preset, quality, removeAudio, scaleWidth, targetFps, uiMode, videoBitrateKbps])
 
+  // 快速路径：容器重封装（不重编码），速度通常可提升一个数量级
+  const buildFastRemuxArgs = useCallback((task: ConversionTask, inputName: string): string[] => {
+    const args: string[] = ['-i', inputName, '-c', 'copy']
+    if (task.targetFormat === 'mp4') {
+      args.push('-movflags', '+faststart')
+    }
+    args.push(`output.${task.targetFormat}`)
+    return args
+  }, [])
+
+  const canUseFastRemux = useCallback((task: ConversionTask): boolean => {
+    if (uiMode !== 'simple') return false
+    if (removeAudio) return false
+    if (scaleWidth > 0 || targetFps > 0 || videoBitrateKbps > 0) return false
+    if (!task.inputFormat) return false
+
+    // 仅在高成功率容器组合上优先尝试 remux，减少失败回退成本
+    const remuxMatrix: Record<VideoInputFormat, VideoOutputFormat[]> = {
+      mp4: ['mp4', 'mov', 'mkv'],
+      mov: ['mp4', 'mov', 'mkv'],
+      mkv: ['mp4', 'mov', 'mkv'],
+      webm: ['webm'],
+      avi: ['avi', 'mkv'],
+      flv: ['mkv'],
+      m4v: ['mp4', 'mov'],
+      '3gp': ['mp4']
+    }
+
+    return (remuxMatrix[task.inputFormat] || []).includes(task.targetFormat)
+  }, [removeAudio, scaleWidth, targetFps, uiMode, videoBitrateKbps])
+
   // 转换单个视频
   const convertVideo = useCallback(async (task: ConversionTask): Promise<void> => {
     if (!ffmpegRef.current) {
@@ -395,6 +472,10 @@ export default function VideoConverter() {
 
     const ffmpeg = ffmpegRef.current
     const startTime = Date.now()
+
+    // 先声明，保证 finally 能访问并清理监听器
+    let progressHandler: ((payload: { progress: number }) => void) | undefined
+    let logHandler: ((payload: { message: string }) => void) | undefined
 
     // 更新任务状态
     setTasks(prev => prev.map(t => 
@@ -469,7 +550,7 @@ export default function VideoConverter() {
         }))
       }
       
-      const progressHandler = ({ progress: prog }: { progress: number }) => {
+      progressHandler = ({ progress: prog }: { progress: number }) => {
         const now = Date.now()
         if (now - lastProgressUpdate < PROGRESS_UPDATE_INTERVAL) return
         lastProgressUpdate = now
@@ -477,7 +558,7 @@ export default function VideoConverter() {
         updateProgress(20 + clamp(prog, 0, 1) * 70)
       }
 
-      const logHandler = ({ message }: { message: string }) => {
+      logHandler = ({ message }: { message: string }) => {
         if (!totalSec) return
         const now = Date.now()
         if (now - lastProgressUpdate < PROGRESS_UPDATE_INTERVAL) return
@@ -493,13 +574,34 @@ export default function VideoConverter() {
       ffmpeg.on('progress', progressHandler)
       ffmpeg.on('log', logHandler)
 
-      // 执行转换
-      const args = buildFFmpegArgs(task, inputName)
-      await ffmpeg.exec(args)
+      // 执行转换：优先尝试快速重封装（simple 模式且无画面/音频变更）
+      const canTryFastRemux = canUseFastRemux(task)
 
-      // 移除进度监听器
-      ffmpeg.off('progress', progressHandler)
-      ffmpeg.off('log', logHandler)
+      let converted = false
+      if (canTryFastRemux) {
+        setTasks(prev => prev.map(t =>
+          t.id === task.id
+            ? {
+                ...t,
+                progress: 25,
+                progressMessage: language === 'zh-CN' ? '快速模式：重封装中...' : 'Fast mode: remuxing...'
+              }
+            : t
+        ))
+
+        try {
+          const fastArgs = buildFastRemuxArgs(task, inputName)
+          await ffmpeg.exec(fastArgs)
+          converted = true
+        } catch (fastErr) {
+          console.warn('Fast remux failed, fallback to re-encode:', fastErr)
+        }
+      }
+
+      if (!converted) {
+        const args = buildFFmpegArgs(task, inputName)
+        await ffmpeg.exec(args)
+      }
 
       setTasks(prev => prev.map(t => 
         t.id === task.id ? { 
@@ -565,8 +667,16 @@ export default function VideoConverter() {
           : t
       ))
       throw err
+    } finally {
+      // 确保监听器始终被清理，避免多次转换后性能下降
+      try {
+        if (progressHandler) ffmpeg.off('progress', progressHandler)
+        if (logHandler) ffmpeg.off('log', logHandler)
+      } catch {
+        // ignore
+      }
     }
-  }, [buildFFmpegArgs, loadFFmpeg, language])
+  }, [buildFFmpegArgs, buildFastRemuxArgs, canUseFastRemux, loadFFmpeg, language])
 
   // 处理所有任务
   const handleProcess = useCallback(async () => {
@@ -880,8 +990,8 @@ export default function VideoConverter() {
             </select>
             <small>
               {language === 'zh-CN' 
-                ? '推荐：MP4（H.264 + AAC）兼容性最佳。'
-                : 'Recommended: MP4 (H.264 + AAC) for best compatibility.'}
+                ? '推荐：MP4（H.264 + AAC）兼容性最佳；极简模式默认目标大小≈源文件60%。'
+                : 'Recommended: MP4 (H.264 + AAC); Simple mode targets ~60% of source size by default.'}
             </small>
           </div>
 

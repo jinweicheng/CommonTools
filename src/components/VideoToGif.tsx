@@ -253,6 +253,7 @@ export default function VideoToGif() {
 
     const ffmpeg = ffmpegRef.current
     const startTime = Date.now()
+    let progressHandler: ((payload: { progress: number }) => void) | undefined
 
     // 更新任务状态
     setTasks(prev => prev.map(t => 
@@ -315,7 +316,7 @@ export default function VideoToGif() {
       let stageEnd = 90
       let stageLabel = language === 'zh-CN' ? '转换中...' : 'Converting...'
 
-      const progressHandler = ({ progress: prog }: { progress: number }) => {
+      progressHandler = ({ progress: prog }: { progress: number }) => {
         const now = Date.now()
         if (now - lastProgressUpdate < PROGRESS_UPDATE_INTERVAL) return
         lastProgressUpdate = now
@@ -373,7 +374,9 @@ export default function VideoToGif() {
         'output.gif'
       ])
 
-      ffmpeg.off('progress', progressHandler)
+      if (progressHandler) {
+        ffmpeg.off('progress', progressHandler)
+      }
 
       setTasks(prev => prev.map(t => 
         t.id === task.id ? { 
@@ -439,6 +442,15 @@ export default function VideoToGif() {
           : t
       ))
       throw err
+    } finally {
+      // 防止失败路径遗漏监听器清理，避免多任务后性能下降
+      try {
+        if (progressHandler) {
+          ffmpeg.off('progress', progressHandler)
+        }
+      } catch {
+        // ignore
+      }
     }
   }, [gifFps, gifWidth, gifQuality, clipStartSec, clipDurationSec, loopCount, loadFFmpeg, language])
 

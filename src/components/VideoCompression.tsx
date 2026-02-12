@@ -919,6 +919,7 @@ export default function VideoCompression() {
     let lastProgressUpdate = 0
     const PROGRESS_UPDATE_INTERVAL = 200 // 每 200ms 更新一次
     let isTaskCompleted = false // 标记任务是否已完成
+    let logHandler: ((payload: { message: string; type: string }) => void) | undefined
     
     // 进度处理器（需要在 try-catch 外部定义，以便在 catch 中移除）
     const progressHandler = ({ progress: prog }: { progress: number }) => {
@@ -979,7 +980,7 @@ export default function VideoCompression() {
       console.log('🚀 FFmpeg args (optimized for speed):', args.join(' '))
       
       // 设置日志监听（捕获错误和警告）
-      ffmpeg.on('log', ({ message, type }) => {
+      logHandler = ({ message, type }: { message: string; type: string }) => {
         if (type === 'error' || message.toLowerCase().includes('error')) {
           console.error('❌ FFmpeg error:', message)
         } else if (message.toLowerCase().includes('warning')) {
@@ -987,7 +988,8 @@ export default function VideoCompression() {
         } else {
           console.log('📝 FFmpeg log:', message)
         }
-      })
+      }
+      ffmpeg.on('log', logHandler)
       
       // 注册进度监听器
       ffmpeg.on('progress', progressHandler)
@@ -1157,6 +1159,14 @@ export default function VideoCompression() {
       })
       throw error
     } finally {
+      // 清理任务级日志监听器，避免多任务后监听器累积造成性能下降
+      try {
+        if (logHandler) {
+          ffmpeg.off('log', logHandler)
+        }
+      } catch (err) {
+        console.warn('Failed to remove log handler:', err)
+      }
       currentTaskRef.current = null
     }
   }, [])
