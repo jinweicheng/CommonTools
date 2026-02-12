@@ -680,6 +680,69 @@
   background: rgba(148, 163, 184, 0.3);
 }
 
+/* Settings Warnings */
+.settings-warnings {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.setting-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  animation: slideDown 0.3s ease-out;
+}
+
+.setting-warning svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.warning-error {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+}
+
+.warning-info {
+  background: rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  color: #fde68a;
+}
+
+.warning-tip {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: #6ee7b7;
+}
+
+/* Task target indicators */
+.saved-warning {
+  color: #fbbf24;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.target-hit {
+  color: #10b981;
+  font-weight: 600;
+  font-size: 0.8rem;
+  margin-left: 0.25rem;
+}
+
+.target-miss {
+  color: #ef4444;
+  font-weight: 600;
+  font-size: 0.8rem;
+  margin-left: 0.25rem;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .image-compression-container {

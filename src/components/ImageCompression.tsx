@@ -10,7 +10,7 @@ type TaskStatus = 'pending' | 'processing' | 'paused' | 'completed' | 'failed' |
 
 // 压缩策略
 type CompressionMode = 'lossy' | 'lossless'
-type AutoFormat = 'auto' | 'webp' | 'jpg' | 'png' | 'avif' | 'gif' | 'gif'
+type AutoFormat = 'auto' | 'webp' | 'jpg' | 'png' | 'avif' | 'gif'
 
 interface CompressionOptions {
   mode: CompressionMode
@@ -238,10 +238,10 @@ export default function ImageCompression() {
           
           // 确定实际输出格式（用于文件扩展名）
           const outputFormat = (result as any).originalFormat || 
-            (result.mimeType === 'image/webp' ? 'webp' :
-             result.mimeType === 'image/jpeg' ? 'jpg' :
+            (result.mimeType === 'image/jpeg' ? 'jpg' :
              result.mimeType === 'image/png' ? 'png' :
-             result.mimeType === 'image/avif' ? 'avif' : 'webp')
+             result.mimeType === 'image/webp' ? 'webp' :
+             result.mimeType === 'image/avif' ? 'avif' : 'jpg')
           
           setTasks(prev => {
             const newTasks = prev.map(t => 
@@ -555,7 +555,8 @@ export default function ImageCompression() {
     fetch(task.compressedPreview)
       .then(res => res.blob())
       .then(blob => {
-        const ext = task.options.autoFormat === 'auto' ? 'webp' : task.options.autoFormat
+        // 使用实际输出格式确定扩展名
+        const ext = task.outputFormat || getOriginalExt(task.file.name)
         const fileName = task.file.name.replace(/\.[^/.]+$/, '') + `_compressed.${ext}`
         saveAs(blob, fileName)
       })
@@ -576,8 +577,8 @@ export default function ImageCompression() {
     for (const task of completedTasks) {
       if (!task.compressedPreview) continue
       const blob = await fetch(task.compressedPreview).then(r => r.blob())
-      // 使用实际输出格式（如果已保存），否则根据选项确定
-      const ext = task.outputFormat || (task.options.autoFormat === 'auto' ? 'webp' : task.options.autoFormat)
+      // 使用实际输出格式（如果已保存），否则根据原始文件格式确定
+      const ext = task.outputFormat || getOriginalExt(task.file.name)
       const fileName = task.file.name.replace(/\.[^/.]+$/, '') + `_compressed.${ext}`
       zip.file(fileName, blob)
     }
@@ -611,6 +612,19 @@ export default function ImageCompression() {
       }
     }
   }, [tasks, isProcessing, playSuccessSound])
+
+  // 获取原始文件扩展名
+  const getOriginalExt = useCallback((fileName: string): string => {
+    const ext = fileName.toLowerCase().split('.').pop() || ''
+    if (['jpg', 'jpeg'].includes(ext)) return 'jpg'
+    if (ext === 'png') return 'png'
+    if (ext === 'webp') return 'webp'
+    if (ext === 'avif') return 'avif'
+    if (ext === 'gif') return 'gif'
+    if (ext === 'bmp') return 'png' // BMP 转为 PNG
+    if (ext === 'tiff' || ext === 'tif') return 'png' // TIFF 转为 PNG
+    return 'png'
+  }, [])
 
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return bytes + ' B'
@@ -660,7 +674,19 @@ export default function ImageCompression() {
               <label>{language === 'zh-CN' ? '压缩模式' : 'Mode'}</label>
               <select 
                 value={globalOptions.mode}
-                onChange={(e) => setGlobalOptions(prev => ({ ...prev, mode: e.target.value as CompressionMode }))}
+                onChange={(e) => {
+                  const newMode = e.target.value as CompressionMode
+                  if (newMode === 'lossless' && globalOptions.targetSize) {
+                    const confirmMsg = language === 'zh-CN'
+                      ? '无损模式无法精确控制文件大小，是否清除目标大小设置？'
+                      : 'Lossless mode cannot control file size precisely. Clear target size setting?'
+                    if (confirm(confirmMsg)) {
+                      setGlobalOptions(prev => ({ ...prev, mode: newMode, targetSize: undefined }))
+                    }
+                    return
+                  }
+                  setGlobalOptions(prev => ({ ...prev, mode: newMode }))
+                }}
               >
                 <option value="lossy">{language === 'zh-CN' ? '有损' : 'Lossy'}</option>
                 <option value="lossless">{language === 'zh-CN' ? '无损' : 'Lossless'}</option>
@@ -683,7 +709,7 @@ export default function ImageCompression() {
                 value={globalOptions.autoFormat}
                 onChange={(e) => setGlobalOptions(prev => ({ ...prev, autoFormat: e.target.value as AutoFormat }))}
               >
-                <option value="auto">{language === 'zh-CN' ? '自动最佳' : 'Auto Best'}</option>
+                <option value="auto">{language === 'zh-CN' ? '保持原格式' : 'Keep Original'}</option>
                 <option value="webp">WebP</option>
                 <option value="jpg">JPG</option>
                 <option value="png">PNG</option>
@@ -722,13 +748,18 @@ export default function ImageCompression() {
                   <label>{language === 'zh-CN' ? '目标大小 (KB)' : 'Target Size (KB)'}</label>
                   <input 
                     type="number" 
-                    min="0"
+                    min="1"
                     placeholder={language === 'zh-CN' ? '例如: 300' : 'e.g.: 300'}
                     value={globalOptions.targetSize || ''}
-                    onChange={(e) => setGlobalOptions(prev => ({ 
-                      ...prev, 
-                      targetSize: e.target.value ? parseInt(e.target.value) : undefined 
-                    }))}
+                    onChange={(e) => {
+                      const val = e.target.value ? parseInt(e.target.value) : undefined
+                      setGlobalOptions(prev => ({ 
+                        ...prev, 
+                        targetSize: val,
+                        // 设置目标大小时自动切换到有损模式（无损模式下无法精确控制大小）
+                        mode: val ? 'lossy' : prev.mode
+                      }))
+                    }}
                   />
                 </div>
                 <div className="setting-item">
@@ -758,6 +789,38 @@ export default function ImageCompression() {
                   />
                 </div>
               </div>
+              {/* 设置冲突/提示信息 */}
+              {globalOptions.targetSize && globalOptions.targetSize > 0 && (
+                <div className="settings-warnings">
+                  {globalOptions.mode === 'lossless' && (
+                    <div className="setting-warning warning-error">
+                      <AlertCircle size={14} />
+                      <span>
+                        {language === 'zh-CN' 
+                          ? '⚠️ 冲突：无损模式下无法精确控制文件大小！已自动切换为有损模式。如需无损压缩，请移除目标大小设置。'
+                          : '⚠️ Conflict: Lossless mode cannot precisely control file size! Auto-switched to lossy mode. Remove target size for lossless compression.'}
+                      </span>
+                    </div>
+                  )}
+                  {(globalOptions.autoFormat === 'png' || globalOptions.autoFormat === 'gif') && (
+                    <div className="setting-warning warning-info">
+                      <AlertCircle size={14} />
+                      <span>
+                        {language === 'zh-CN' 
+                          ? '💡 提示：PNG/GIF 格式不支持质量参数调节，设置目标大小时将自动转为 WebP 格式以精确控制大小。如需保持 PNG 格式，请移除目标大小设置。'
+                          : '💡 Tip: PNG/GIF format does not support quality adjustment. Target size mode will auto-convert to WebP for precise size control. Remove target size to keep PNG format.'}
+                      </span>
+                    </div>
+                  )}
+                  <div className="setting-warning warning-tip">
+                    <span>
+                      {language === 'zh-CN' 
+                        ? `✅ 目标大小：≤ ${globalOptions.targetSize} KB。系统将自动调整质量和分辨率以精确达到目标大小。`
+                        : `✅ Target: ≤ ${globalOptions.targetSize} KB. System will auto-adjust quality and resolution to precisely meet the target.`}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -854,13 +917,32 @@ export default function ImageCompression() {
                   <div className="task-name">{task.file.name}</div>
                   <div className="task-details">
                     <span>{formatFileSize(task.originalSize)}</span>
-                    {task.compressedSize && (
+                    {task.compressedSize !== undefined && (
                       <>
                         <span>→</span>
                         <span>{formatFileSize(task.compressedSize)}</span>
-                        <span className="saved">
-                          ({((1 - task.compressedSize / task.originalSize) * 100).toFixed(1)}% {language === 'zh-CN' ? '节省' : 'saved'})
-                        </span>
+                        {task.compressedSize < task.originalSize ? (
+                          <span className="saved">
+                            ({((1 - task.compressedSize / task.originalSize) * 100).toFixed(1)}% {language === 'zh-CN' ? '节省' : 'saved'})
+                          </span>
+                        ) : (
+                          <span className="saved-warning">
+                            ({language === 'zh-CN' ? '⚠️ 未能减小' : '⚠️ No reduction'})
+                          </span>
+                        )}
+                        {task.options.targetSize && task.options.targetSize > 0 && (
+                          task.compressedSize <= task.options.targetSize * 1024 ? (
+                            <span className="target-hit">
+                              ✅ {language === 'zh-CN' ? '达标' : 'Target met'}
+                            </span>
+                          ) : (
+                            <span className="target-miss">
+                              ❌ {language === 'zh-CN' 
+                                ? `目标 ${task.options.targetSize}KB，实际 ${(task.compressedSize / 1024).toFixed(0)}KB`
+                                : `Target ${task.options.targetSize}KB, actual ${(task.compressedSize / 1024).toFixed(0)}KB`}
+                            </span>
+                          )
+                        )}
                       </>
                     )}
                   </div>
