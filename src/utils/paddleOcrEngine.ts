@@ -37,9 +37,12 @@ type ProgressCallback = (progress: number) => void
 const HF_BASE = 'https://huggingface.co/OleehyO/paddleocrv4.onnx/resolve/main'
 const DET_URL = `${HF_BASE}/ch_PP-OCRv4_det.onnx`
 const REC_URL = `${HF_BASE}/ch_PP-OCRv4_rec.onnx`
-const DICT_URL = 'https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/main/ppocr/utils/ppocr_keys_v1.txt'
 
-const FALLBACK_ALPHABET = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.,:;!?%+-=_()[]{}<>@#$&*/\\|\'" '
+// Try multiple dictionary sources for better PP-OCRv4 compatibility
+const DICT_URLS = [
+  'https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/main/ppocr/utils/ppocr_keys_v1.txt',
+  'https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/dygraph/ppocr/utils/ppocr_keys_v1.txt'
+]
 
 // ═══ Singleton caches ═══
 
@@ -134,22 +137,37 @@ function getRecSession(onProgress?: ProgressCallback): Promise<ort.InferenceSess
 
 // ═══ Character dictionary ═══
 
-function buildDefaultDict(): string[] {
-  return FALLBACK_ALPHABET.split('')
+function buildChineseEnglishDict(): string[] {
+  // Common Chinese characters + English for PP-OCRv4
+  const chinese = '的一是在不了有和人这中大为上个国我以要他时来用们生到作地于出就分对成会可主发年动同工也能下过子说产种面而方后多定行学法所民得经十三之进着等部度家电力里如水化高自二理起小物现实加量都两体制机当使点从业本去把性好应开它合还因由其些然前外天政四日那社义事平形相全表间样与关各重新线内数正心反你明看原又么利比或但质气第向道命此变条只没结解问意建月公无系军很情者最立代想已通并提直题党程展五果料象员革位入常文总次品式活设及管特件长求老头基资边流路级少图山统接知较将组见计别她手角期根论运农指几九区强放决西被干做必战先回则任取据处队南给色光门即保治北造百规热领七海口东导器压志世金增争济阶油思术极交受联什认六共权收证改清己美再采转更单风切打白教速花带安场身车例真务具万每目至达走积示议声报斗完类八离华名确才科张信马节话米整空元况今集温传土许步群广石记需段研界拉林律叫且究观越织装影算低持音众书布复容儿须际商非验连断深难近矿千周委素技备半办青省列习响约支般史感劳便团往酸历市克何除消构府称太准精值号率族维划选标写存候毛亲快效斯院查江型眼王按格养易置派层片始却专状育厂京识适属圆包火住调满县局照参红细引听该铁价严首底液官德调随病苏失尔死讲配女黄推显谈罪神艺呢席含企望密批营项防举球英氧势告李台落木帮轮破亚师围注远字材排供河态封另施减树溶怎止案言士均武固叶鱼波视仅费紧爱左章早朝害续轻服试食充兵源判护司足某练差致板田降黑犯负击范继兴似余坚曲输修故城夫够送笔船占右财吃富春职觉汉画功巴跟虽杂飞检吸助升阳互初创抗考投坏策古径换未跑留钢曾端责站简述钱副尽帝射草冲承独令限阿宣环双请超微让控州良轨承晚移植朋'
+  const english = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
+  const numbers = '0123456789'
+  const punctuation = '.,:;!?()[]{}"\'-_/\\|@#$%^&*+=<>~`'
+  return (numbers + english + chinese + punctuation).split('')
 }
 
 async function getDict(): Promise<string[]> {
   if (!dictPromise) {
     dictPromise = (async () => {
-      try {
-        const resp = await fetch(DICT_URL, { cache: 'force-cache' })
-        if (!resp.ok) return buildDefaultDict()
-        const txt = await resp.text()
-        const rows = txt.split(/\r?\n/).map(s => s.trim()).filter(Boolean)
-        return rows.length > 100 ? rows : buildDefaultDict()
-      } catch {
-        return buildDefaultDict()
+      // Try multiple dictionary sources
+      for (const url of DICT_URLS) {
+        try {
+          const resp = await fetch(url, { cache: 'force-cache' })
+          if (resp.ok) {
+            const txt = await resp.text()
+            const rows = txt.split(/\r?\n/).map(s => s.trim()).filter(Boolean)
+            if (rows.length > 1000) {
+              console.log(`Loaded ${rows.length} characters from ${url}`)
+              return rows
+            }
+          }
+        } catch (e) {
+          console.warn(`Failed to load dict from ${url}:`, e)
+        }
       }
+      
+      console.warn('Using fallback Chinese+English dictionary for PP-OCRv4')
+      return buildChineseEnglishDict()
     })()
   }
   return dictPromise
@@ -292,9 +310,9 @@ function mergeCloseBoxes(regions: OcrRegion[]): OcrRegion[] {
     const last = merged[merged.length - 1]
     if (!last) { merged.push({ ...r }); continue }
 
-    const sameLine = Math.abs((last.y + last.h / 2) - (r.y + r.h / 2)) <= Math.max(6, Math.min(last.h, r.h) * 0.7)
+    const sameLine = Math.abs((last.y + last.h / 2) - (r.y + r.h / 2)) <= Math.max(3, Math.min(last.h, r.h) * 0.35)
     const gap = r.x - (last.x + last.w)
-    const near = gap >= -4 && gap <= Math.max(16, Math.min(last.h, r.h) * 1.2)
+    const near = gap >= -2 && gap <= Math.max(4, Math.min(last.h, r.h) * 0.35)
 
     if (sameLine && near) {
       const nx0 = Math.min(last.x, r.x)
@@ -313,39 +331,139 @@ function mergeCloseBoxes(regions: OcrRegion[]): OcrRegion[] {
 
 // ═══ CTC decoder ═══
 
-function ctcDecode(data: Float32Array, dims: readonly number[], dict: string[]): { text: string; confidence: number } {
-  const t = dims[1] ?? 0
-  const c = dims[2] ?? 0
+function ctcDecode(
+  data: Float32Array,
+  dims: readonly number[],
+  dict: string[],
+  langHint = 'zh',
+): { text: string; confidence: number } {
+  if (dims.length < 2) return { text: '', confidence: 0 }
+
+  let t = 0
+  let c = 0
+  let layout: 'TC' | 'CT' = 'TC'
+
+  // Common recognition output layouts:
+  //  - [1, T, C]
+  //  - [1, C, T]
+  //  - [T, C]
+  //  - [C, T]
+  if (dims.length === 3) {
+    const d1 = dims[1] ?? 0
+    const d2 = dims[2] ?? 0
+    // Class count is usually much larger than time steps in OCR rec heads.
+    if (d1 > d2) {
+      layout = 'CT'
+      c = d1
+      t = d2
+    } else {
+      layout = 'TC'
+      t = d1
+      c = d2
+    }
+  } else {
+    const d0 = dims[0] ?? 0
+    const d1 = dims[1] ?? 0
+    if (d0 > d1) {
+      layout = 'CT'
+      c = d0
+      t = d1
+    } else {
+      layout = 'TC'
+      t = d0
+      c = d1
+    }
+  }
+
   if (!t || !c) return { text: '', confidence: 0 }
+
+  const logitAt = (ti: number, ci: number): number => {
+    if (layout === 'TC') return data[ti * c + ci]
+    return data[ci * t + ti]
+  }
 
   const decode = (blankIdx: number) => {
     const chars: string[] = []
-    let prev = -1, confSum = 0, confCount = 0
+    let prev = -1
+    let confSum = 0
+    let confCount = 0
 
     for (let ti = 0; ti < t; ti++) {
-      const offset = ti * c
-      let bestIdx = 0, bestVal = -Infinity
+      let bestIdx = 0
+      let bestVal = -Infinity
+
       for (let ci = 0; ci < c; ci++) {
-        if (data[offset + ci] > bestVal) { bestVal = data[offset + ci]; bestIdx = ci }
+        const v = logitAt(ti, ci)
+        if (v > bestVal) {
+          bestVal = v
+          bestIdx = ci
+        }
       }
+
+      // Softmax confidence for best class at this timestep (stable).
+      let maxLogit = -Infinity
+      for (let ci = 0; ci < c; ci++) {
+        const v = logitAt(ti, ci)
+        if (v > maxLogit) maxLogit = v
+      }
+      let denom = 0
+      for (let ci = 0; ci < c; ci++) {
+        denom += Math.exp(logitAt(ti, ci) - maxLogit)
+      }
+      const bestProb = denom > 0 ? Math.exp(bestVal - maxLogit) / denom : 0
 
       if (bestIdx !== blankIdx && bestIdx !== prev) {
         const dictIdx = blankIdx === 0 ? bestIdx - 1 : bestIdx
         if (dictIdx >= 0 && dictIdx < dict.length) {
-          chars.push(dict[dictIdx])
-          confSum += Math.max(0, Math.min(1, bestVal))
-          confCount++
+          const char = dict[dictIdx]
+          // Filter out obviously invalid characters that suggest dictionary mismatch
+          if (char && char !== '\uFFFD' && char.length === 1) {
+            chars.push(char)
+            confSum += bestProb
+            confCount++
+          }
         }
       }
+
       prev = bestIdx
     }
 
-    return { text: chars.join('').trim(), confidence: confCount > 0 ? (confSum / confCount) * 100 : 0 }
+    let text = chars.join('').trim()
+    
+    // Post-process to clean up common OCR artifacts
+    text = text
+      .replace(/['`´'']/g, "'")
+      .replace(/[""]/g, '"')
+      .replace(/[–—]/g, '-')
+      .replace(/…/g, '...')
+      .replace(/\s+/g, ' ')
+      .trim()
+    
+    const confidence = confCount > 0 ? (confSum / confCount) * 100 : 0
+
+    const enCount = (text.match(/[A-Za-z]/g) || []).length
+    const zhCount = (text.match(/[\u4e00-\u9fff]/g) || []).length
+    const punctCount = (text.match(/["'`~!@#$%^&*()_+\-=[\]{};:\\|,.<>/?]/g) || []).length
+    const len = Math.max(1, text.length)
+    const enRatio = enCount / len
+    const zhRatio = zhCount / len
+    const punctRatio = punctCount / len
+
+    let langScore = 0
+    if (langHint === 'en') langScore = enRatio - zhRatio
+    else if (langHint === 'zh') langScore = zhRatio - enRatio
+    else langScore = Math.max(enRatio, zhRatio) - punctRatio
+
+    // Heavily penalize results with excessive random punctuation (indicates dictionary mismatch)
+    const artifactPenalty = punctRatio > 0.3 ? -50 : 0
+    const quality = confidence + langScore * 20 - Math.max(0, punctRatio - 0.2) * 30 + artifactPenalty
+
+    return { text, confidence, quality }
   }
 
   const a = decode(0)
   const b = decode(c - 1)
-  return a.text.length >= b.text.length ? a : b
+  return (a.quality >= b.quality ? a : b)
 }
 
 // ═══ Crop helper ═══
@@ -413,6 +531,7 @@ export async function detectTextRegions(
  */
 export async function recognizeRegion(
   crop: HTMLCanvasElement,
+  langHint = 'zh',
 ): Promise<{ text: string; confidence: number }> {
   const [session, dict] = await Promise.all([getRecSession(), getDict()])
   const input = normalizeForRec(crop)
@@ -422,7 +541,27 @@ export async function recognizeRegion(
   const tensor = out[session.outputNames[0]]
   if (!tensor?.data || !(tensor.data instanceof Float32Array)) return { text: '', confidence: 0 }
 
-  return ctcDecode(tensor.data as Float32Array, tensor.dims, dict)
+  return ctcDecode(tensor.data as Float32Array, tensor.dims, dict, langHint)
+}
+
+function splitWideRegion(r: OcrRegion, maxAspect = 10): OcrRegion[] {
+  const aspect = r.w / Math.max(1, r.h)
+  if (aspect <= maxAspect) return [r]
+
+  const chunkW = Math.max(40, Math.round(r.h * maxAspect))
+  const overlap = Math.max(8, Math.round(r.h * 0.6))
+  const out: OcrRegion[] = []
+  let x = r.x
+  const end = r.x + r.w
+
+  while (x < end) {
+    const right = Math.min(end, x + chunkW)
+    out.push({ x, y: r.y, w: Math.max(2, right - x), h: r.h, score: r.score })
+    if (right >= end) break
+    x = right - overlap
+  }
+
+  return out.length > 0 ? out : [r]
 }
 
 /**
@@ -431,7 +570,7 @@ export async function recognizeRegion(
  */
 export async function recognizePage(
   source: HTMLCanvasElement,
-  _langHint = 'zh',
+  langHint = 'zh',
   onProgress?: ProgressCallback,
 ): Promise<OcrPageResult> {
   // Phase 1: load models (0–30%)
@@ -444,7 +583,7 @@ export async function recognizePage(
 
   if (regions.length === 0) {
     // Fallback: whole image as one region
-    const result = await recognizeRegion(source)
+    const result = await recognizeRegion(source, langHint)
     onProgress?.(100)
     return {
       text: result.text,
@@ -463,8 +602,25 @@ export async function recognizePage(
 
   for (let i = 0; i < regions.length; i++) {
     const r = regions[i]
-    const crop = cropCanvas(source, r.x, r.y, r.w, r.h)
-    const result = await recognizeRegion(crop)
+    const pieces = splitWideRegion(r)
+    const pieceTexts: string[] = []
+    let pieceConfSum = 0
+    let pieceConfCount = 0
+
+    for (const p of pieces) {
+      const crop = cropCanvas(source, p.x, p.y, p.w, p.h)
+      const rec = await recognizeRegion(crop, langHint)
+      if (rec.text) {
+        pieceTexts.push(rec.text)
+        pieceConfSum += rec.confidence
+        pieceConfCount++
+      }
+    }
+
+    const result = {
+      text: pieceTexts.join(' ').replace(/\s{2,}/g, ' ').trim(),
+      confidence: pieceConfCount > 0 ? pieceConfSum / pieceConfCount : 0,
+    }
 
     if (result.text) {
       lines.push({
