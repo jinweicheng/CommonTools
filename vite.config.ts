@@ -123,8 +123,9 @@ export default defineConfig(({ mode }) => ({
     // 添加响应头以支持 FFmpeg.wasm（SharedArrayBuffer）
     headers: {
       'Cross-Origin-Opener-Policy': 'same-origin',
-      // 'Cross-Origin-Embedder-Policy': 'require-corp',
-      'Cross-Origin-Embedder-Policy': 'credentialless'
+      // 使用与Nginx生产环境一致的策略
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+      'Cross-Origin-Resource-Policy': 'cross-origin'
     }
     // 注意：Vite 预览模式默认支持 SPA 路由
   },

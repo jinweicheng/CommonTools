@@ -10,7 +10,18 @@
  * Pipeline: image → normalise → det model → heatmap → connected-component boxes
  *           → crop each box → rec model → CTC decode → text + confidence
  */
-import * as ort from 'onnxruntime-web'
+
+// Check if running in browser environment
+const isBrowser = typeof window !== 'undefined' && typeof document !== 'undefined'
+
+// Conditional import for ONNX Runtime to avoid SSR issues
+const getORT = async () => {
+  if (!isBrowser) {
+    throw new Error('PaddleOCR engine requires browser environment')
+  }
+  const { default: ort } = await import('onnxruntime-web')
+  return ort
+}
 
 // ═══ Public types (same shape as tesseractEngine for drop-in switching) ═══
 
@@ -41,13 +52,15 @@ const REC_URL = `${HF_BASE}/ch_PP-OCRv4_rec.onnx`
 // Try multiple dictionary sources for better PP-OCRv4 compatibility
 const DICT_URLS = [
   'https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/main/ppocr/utils/ppocr_keys_v1.txt',
-  'https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/dygraph/ppocr/utils/ppocr_keys_v1.txt'
+  'https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/dygraph/ppocr/utils/ppocr_keys_v1.txt',
+  // Add jsDelivr CDN for better global access
+  'https://cdn.jsdelivr.net/gh/PaddlePaddle/PaddleOCR@main/ppocr/utils/ppocr_keys_v1.txt'
 ]
 
 // ═══ Singleton caches ═══
 
-let detSessionPromise: Promise<ort.InferenceSession> | null = null
-let recSessionPromise: Promise<ort.InferenceSession> | null = null
+let detSessionPromise: Promise<any> | null = null
+let recSessionPromise: Promise<any> | null = null
 let dictPromise: Promise<string[]> | null = null
 let modelTotalBytes = 0
 let modelLoadedBytes = 0
@@ -86,7 +99,8 @@ async function fetchModelWithProgress(
 
 // ═══ ORT session creation ═══
 
-function configureOrt() {
+async function configureOrt() {
+  const ort = await getORT()
   ort.env.wasm.numThreads = Math.max(1, Math.min(4, navigator.hardwareConcurrency || 2))
 }
 
@@ -94,8 +108,9 @@ async function createSession(
   url: string,
   label: string,
   onProgress?: ProgressCallback,
-): Promise<ort.InferenceSession> {
-  configureOrt()
+): Promise<any> {
+  await configureOrt()
+  const ort = await getORT()
 
   const model = await fetchModelWithProgress(url, (loaded, _total) => {
     if (onProgress) {
@@ -117,7 +132,7 @@ async function createSession(
   })
 }
 
-function getDetSession(onProgress?: ProgressCallback): Promise<ort.InferenceSession> {
+function getDetSession(onProgress?: ProgressCallback): Promise<any> {
   if (!detSessionPromise) {
     detSessionPromise = createSession(DET_URL, 'det', onProgress).catch(e => {
       detSessionPromise = null; throw e
@@ -126,7 +141,7 @@ function getDetSession(onProgress?: ProgressCallback): Promise<ort.InferenceSess
   return detSessionPromise
 }
 
-function getRecSession(onProgress?: ProgressCallback): Promise<ort.InferenceSession> {
+function getRecSession(onProgress?: ProgressCallback): Promise<any> {
   if (!recSessionPromise) {
     recSessionPromise = createSession(REC_URL, 'rec', onProgress).catch(e => {
       recSessionPromise = null; throw e
@@ -181,6 +196,8 @@ function nearestMul32(v: number, lower = 32, upper = 1536): number {
 }
 
 function normalizeForDet(source: HTMLCanvasElement, maxSide = 960) {
+  if (!isBrowser) throw new Error('Canvas operations require browser environment')
+  
   const srcW = Math.max(1, source.width)
   const srcH = Math.max(1, source.height)
   const scale = Math.min(1, maxSide / Math.max(srcW, srcH))
@@ -207,7 +224,8 @@ function normalizeForDet(source: HTMLCanvasElement, maxSide = 960) {
   }
 
   return {
-    tensor: new ort.Tensor('float32', chw, [1, 3, dstH, dstW]),
+    tensorData: chw,
+    dims: [1, 3, dstH, dstW],
     dstW, dstH,
     scaleX: srcW / dstW,
     scaleY: srcH / dstH,
@@ -217,6 +235,8 @@ function normalizeForDet(source: HTMLCanvasElement, maxSide = 960) {
 // ═══ Image preprocessing — recognition ═══
 
 function normalizeForRec(source: HTMLCanvasElement, targetH = 48, targetW = 320) {
+  if (!isBrowser) throw new Error('Canvas operations require browser environment')
+  
   const ratio = source.width > 0 ? source.width / source.height : 1
   const resizedW = Math.max(16, Math.min(targetW, Math.round(targetH * ratio)))
 
@@ -239,7 +259,7 @@ function normalizeForRec(source: HTMLCanvasElement, targetH = 48, targetW = 320)
     idx++
   }
 
-  return new ort.Tensor('float32', chw, [1, 3, targetH, targetW])
+  return { tensorData: chw, dims: [1, 3, targetH, targetW] }
 }
 
 // ═══ Detection post-processing ═══
@@ -480,6 +500,8 @@ function ctcDecode(
 // ═══ Crop helper ═══
 
 function cropCanvas(source: HTMLCanvasElement, x: number, y: number, w: number, h: number): HTMLCanvasElement {
+  if (!isBrowser) throw new Error('Canvas operations require browser environment')
+  
   const c = document.createElement('canvas')
   c.width = Math.max(1, w); c.height = Math.max(1, h)
   const ctx = c.getContext('2d')!
@@ -514,13 +536,15 @@ export async function detectTextRegions(
 ): Promise<OcrRegion[]> {
   const session = await getDetSession(onProgress)
   const prep = normalizeForDet(source)
-
-  const feeds: Record<string, ort.Tensor> = { [session.inputNames[0]]: prep.tensor }
+  const ort = await getORT()
+  
+  const tensor = new ort.Tensor('float32', prep.tensorData, prep.dims)
+  const feeds: Record<string, any> = { [session.inputNames[0]]: tensor }
   const out = await session.run(feeds)
-  const tensor = out[session.outputNames[0]]
-  if (!tensor?.data || !(tensor.data instanceof Float32Array)) return []
+  const outputTensor = out[session.outputNames[0]]
+  if (!outputTensor?.data || !(outputTensor.data instanceof Float32Array)) return []
 
-  const { map, h, w } = toHeatmap(tensor.data as Float32Array, tensor.dims)
+  const { map, h, w } = toHeatmap(outputTensor.data as Float32Array, outputTensor.dims)
   if (h === 0 || w === 0) return []
 
   const blobs = connectedBoxes(map, h, w)
@@ -546,13 +570,15 @@ export async function recognizeRegion(
 ): Promise<{ text: string; confidence: number }> {
   const [session, dict] = await Promise.all([getRecSession(), getDict()])
   const input = normalizeForRec(crop)
-
-  const feeds: Record<string, ort.Tensor> = { [session.inputNames[0]]: input }
+  const ort = await getORT()
+  
+  const tensor = new ort.Tensor('float32', input.tensorData, input.dims)
+  const feeds: Record<string, any> = { [session.inputNames[0]]: tensor }
   const out = await session.run(feeds)
-  const tensor = out[session.outputNames[0]]
-  if (!tensor?.data || !(tensor.data instanceof Float32Array)) return { text: '', confidence: 0 }
+  const outputTensor = out[session.outputNames[0]]
+  if (!outputTensor?.data || !(outputTensor.data instanceof Float32Array)) return { text: '', confidence: 0 }
 
-  return ctcDecode(tensor.data as Float32Array, tensor.dims, dict, langHint)
+  return ctcDecode(outputTensor.data as Float32Array, outputTensor.dims, dict, langHint)
 }
 
 function splitWideRegion(r: OcrRegion, maxAspect = 10): OcrRegion[] {
