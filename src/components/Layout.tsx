@@ -26,7 +26,7 @@ export default function Layout({ children }: LayoutProps) {
   const location = useLocation()
   const { t, language, setLanguage } = useI18n()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['imageTools', 'pdfTools', 'videoTools', 'fileTools']))
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['imageTools', 'pdfTools', 'videoTools', 'fileTools', 'ocrTools']))
   
   // 独立菜单项（不在分类下）
   const standaloneNavItems: NavItem[] = [
@@ -64,6 +64,16 @@ export default function Layout({ children }: LayoutProps) {
         { path: '/pdf-encrypt', icon: <Shield size={18} />, label: t('nav.pdfEncrypt') },
         { path: '/pdf-watermark', icon: <Droplet size={18} />, label: t('nav.pdfWatermark') },
         { path: '/pdf-signature', icon: <PenTool size={18} />, label: t('nav.pdfSignature') },
+        ],
+    },
+    {
+      id: 'ocrTools',
+      label: t('nav.ocrTools'),
+      icon: <FileImage size={18} />,
+      items: [
+        { path: '/ocr-image-to-text', icon: <FileImage size={18} />, label: t('nav.ocrImageToText') },
+        { path: '/ocr-pdf', icon: <FileLock size={18} />, label: t('nav.ocrPdf') },
+        { path: '/ocr-table', icon: <Layers size={18} />, label: t('nav.ocrTable') },
       ],
     },
     {

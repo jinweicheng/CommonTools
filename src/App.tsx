@@ -28,6 +28,9 @@ import PDFEncryptHTMLPage from './pages/PDFEncryptHTMLPage'
 import PDFEncryptPage from './pages/PDFEncryptPage'
 import PDFWatermarkToolPage from './pages/PDFWatermarkToolPage'
 import PDFSignatureToolPage from './pages/PDFSignatureToolPage'
+import OCRImageToTextPage from './pages/OCRImageToTextPage.tsx'
+import OCRPdfPage from './pages/OCRPdfPage.tsx'
+import OCRTablePage from './pages/OCRTablePage.tsx'
 import LoginPage from './pages/LoginPage'
 import SupportPage from './pages/SupportPage'
 import SupportPolicyPage from './pages/SupportPolicyPage'
@@ -124,6 +127,11 @@ function App() {
               
               {/* PDF签名 */}
               <Route path="/pdf-signature" element={<PDFSignatureToolPage />} />
+
+              {/* OCR Tools */}
+              <Route path="/ocr-image-to-text" element={<OCRImageToTextPage />} />
+              <Route path="/ocr-pdf" element={<OCRPdfPage />} />
+              <Route path="/ocr-table" element={<OCRTablePage />} />
               
               {/* Support & Policy Pages */}
               <Route path="/support" element={<SupportPage />} />

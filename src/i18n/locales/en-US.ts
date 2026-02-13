@@ -76,6 +76,10 @@ export default {
     pdfEncrypt: 'PDF Encrypt',
     pdfWatermark: 'PDF Watermark',
     pdfSignature: 'PDF Signature',
+    ocrTools: 'OCR Tools',
+    ocrImageToText: 'Image to Text',
+    ocrPdf: 'PDF OCR',
+    ocrTable: 'Table OCR',
   },
 
   // Security banner

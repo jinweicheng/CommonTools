@@ -76,6 +76,10 @@ export default {
     pdfEncrypt: 'PDF加密',
     pdfWatermark: 'PDF水印',
     pdfSignature: 'PDF签名',
+    ocrTools: 'OCR 工具',
+    ocrImageToText: '图片转文字',
+    ocrPdf: 'PDF OCR',
+    ocrTable: '表格 OCR',
   },
 
   // 安全横幅
