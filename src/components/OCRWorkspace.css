@@ -151,9 +151,49 @@
 .ocr-preview-col h4 { margin: 0 0 8px; font-size: 14px; font-weight: 600; color: #111827; }
 .ocr-preview-stage { position: relative; border: 1px solid #e5e7eb; border-radius: 10px; overflow: hidden; min-height: 240px; background: #f9fafb; }
 .ocr-preview-stage img { width: 100%; display: block; }
-.ocr-box { position: absolute; border: 1.5px solid rgba(37,99,235,.6); background: rgba(37,99,235,.08); cursor: pointer; transition: all .12s ease; padding: 0; margin: 0; appearance: none; outline: none; }
-.ocr-box:hover { background: rgba(37,99,235,.18); border-color: rgba(37,99,235,.9); }
-.ocr-box.active { border-color: #ef4444; background: rgba(239,68,68,.14); z-index: 2; box-shadow: 0 0 0 2px rgba(239,68,68,.2); }
+.ocr-box { 
+  position: absolute; 
+  border: 2px solid rgba(37,99,235,.7); 
+  background: rgba(37,99,235,.1); 
+  cursor: pointer; 
+  transition: all .15s ease; 
+  padding: 1px 2px; 
+  margin: 0; 
+  appearance: none; 
+  outline: none;
+  font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  font-weight: 500;
+  color: rgba(37,99,235,.9);
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-height: 16px;
+  box-sizing: border-box;
+}
+.ocr-box:hover { 
+  background: rgba(37,99,235,.2); 
+  border-color: rgba(37,99,235,1); 
+  transform: scale(1.02);
+  z-index: 10;
+}
+.ocr-box.active { 
+  border-color: #ef4444; 
+  background: rgba(239,68,68,.16); 
+  z-index: 20; 
+  box-shadow: 0 0 0 2px rgba(239,68,68,.3), 0 2px 8px rgba(239,68,68,.15); 
+  color: #dc2626;
+  transform: scale(1.03);
+}
+
+/* 文字框选内容显示 */
+.ocr-box::after {
+  content: attr(data-text);
+  display: block;
+  font-size: inherit;
+  line-height: inherit;
+  pointer-events: none;
+}
 
 /* — Editor — */
 .ocr-editor {
@@ -182,10 +222,85 @@
 .ocr-page-range input:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.08); }
 
 /* — Recognized lines — */
-.ocr-lines { margin-top: 8px; display: flex; flex-direction: column; gap: 3px; max-height: 180px; overflow-y: auto; scrollbar-width: thin; }
-.ocr-lines span { padding: 4px 8px; border-radius: 6px; font-size: 12px; background: #f9fafb; cursor: pointer; transition: background .12s; line-height: 1.5; border: 1px solid transparent; }
-.ocr-lines span:hover { background: #eff6ff; border-color: #dbeafe; }
-.ocr-lines span.active { background: #dbeafe; border-color: #93c5fd; font-weight: 500; }
+.ocr-lines { 
+  margin-top: 10px; 
+  max-height: 200px; 
+  overflow-y: auto; 
+  scrollbar-width: thin;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fafbfc;
+}
+
+.ocr-lines-header {
+  padding: 8px 12px;
+  background: #f3f4f6;
+  border-bottom: 1px solid #e5e7eb;
+  font-weight: 500;
+  font-size: 11px;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.ocr-line-item { 
+  display: flex;
+  align-items: flex-start;
+  padding: 6px 12px; 
+  cursor: pointer; 
+  transition: all .12s ease; 
+  border-bottom: 1px solid #f3f4f6;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.ocr-line-item:last-child {
+  border-bottom: none;
+}
+
+.ocr-line-item:hover { 
+  background: #eff6ff; 
+  border-left: 3px solid #3b82f6;
+  padding-left: 9px;
+}
+
+.ocr-line-item.active { 
+  background: #dbeafe; 
+  border-left: 3px solid #2563eb;
+  padding-left: 9px;
+  font-weight: 500;
+  color: #1e40af;
+}
+
+.ocr-line-number {
+  display: inline-block;
+  min-width: 28px;
+  padding: 2px 6px;
+  margin-right: 8px;
+  background: #e5e7eb;
+  color: #6b7280;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 4px;
+  text-align: center;
+  font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
+  flex-shrink: 0;
+}
+
+.ocr-line-item.active .ocr-line-number {
+  background: #3b82f6;
+  color: white;
+}
+
+.ocr-line-text {
+  flex: 1;
+  word-break: break-word;
+  max-height: 60px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
 
 /* — Stats — */
 .ocr-stat-row { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 6px; font-size: 12px; color: #374151; }

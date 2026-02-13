@@ -111,12 +111,28 @@ export default function OCRWorkspace({ mode, language }: OCRWorkspaceProps) {
 
   // ═══ Text → Box fallback ═══
   const makeBoxesFromText = (text: string): OCRBox[] => {
-    const lines = text.split('\n').filter(Boolean).slice(0, 30)
+    const lines = text.split('\n').filter(line => line.trim().length > 0).slice(0, 50)
     if (lines.length === 0) return []
-    const step = Math.min(6, Math.floor(90 / lines.length))
-    return lines.map((line, i) => ({
-      id: `box-${i}`, text: line, x: 4, y: 4 + i * step, w: 92, h: Math.max(3, step - 1),
-    }))
+    
+    // 动态计算每行高度，避免重叠
+    const totalHeight = 85 // 可用高度百分比
+    const lineHeight = Math.max(2, Math.min(8, totalHeight / lines.length))
+    const lineSpacing = Math.max(0.5, lineHeight * 0.15)
+    
+    return lines.map((line, i) => {
+      // 根据文字长度估算宽度
+      const charCount = line.length
+      const estimatedWidth = Math.min(92, Math.max(10, charCount * 0.8 + 5))
+      
+      return {
+        id: `fallback-box-${i}`,
+        text: line.trim(),
+        x: 4,
+        y: 5 + i * (lineHeight + lineSpacing),
+        w: estimatedWidth,
+        h: lineHeight,
+      }
+    })
   }
 
   // ═══ Page range parsing ═══
@@ -328,14 +344,22 @@ export default function OCRWorkspace({ mode, language }: OCRWorkspaceProps) {
 
         // Convert Tesseract line bounding boxes to our OCRBox format (percentage-based)
         const imgW = srcCanvas.width, imgH = srcCanvas.height
-        const pageBoxes: OCRBox[] = pageResult.lines.map((line, idx) => ({
-          id: `box-p${pageNo}-${idx}`,
-          text: line.text,
-          x: (line.bbox.x0 / imgW) * 100,
-          y: (line.bbox.y0 / imgH) * 100,
-          w: ((line.bbox.x1 - line.bbox.x0) / imgW) * 100,
-          h: ((line.bbox.y1 - line.bbox.y0) / imgH) * 100,
-        }))
+        const pageBoxes: OCRBox[] = pageResult.lines.map((line, idx) => {
+          // 提高坐标精度，保留更多小数位
+          const x = Math.max(0, (line.bbox.x0 / imgW) * 100)
+          const y = Math.max(0, (line.bbox.y0 / imgH) * 100)
+          const w = Math.max(0.5, ((line.bbox.x1 - line.bbox.x0) / imgW) * 100)
+          const h = Math.max(0.5, ((line.bbox.y1 - line.bbox.y0) / imgH) * 100)
+          
+          return {
+            id: `box-p${pageNo}-${idx}`,
+            text: line.text,
+            x: Math.round(x * 100) / 100,
+            y: Math.round(y * 100) / 100,
+            w: Math.round(w * 100) / 100,
+            h: Math.round(h * 100) / 100,
+          }
+        })
 
         allBoxes.push(...pageBoxes)
 
@@ -480,10 +504,41 @@ export default function OCRWorkspace({ mode, language }: OCRWorkspaceProps) {
     if (!activeTask || !editorRef.current) return
     const box = activeTask.boxes.find(b => b.id === boxId)
     if (!box?.text || !editorRef.current) return
-    const idx = activeTask.recognizedText.indexOf(box.text)
-    if (idx >= 0) {
-      editorRef.current.focus()
-      editorRef.current.setSelectionRange(idx, idx + box.text.length)
+    
+    // 更精确的文字定位：考虑多行文字的情况
+    const lines = activeTask.recognizedText.split('\n')
+    let totalOffset = 0
+    let found = false
+    
+    for (const line of lines) {
+      const idx = line.indexOf(box.text)
+      if (idx >= 0) {
+        // 找到文字，选中并聚焦
+        const startPos = totalOffset + idx
+        const endPos = startPos + box.text.length
+        editorRef.current.focus()
+        editorRef.current.setSelectionRange(startPos, endPos)
+        
+        // 滚动到选中的文字位置
+        if (editorRef.current.scrollTop !== undefined) {
+          const lineHeight = 22 // 大约每行高度
+          const lineNumber = activeTask.recognizedText.substring(0, startPos).split('\n').length
+          const scrollTop = Math.max(0, (lineNumber - 3) * lineHeight)
+          editorRef.current.scrollTop = scrollTop
+        }
+        found = true
+        break
+      }
+      totalOffset += line.length + 1 // +1 for newline
+    }
+    
+    // 如果没找到精确匹配，尝试模糊匹配
+    if (!found) {
+      const idx = activeTask.recognizedText.indexOf(box.text.substring(0, 10))
+      if (idx >= 0) {
+        editorRef.current.focus()
+        editorRef.current.setSelectionRange(idx, Math.min(idx + box.text.length, activeTask.recognizedText.length))
+      }
     }
   }
 
@@ -608,12 +663,20 @@ export default function OCRWorkspace({ mode, language }: OCRWorkspaceProps) {
                     <h4>{zh ? '原图 / 原页' : 'Source'}</h4>
                     <div className="ocr-preview-stage">
                       {activeTask.previewUrl && <img src={activeTask.previewUrl} alt="preview" />}
-                      {activeTask.boxes.filter(b => b.text).map(box => (
+                      {activeTask.boxes.filter(b => b.text.trim()).map(box => (
                         <button key={box.id}
                           className={`ocr-box ${activeBoxId === box.id ? 'active' : ''}`}
-                          style={{ left: `${box.x}%`, top: `${box.y}%`, width: `${box.w}%`, height: `${box.h}%` }}
+                          style={{ 
+                            left: `${box.x}%`, 
+                            top: `${box.y}%`, 
+                            width: `${box.w}%`, 
+                            height: `${box.h}%`,
+                            fontSize: `${Math.max(8, Math.min(14, box.h * 0.6))}px`,
+                            lineHeight: `${box.h * 0.8}%`
+                          }}
                           onClick={() => scrollToBox(box.id)}
-                          title={box.text}
+                          title={`${box.text} (${Math.round(box.w * 10) / 10}%×${Math.round(box.h * 10) / 10}%)`}
+                          data-text={box.text.length > 20 ? box.text.substring(0, 17) + '...' : box.text}
                         />
                       ))}
                     </div>
@@ -637,17 +700,21 @@ export default function OCRWorkspace({ mode, language }: OCRWorkspaceProps) {
                       </div>
                     )}
 
-                    {/* Linked text lines */}
+                    {/* Linked text lines with line numbers */}
                     <div className="ocr-lines">
-                      {activeTask.boxes.filter(b => b.text).map(box => (
-                        <span key={box.id}
-                          className={activeBoxId === box.id ? 'active' : ''}
+                      <div className="ocr-lines-header">
+                        <small>{zh ? `共 ${activeTask.boxes.filter(b => b.text.trim()).length} 行文字` : `${activeTask.boxes.filter(b => b.text.trim()).length} text lines`}</small>
+                      </div>
+                      {activeTask.boxes.filter(b => b.text.trim()).map((box, index) => (
+                        <div key={box.id}
+                          className={`ocr-line-item ${activeBoxId === box.id ? 'active' : ''}`}
                           onMouseEnter={() => setActiveBoxId(box.id)}
                           onMouseLeave={() => setActiveBoxId(null)}
                           onClick={() => scrollToBox(box.id)}
                         >
-                          {box.text}
-                        </span>
+                          <span className="ocr-line-number">{index + 1}</span>
+                          <span className="ocr-line-text">{box.text}</span>
+                        </div>
                       ))}
                     </div>
                   </div>

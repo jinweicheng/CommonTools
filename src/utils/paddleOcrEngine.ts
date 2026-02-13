@@ -310,9 +310,20 @@ function mergeCloseBoxes(regions: OcrRegion[]): OcrRegion[] {
     const last = merged[merged.length - 1]
     if (!last) { merged.push({ ...r }); continue }
 
-    const sameLine = Math.abs((last.y + last.h / 2) - (r.y + r.h / 2)) <= Math.max(3, Math.min(last.h, r.h) * 0.35)
+    // 更精确的行判断：考虑文字高度的垂直重叠
+    const lastCenterY = last.y + last.h / 2
+    const rCenterY = r.y + r.h / 2
+    const verticalOverlap = Math.max(0, 
+      Math.min(last.y + last.h, r.y + r.h) - Math.max(last.y, r.y)
+    )
+    const minHeight = Math.min(last.h, r.h)
+    const sameLine = verticalOverlap > minHeight * 0.3 || 
+      Math.abs(lastCenterY - rCenterY) <= Math.max(2, minHeight * 0.4)
+    
     const gap = r.x - (last.x + last.w)
-    const near = gap >= -2 && gap <= Math.max(4, Math.min(last.h, r.h) * 0.35)
+    // 更保守的水平合并：避免过度合并不同语义的文字
+    const maxGap = Math.min(last.h * 0.8, r.h * 0.8, 24)
+    const near = gap >= -3 && gap <= maxGap
 
     if (sameLine && near) {
       const nx0 = Math.min(last.x, r.x)
@@ -635,10 +646,22 @@ export async function recognizePage(
     onProgress?.(45 + Math.round((i + 1) / regions.length * 50))
   }
 
-  // Sort reading order: top→bottom, left→right
+  // Sort reading order: 更精确的阅读顺序排序
   lines.sort((a, b) => {
-    const dy = a.bbox.y0 - b.bbox.y0
-    return Math.abs(dy) > 8 ? dy : a.bbox.x0 - b.bbox.x0
+    const aTop = a.bbox.y0
+    const bTop = b.bbox.y0
+    const aHeight = a.bbox.y1 - a.bbox.y0
+    const bHeight = b.bbox.y1 - b.bbox.y0
+    const avgHeight = (aHeight + bHeight) / 2
+    
+    // 如果垂直距离小于平均高度的0.5倍，认为是同一行，按左右排序
+    const verticalDistance = Math.abs(aTop - bTop)
+    if (verticalDistance < avgHeight * 0.5) {
+      return a.bbox.x0 - b.bbox.x0
+    }
+    
+    // 否则按上下排序
+    return aTop - bTop
   })
 
   onProgress?.(100)
