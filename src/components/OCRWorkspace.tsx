@@ -6,8 +6,29 @@ import { Document, Packer, Paragraph } from 'docx'
 import { saveAs } from 'file-saver'
 import configurePDFWorker from '../utils/pdfWorkerConfig'
 import { recognizePage as tesseractRecognize, terminateWorker as tesseractTerminate } from '../utils/tesseractEngine'
-import { recognizePage as paddleRecognize, terminateEngine as paddleTerminate } from '../utils/paddleOcrEngine'
 import './OCRWorkspace.css'
+
+type OcrRecognizer = (
+  source: HTMLCanvasElement | HTMLImageElement | ImageData,
+  langHint?: string,
+  onProgress?: (progress: number) => void,
+) => Promise<{
+  text: string
+  confidence: number
+  lines: Array<{ text: string; confidence: number; bbox: { x0: number; y0: number; x1: number; y1: number } }>
+}>
+
+type OcrTerminator = () => Promise<void>
+
+let paddleRecognize: OcrRecognizer | null = null
+let paddleTerminate: OcrTerminator | null = null
+
+async function ensurePaddleEngineLoaded() {
+  if (paddleRecognize && paddleTerminate) return
+  const mod = await import('../utils/paddleOcrEngine')
+  paddleRecognize = mod.recognizePage as OcrRecognizer
+  paddleTerminate = mod.terminateEngine as OcrTerminator
+}
 
 type OcrEngine = 'tesseract' | 'paddle'
 
@@ -89,7 +110,9 @@ export default function OCRWorkspace({ mode, language }: OCRWorkspaceProps) {
     return () => {
       tasks.forEach(t => t.previewUrl && URL.revokeObjectURL(t.previewUrl))
       tesseractTerminate().catch(() => undefined)
-      paddleTerminate().catch(() => undefined)
+      if (paddleTerminate) {
+        paddleTerminate().catch(() => undefined)
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -307,6 +330,11 @@ export default function OCRWorkspace({ mode, language }: OCRWorkspaceProps) {
     updateTask(task.id, { status: 'processing', progress: 3, error: undefined, recognizedText: '' })
 
     try {
+      const selectedEngine = ocrEngine
+      if (selectedEngine === 'paddle') {
+        await ensurePaddleEngineLoaded()
+      }
+
       const isPdf = task.file.type === 'application/pdf' || /\.pdf$/i.test(task.file.name)
       const totalPages = isPdf ? Math.max(1, Math.min(task.pageCount || 1, PDF_MAX_PAGES)) : 1
       const selectedPages = isPdf ? parsePageSelection(task.selectedPages, totalPages) : [1]
@@ -332,11 +360,13 @@ export default function OCRWorkspace({ mode, language }: OCRWorkspaceProps) {
           : canvasFromBitmap(await createImageBitmap(task.file))
 
         // Use selected OCR engine
-        const recognize = ocrEngine === 'paddle' ? paddleRecognize : tesseractRecognize
+        const recognize: OcrRecognizer = selectedEngine === 'paddle' && paddleRecognize
+          ? paddleRecognize
+          : tesseractRecognize
         const pageResult = await recognize(
           srcCanvas,
           task.langDetected,
-          (pct) => {
+          (pct: number) => {
             const pageProgress = (pi + pct / 100) / selectedPages.length
             updateTask(task.id, { progress: Math.min(98, Math.round(5 + pageProgress * 90)) })
           },
@@ -344,7 +374,7 @@ export default function OCRWorkspace({ mode, language }: OCRWorkspaceProps) {
 
         // Convert Tesseract line bounding boxes to our OCRBox format (percentage-based)
         const imgW = srcCanvas.width, imgH = srcCanvas.height
-        const pageBoxes: OCRBox[] = pageResult.lines.map((line, idx) => {
+        const pageBoxes: OCRBox[] = pageResult.lines.map((line, idx: number) => {
           // 提高坐标精度，保留更多小数位
           const x = Math.max(0, (line.bbox.x0 / imgW) * 100)
           const y = Math.max(0, (line.bbox.y0 / imgH) * 100)

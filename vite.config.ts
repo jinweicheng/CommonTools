@@ -3,6 +3,8 @@ import react from '@vitejs/plugin-react'
 // @ts-ignore
 import obfuscatorPlugin from 'rollup-plugin-obfuscator'
 
+const enableObfuscation = process.env.VITE_ENABLE_OBFUSCATION === 'true'
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   // 只在生产环境使用 /tools/ 前缀，开发环境使用根路径
@@ -25,7 +27,7 @@ export default defineConfig(({ mode }) => ({
     rollupOptions: {
       plugins: [
         // 代码混淆配置（仅在生产环境启用）
-        ...(process.env.NODE_ENV === 'production' ? [
+        ...(mode === 'production' && enableObfuscation ? [
           obfuscatorPlugin({
             // 混淆选项配置
             options: {
