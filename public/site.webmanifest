@@ -199,6 +199,28 @@
         }
       ]
     }
+    ,
+    {
+      "name": "Image → Text OCR",
+      "short_name": "OCR Image",
+      "description": "Recognize text in images (JPG/PNG/TIFF) using PaddleOCR or Tesseract.js",
+      "url": "/tools/ocr-image-to-text",
+      "icons": [ { "src": "/favicon-192x192.png", "sizes": "192x192" } ]
+    },
+    {
+      "name": "PDF OCR",
+      "short_name": "OCR PDF",
+      "description": "Convert scanned PDFs to searchable PDF with client-side OCR",
+      "url": "/tools/ocr-pdf",
+      "icons": [ { "src": "/favicon-192x192.png", "sizes": "192x192" } ]
+    },
+    {
+      "name": "Table OCR",
+      "short_name": "OCR Table",
+      "description": "Extract structured tables from images and export to JSON/Excel",
+      "url": "/tools/ocr-table",
+      "icons": [ { "src": "/favicon-192x192.png", "sizes": "192x192" } ]
+    }
   ],
   "prefer_related_applications": false,
   "iarc_rating_id": "",

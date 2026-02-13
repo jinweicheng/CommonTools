@@ -259,5 +259,29 @@
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
+
+  <!-- OCR: Image to Text -->
+  <url>
+    <loc>https://commontools.top/tools/ocr-image-to-text</loc>
+    <lastmod>2026-02-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.90</priority>
+  </url>
+
+  <!-- OCR: PDF -->
+  <url>
+    <loc>https://commontools.top/tools/ocr-pdf</loc>
+    <lastmod>2026-02-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.90</priority>
+  </url>
+
+  <!-- OCR: Table -->
+  <url>
+    <loc>https://commontools.top/tools/ocr-table</loc>
+    <lastmod>2026-02-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.90</priority>
+  </url>
   
 </urlset>

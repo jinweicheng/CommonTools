@@ -79,6 +79,9 @@ Allow: /tools/pricing
 # ===== 新增页面 =====
 Allow: /tools/contact
 Allow: /tools/about
+Allow: /tools/ocr-image-to-text
+Allow: /tools/ocr-pdf
+Allow: /tools/ocr-table
 
 # ===== 禁止爬取 =====
 # 构建产物和资源文件

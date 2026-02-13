@@ -100,6 +100,7 @@
     ✓ PDF Encrypt AES-256-GCM (Encrypt/Decrypt)
     ✓ PDF Watermark (Text, Custom Color/Opacity/Angle, Live Preview)
     ✓ PDF Signature (Handwritten, Multi-Page, Drag & Resize)
+    ✓ OCR: Image/PDF/Table OCR (PaddleOCR v4 ONNX, Tesseract.js) - Client-side text recognition and searchable PDF export
     
     ## File Tools
     ✓ Military-grade File Encryption (AES-256-GCM)
