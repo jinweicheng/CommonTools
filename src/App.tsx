@@ -41,6 +41,7 @@ import RefundPolicyPage from './pages/RefundPolicyPage'
 import PricingPage from './pages/PricingPage'
 import AboutPage from './pages/AboutPage'
 import ContactPage from './pages/ContactPage'
+import ErrorReportingTestPage from './pages/ErrorReportingTestPage'
 import './App.css'
 
 function App() {
@@ -149,6 +150,7 @@ function App() {
               <Route path="/contact" element={<ContactPage />} />
               
               {/* 重定向未知路由到首页 */}
+              <Route path="/debug/error-test" element={<ErrorReportingTestPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </Layout>

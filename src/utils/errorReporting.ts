@@ -135,12 +135,25 @@ function shouldDrop(report: FrontendErrorReport): boolean {
 
 async function postReports(batch: FrontendErrorReport[]): Promise<boolean> {
   if (batch.length === 0) return true
-
-  // 后端要求：body = { userId, module, errorMessage }
-  // 为保证不破坏后端解析，这里严格只发送这些字段；
-  // 如果一次捕获到多条错误，将合并为一条文本（便于服务端入库）。
+  // Build payload to match backend `front_errors` table:
+  // user_id, module, action, endpoint, ip_address, device_type, error_message
+  // If useful fields are present in the report (`extra.action`, `path`), prefer them.
   const userId = batch[0]?.userId || getUserId()
   const module = batch[0]?.module || getCurrentModuleFromPath(window.location.pathname)
+  const action = (batch[0]?.extra && (batch[0].extra.action as string)) || ''
+  const endpoint = batch[0]?.path || window.location.pathname || ''
+  const userAgent = batch[0]?.userAgent || navigator.userAgent
+
+  function detectDeviceType(ua: string): string {
+    const s = ua.toLowerCase()
+    if (/mobile|iphone|ipod|android|blackberry|opera mini|windows phone/.test(s)) return 'MOBILE'
+    if (/tablet|ipad/.test(s)) return 'TABLET'
+    if (/mac|win|linux/.test(s)) return 'PC'
+    return 'UNKNOWN'
+  }
+
+  const deviceType = detectDeviceType(userAgent)
+
   const errorMessage = batch
     .map((r, idx) => {
       const head = `[${idx + 1}] source=${r.source || 'unknown'}`
@@ -153,10 +166,29 @@ async function postReports(batch: FrontendErrorReport[]): Promise<boolean> {
     .join('\n\n---\n\n')
 
   try {
+    // In dev mode, log the outgoing payload so developer can observe it without a backend.
+    // Vite exposes `import.meta.env.DEV` which is true in development.
+    try {
+      if ((import.meta as any)?.env?.DEV) {
+        try {
+          console.debug('[errorReporting] POST payload:', { userId, module, errorMessage, batchSize: batch.length })
+        } catch {}
+      }
+    } catch {}
+    const payload = {
+      user_id: userId,
+      module,
+      action,
+      endpoint,
+      ip_address: null,
+      device_type: deviceType,
+      error_message: errorMessage,
+    }
+
     const res = await fetch(REPORT_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, module, errorMessage }),
+      body: JSON.stringify(payload),
       keepalive: true,
     })
     // agentLog('H4', 'errorReporting.ts:postReports', 'post result', { ok: res.ok, status: res.status })
