@@ -38,6 +38,21 @@ export default {
     limitations: 'Limitations',
   },
 
+  // Authentication
+  auth: {
+    login: 'Login',
+    logout: 'Logout',
+    register: 'Register',
+    user: 'User',
+    welcome: 'Welcome',
+    signIn: 'Sign In',
+    signUp: 'Sign Up',
+    forgotPassword: 'Forgot Password',
+    loginSuccess: 'Login successful',
+    logoutSuccess: 'Logout successful',
+    registerSuccess: 'Registration successful',
+  },
+
   // Navigation
   nav: {
     encryption: 'Encryption',

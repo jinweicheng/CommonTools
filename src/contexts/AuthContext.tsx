@@ -1,85 +1,105 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import React, { createContext, useContext, useEffect, useState } from 'react'
+import { login as apiLogin, logout as apiLogout, refreshAccessToken, register as apiRegister } from '../utils/auth'
+import apiClient from '../utils/apiClient'
 
-interface User {
-  username: string
-  isVip: boolean
-  loginTime: number
-}
-
-interface AuthContextType {
-  user: User | null
+type AuthContextValue = {
+  accessToken: string | null
+  isAuthenticated: boolean
+  user: { username?: string | null } | null
   login: (username: string, password: string) => Promise<boolean>
-  logout: () => void
+  register: (username: string, email: string, password: string) => Promise<boolean>
+  logout: () => Promise<void>
   isVip: () => boolean
+  setAccessToken: (t: string | null) => void
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined)
+const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // keep access token in memory only
+  const [accessToken, setAccessToken] = useState<string | null>(null)
+  const [username, setUsername] = useState<string | null>(null)
 
-  // 从localStorage加载登录状态
   useEffect(() => {
-    const stored = localStorage.getItem('commontools_user')
-    if (stored) {
+    if (accessToken) {
+      apiClient.defaults.headers.common.Authorization = `Bearer ${accessToken}`
+    } else {
+      delete apiClient.defaults.headers.common.Authorization
+    }
+  }, [accessToken])
+
+  // On mount, try to rebuild access token using httpOnly refresh cookie via backend
+  useEffect(() => {
+    let mounted = true
+    ;(async () => {
       try {
-        const userData = JSON.parse(stored)
-        // 检查登录是否过期（24小时）
-        const now = Date.now()
-        if (now - userData.loginTime < 24 * 60 * 60 * 1000) {
-          setUser(userData)
-        } else {
-          localStorage.removeItem('commontools_user')
-        }
-      } catch (e) {
-        console.error('加载用户数据失败', e)
+        const refreshed = await refreshAccessToken()
+        if (mounted && refreshed) setAccessToken(refreshed)
+      } catch {
+        // ignore
       }
+    })()
+    return () => {
+      mounted = false
     }
   }, [])
 
-  const login = async (username: string, password: string): Promise<boolean> => {
-    // 简单的VIP账号验证（实际应用中应该连接后端）
-    // VIP账号：admin/vip123 或 vip/vip123
-    const isVip = (username === 'admin' && password === 'vip123') || 
-                  (username === 'vip' && password === 'vip123')
-    
-    // 普通账号：user/user123
-    const isValid = isVip || (username === 'user' && password === 'user123')
-
-    if (isValid) {
-      const userData: User = {
-        username,
-        isVip,
-        loginTime: Date.now()
-      }
-      setUser(userData)
-      localStorage.setItem('commontools_user', JSON.stringify(userData))
+  const login = async (username: string, password: string) => {
+    const tokens = await apiLogin(username, password)
+    if (tokens && tokens.accessToken) {
+      // do NOT persist access token to localStorage; keep in memory only
+      setAccessToken(tokens.accessToken)
+      setUsername(tokens.username || username)
       return true
     }
     return false
   }
 
-  const logout = () => {
-    setUser(null)
-    localStorage.removeItem('commontools_user')
+  const register = async (username: string, email: string, password: string) => {
+    const tokens = await apiRegister(username, email, password)
+    if (tokens && tokens.accessToken) {
+      setAccessToken(tokens.accessToken)
+      setUsername(tokens.username || username)
+      return true
+    }
+    return false
+  }
+
+  const logout = async () => {
+    await apiLogout()
+    setAccessToken(null)
+    setUsername(null)
   }
 
   const isVip = () => {
-    return user?.isVip ?? false
+    if (!username) return false
+    const v = username.toLowerCase()
+    return v === 'admin' || v === 'vip' || v.includes('vip')
   }
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isVip }}>
+    <AuthContext.Provider
+      value={{
+        accessToken,
+        isAuthenticated: !!accessToken,
+        user: username ? { username } : null,
+        login,
+        register,
+        logout,
+        isVip,
+        setAccessToken,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   )
 }
 
 export function useAuth() {
-  const context = useContext(AuthContext)
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider')
-  }
-  return context
+  const ctx = useContext(AuthContext)
+  if (!ctx) throw new Error('useAuth must be used within AuthProvider')
+  return ctx
 }
+
+export default AuthContext
 

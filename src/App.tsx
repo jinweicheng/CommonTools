@@ -32,6 +32,7 @@ import OCRImageToTextPage from './pages/OCRImageToTextPage.tsx'
 import OCRPdfPage from './pages/OCRPdfPage.tsx'
 import OCRTablePage from './pages/OCRTablePage.tsx'
 import LoginPage from './pages/LoginPage'
+import OAuthCallback from './pages/OAuthCallback'
 import SupportPage from './pages/SupportPage'
 import SupportPolicyPage from './pages/SupportPolicyPage'
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage'
@@ -52,6 +53,8 @@ function App() {
               <Routes>
               {/* 登录页面 */}
               <Route path="/login" element={<LoginPage />} />
+              <Route path="/oauth-callback" element={<OAuthCallback />} />
+              <Route path="/auth/success" element={<OAuthCallback />} />
               
               {/* 默认首页：加密文件 */}
               <Route path="/" element={<EncryptionPage />} />

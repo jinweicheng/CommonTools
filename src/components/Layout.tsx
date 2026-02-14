@@ -1,7 +1,8 @@
 import { ReactNode, useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Shield, Repeat, Droplet, PenTool, Archive, Image as ImageIcon, Camera as CameraIcon, FileImage, Layers, Video, Menu, X, Globe, ChevronDown, ChevronRight, Minimize2, Film, Wand2, FileLock } from 'lucide-react'
+import { Shield, Repeat, Droplet, PenTool, Archive, Image as ImageIcon, Camera as CameraIcon, FileImage, Layers, Video, Menu, X, Globe, ChevronDown, ChevronRight, Minimize2, Film, Wand2, FileLock, LogOut, LogIn } from 'lucide-react'
 import { useI18n } from '../i18n/I18nContext'
+import { useAuth } from '../contexts/AuthContext'
 import TrustBadges from './TrustBadges'
 import './Layout.css'
 
@@ -25,6 +26,7 @@ interface NavCategory {
 export default function Layout({ children }: LayoutProps) {
   const location = useLocation()
   const { t, language, setLanguage } = useI18n()
+  const { user, logout, isVip } = useAuth()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['imageTools', 'pdfTools', 'videoTools', 'fileTools', 'ocrTools']))
   
@@ -138,6 +140,11 @@ export default function Layout({ children }: LayoutProps) {
     setMobileMenuOpen(false)
   }
   
+  const handleLogout = () => {
+    logout()
+    setMobileMenuOpen(false)
+  }
+  
   const isActive = (path: string) => location.pathname === path
 
   
@@ -145,38 +152,69 @@ export default function Layout({ children }: LayoutProps) {
     <div className="layout">
       <header className="header">
         <div className="header-content">
-          <button
-            className="mobile-menu-toggle"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            aria-label="Toggle menu"
-          >
-            {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
-          </button>
+          {/* 左侧：移动端菜单按钮 + Logo */}
+          <div className="header-left">
+            <Link to="/" className="header-logo">
+              <div className="logo-icon">
+                <Shield />
+              </div>
+              <span className="header-logo-text">CommonTools</span>
+            </Link>
+            <button
+              className="mobile-menu-toggle"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label="Toggle menu"
+            >
+              {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
+          </div>
+          
+          {/* 右侧：语言切换 + 认证按钮 */}
+          <div className="header-auth">
+            <button
+              className="language-toggle header-language"
+              onClick={toggleLanguage}
+              title={language === 'zh-CN' ? 'Switch to English' : '切换到中文'}
+              aria-label={language === 'zh-CN' ? 'Switch to English' : '切换到中文'}
+            >
+              <Globe size={18} />
+              <span className="lang-label">{language === 'zh-CN' ? 'EN' : 'CN'}</span>
+            </button>
+
+            {user ? (
+              <div className="auth-user-info">
+                <span className="auth-username">{user.username}</span>
+                {isVip() && <span className="auth-vip-badge">VIP</span>}
+                <button 
+                  className="auth-logout-btn" 
+                  onClick={handleLogout}
+                  title={t('auth.logout')}
+                  aria-label={t('auth.logout')}
+                >
+                  <LogOut size={18} />
+                </button>
+              </div>
+            ) : (
+              <Link 
+                to="/login" 
+                className="auth-login-btn"
+                title={t('auth.login')}
+              >
+                <LogIn size={18} />
+                <span className="auth-btn-text">{t('auth.login')}</span>
+              </Link>
+            )}
+          </div>
         </div>
       </header>
       
       <div className="layout-container">
         {/* 左侧导航侧边栏 */}
         <aside className={`sidebar ${mobileMenuOpen ? 'open' : ''}`}>
-          <div className="sidebar-header">
-            <Link to="/" className="sidebar-logo">
-              <div className="logo-icon">
-                <Shield />
-              </div>
-              <span className="logo-text">CommonTools</span>
-            </Link>
-            <div className="sidebar-header-actions">
-              <button 
-                className="language-toggle" 
-                onClick={toggleLanguage}
-                title={language === 'zh-CN' ? 'Switch to English' : '切换到中文'}
-              >
-                <Globe size={18} />
-                <span>{language === 'zh-CN' ? 'EN' : 'CN'}</span>
-              </button>
-            </div>
-            {/* <h2 className="sidebar-title">功能模块</h2> */}
-          </div>
+          {/* sidebar header moved into top header for unified branding */}
+          
+          
+          
           <nav className="sidebar-nav">
             {/* 独立菜单项 */}
             {standaloneNavItems.map((item) => (

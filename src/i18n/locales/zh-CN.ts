@@ -38,6 +38,19 @@ export default {
     limitations: '限制',
   },
 
+  // 认证
+  auth: {
+    login: '登录',
+    logout: '退出登录',
+    register: '注册',
+    user: '用户',
+    signIn: '登录',
+    signUp: '注册',
+    signOut: '退出',
+    welcome: '欢迎',
+    profile: '个人资料',
+  },
+
   // 导航
   nav: {
     encryption: '加密文件',
