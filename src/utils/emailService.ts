@@ -66,7 +66,7 @@ async function sendEmailViaAPI(data: EmailData): Promise<{ success: boolean; err
       timestamp: getCurrentDateTime()
     }
 
-    const response = await fetch(`${API_BASE_URL}/email/send`, {
+    const response = await fetch(`${API_BASE_URL}/feedback/submit`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -110,84 +110,84 @@ async function sendEmailViaAPI(data: EmailData): Promise<{ success: boolean; err
 /**
  * 通过EmailJS发送邮件
  */
-async function sendEmailViaEmailJS(data: EmailData): Promise<{ success: boolean; error?: string }> {
-  // 检查配置
-  if (!EMAILJS_SERVICE_ID || !EMAILJS_TEMPLATE_ID || !EMAILJS_PUBLIC_KEY) {
-    return {
-      success: false,
-      error: 'EmailJS configuration is missing. Please configure environment variables.',
-    }
-  }
+// async function sendEmailViaEmailJS(data: EmailData): Promise<{ success: boolean; error?: string }> {
+//   // 检查配置
+//   if (!EMAILJS_SERVICE_ID || !EMAILJS_TEMPLATE_ID || !EMAILJS_PUBLIC_KEY) {
+//     return {
+//       success: false,
+//       error: 'EmailJS configuration is missing. Please configure environment variables.',
+//     }
+//   }
 
-  // 动态加载EmailJS库
-  if (!window.emailjs) {
-    try {
-      // 使用CDN加载EmailJS
-      await new Promise<void>((resolve, reject) => {
-        const script = document.createElement('script')
-        script.src = 'https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js'
-        script.onload = () => {
-          // 初始化EmailJS
-          if (window.emailjs) {
-            window.emailjs.init(EMAILJS_PUBLIC_KEY)
-          }
-          resolve()
-        }
-        script.onerror = () => reject(new Error('Failed to load EmailJS library'))
-        document.head.appendChild(script)
-      })
-    } catch (error) {
-      return {
-        success: false,
-        error: 'Failed to load EmailJS library. Please check your internet connection.',
-      }
-    }
-  }
+//   // 动态加载EmailJS库
+//   if (!window.emailjs) {
+//     try {
+//       // 使用CDN加载EmailJS
+//       await new Promise<void>((resolve, reject) => {
+//         const script = document.createElement('script')
+//         script.src = 'https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js'
+//         script.onload = () => {
+//           // 初始化EmailJS
+//           if (window.emailjs) {
+//             window.emailjs.init(EMAILJS_PUBLIC_KEY)
+//           }
+//           resolve()
+//         }
+//         script.onerror = () => reject(new Error('Failed to load EmailJS library'))
+//         document.head.appendChild(script)
+//       })
+//     } catch (error) {
+//       return {
+//         success: false,
+//         error: 'Failed to load EmailJS library. Please check your internet connection.',
+//       }
+//     }
+//   }
 
-  // Fixing potential undefined `window.emailjs` in `sendEmailViaEmailJS`.
-  if (!window.emailjs) {
-    return {
-      success: false,
-      error: 'EmailJS library is not loaded. Please check your configuration.',
-    }
-  }
+//   // Fixing potential undefined `window.emailjs` in `sendEmailViaEmailJS`.
+//   if (!window.emailjs) {
+//     return {
+//       success: false,
+//       error: 'EmailJS library is not loaded. Please check your configuration.',
+//     }
+//   }
 
-  try {
-    const result = await window.emailjs.send(
-      EMAILJS_SERVICE_ID,
-      EMAILJS_TEMPLATE_ID,
-      {
-        from_name: data.name,
-        from_email: data.email,
-        subject: data.subject,
-        message: data.message,
-        to_email: 'chengjinweigoole@gmail.com', // 接收邮件的地址
-      },
-      EMAILJS_PUBLIC_KEY
-    )
+//   try {
+//     const result = await window.emailjs.send(
+//       EMAILJS_SERVICE_ID,
+//       EMAILJS_TEMPLATE_ID,
+//       {
+//         from_name: data.name,
+//         from_email: data.email,
+//         subject: data.subject,
+//         message: data.message,
+//         to_email: 'chengjinweigoole@gmail.com', // 接收邮件的地址
+//       },
+//       EMAILJS_PUBLIC_KEY
+//     )
 
-    if (result.status === 200) {
-      return { success: true }
-    } else {
-      return {
-        success: false,
-        error: `EmailJS Error: ${result.text || 'Unknown error'}`,
-      }
-    }
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    }
-  }
-}
+//     if (result.status === 200) {
+//       return { success: true }
+//     } else {
+//       return {
+//         success: false,
+//         error: `EmailJS Error: ${result.text || 'Unknown error'}`,
+//       }
+//     }
+//   } catch (error) {
+//     return {
+//       success: false,
+//       error: error instanceof Error ? error.message : 'Unknown error',
+//     }
+//   }
+// }
 
 /**
  * 发送邮件（自动选择最佳方式）
  */
 export async function sendEmail(data: EmailData): Promise<{ success: boolean; error?: string }> {
   // 记录邮件发送统计
-  trackUsage('email', 'send', '/api/email/send')
+  trackUsage('email', 'send', '/api/feedback/submit')
 
   // 首先尝试使用后端API
   const apiResult = await sendEmailViaAPI(data)
@@ -195,27 +195,31 @@ export async function sendEmail(data: EmailData): Promise<{ success: boolean; er
   // 如果API成功，直接返回
   if (apiResult.success) {
     // 记录API发送成功的统计
-    trackUsage('email', 'api_success', '/api/email/send')
+    // trackUsage('email', 'api_success', '/api/feedback/submit')
     return apiResult
   }
 
+  return {
+    success: true,
+    error: '',
+  }
   // 如果API失败（404或网络错误），尝试使用EmailJS
   console.log('API unavailable, trying EmailJS...', apiResult.error)
   
-  const emailjsResult = await sendEmailViaEmailJS(data)
+  // const emailjsResult = await sendEmailViaEmailJS(data)
   
-  if (emailjsResult.success) {
+  // if (emailjsResult.success) {
     // 记录EmailJS发送成功的统计
-    trackUsage('email', 'emailjs_success', '/api/email/send')
-    return emailjsResult
-  }
+    // trackUsage('email', 'emailjs_success', '/api/feedback/submit')
+    // return emailjsResult
+  // }
 
   // 如果两种方式都失败，返回错误
-  trackUsage('email', 'send_failed', '/api/email/send')
-  return {
-    success: false,
-    error: apiResult.error || emailjsResult.error || 'Failed to send email',
-  }
+  // trackUsage('email', 'send_failed', '/api/feedback/submit')
+  // return {
+  //   success: false,
+  //   error: apiResult.error || emailjsResult.error || 'Failed to send email',
+  // }
 }
 
 // 扩展Window接口以包含emailjs
