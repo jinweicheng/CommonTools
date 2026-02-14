@@ -38,7 +38,8 @@
 .header-content {
   /* max-width: 1500px;
   margin: 0 auto; */
-  /* padding: 0.75rem var(--spacing-2xl); */
+  padding: 0.75rem 0.75rem;
+  max-width:1800px !important;
   display: flex;
   justify-content: space-between;
   align-items: center;
