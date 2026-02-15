@@ -54,34 +54,51 @@ export async function logout(): Promise<void> {
 }
 
 export async function refreshAccessToken(): Promise<string | null> {
-  // Attempt refresh via httpOnly cookie first (backend should support /auth/refresh without body)
-  try {
-    const res = await apiClient.post('/auth/refresh', {})
-    const token = getAccessTokenFromResponse((res?.data || null) as TokenResponse | null)
-    if (token) {
-      if (res.data?.refreshToken) safeSetRefreshToken(res.data.refreshToken)
-      return token
-    }
-  } catch {
-    // ignore and fallback
+  // Single-flight guard: if a refresh is already in progress, wait for it.
+  // This prevents sending multiple /auth/refresh calls in parallel.
+  if ((refreshAccessToken as any)._inflight) {
+    return (refreshAccessToken as any)._inflight
   }
 
-  // Fallback: if refresh token stored in localStorage, send it to server
-  const refresh = getRefreshToken()
-  if (refresh) {
+  const inflight = (async (): Promise<string | null> => {
+    // Attempt refresh via httpOnly cookie first (backend should support /auth/refresh without body)
     try {
-      const res = await apiClient.post('/auth/refresh', { refreshToken: refresh })
+      const res = await apiClient.post('/auth/refresh', {})
       const token = getAccessTokenFromResponse((res?.data || null) as TokenResponse | null)
       if (token) {
-        if (res.data.refreshToken) safeSetRefreshToken(res.data.refreshToken)
+        if (res.data?.refreshToken) safeSetRefreshToken(res.data.refreshToken)
         return token
       }
     } catch {
-      // ignore
+      // ignore and fallback
     }
-  }
 
-  return null
+    // Fallback: if refresh token stored in localStorage, send it to server
+    const refresh = getRefreshToken()
+    if (refresh) {
+      try {
+        const res = await apiClient.post('/auth/refresh', { refreshToken: refresh })
+        const token = getAccessTokenFromResponse((res?.data || null) as TokenResponse | null)
+        if (token) {
+          if (res.data.refreshToken) safeSetRefreshToken(res.data.refreshToken)
+          return token
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    return null
+  })()
+
+  ;(refreshAccessToken as any)._inflight = inflight
+  try {
+    const result = await inflight
+    return result
+  } finally {
+    // clear inflight regardless of success/failure so subsequent calls can retry
+    delete (refreshAccessToken as any)._inflight
+  }
 }
 
 const REFRESH_KEY = 'refresh_token'
