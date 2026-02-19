@@ -25,31 +25,47 @@
 CommonTools is a comprehensive suite of free online tools designed for professional image processing, video editing, and file management. Unlike traditional online tools that require uploading files to servers, CommonTools processes everything locally in your web browser using advanced JavaScript APIs. This ensures complete privacy protection - your files never leave your device.
 
 Image Tools:
+
 [Free Tools File Encryption](https://commontools.top/tools)
+
 [Free Tools Image Compression](https://commontools.top/tools/image-compression)
+
 [Free Tools HEIC To JPG](https://commontools.top/tools/heic-to-jpg)
+
 [Free Tools Image Watermark](https://commontools.top/tools/image-watermark)
+
 [Free Tools Image Encryption](https://commontools.top/tools/image-encryption)
+
 [Free Tools Image Mosaic](https://commontools.top/tools/image-mosaic)
 
 
 
 PDF Tools:
+
 [Free Tools PDF Encrypt to HTML](https://commontools.top/tools/pdf-encrypt-html)
+
 [Free Tools PDF Encryption](https://commontools.top/tools/pdf-encrypt)
+
 [Free Tools PDF Watermark](https://commontools.top/tools/pdf-watermark)
+
 [Free Tools PDF Signature](https://commontools.top/tools/pdf-signature)
 
 OCR Tools:
+
 [Free Tools OCR Image](https://commontools.top/tools/ocr-image-to-text)
 
 Video Tools:
-[Free Tools Video Compression] (https://commontools.top/tools/video-compression)
+
+[Free Tools Video Compression](https://commontools.top/tools/video-compression)
+
 [Free Tools Video To Gif](https://commontools.top/tools/video-to-gif)
+
 [Free Tools Video Converter](https://commontools.top/tools/video-converter)
 
 File Tools:
+
 [Free Tools Conversion](https://commontools.top/tools/conversion)
+
 [Free Tools Encryption](https://commontools.top/tools/encryption)
 
 ### Why Choose CommonTools?
